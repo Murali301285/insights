@@ -1,0 +1,264 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+model Company {
+  id                 String   @id @default(cuid())
+  name               String
+  code               String?  @unique
+  logo               String?
+  address            String?
+  registrationNumber String?
+  contactEmail       String?
+  contactPhone       String?
+  isBlocked          Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  users              User[]
+  kpiEntries         KpiEntry[]
+  financeMetrics     FinanceMetrics[]
+  salesMetrics       SalesMetrics[]
+  manufacturingMetrics ManufacturingMetrics[]
+  supplyChainMetrics SupplyChainMetrics[]
+  supportMetrics     SupportMetrics[]
+  hrMetrics          HrMetrics[]
+  hierarchyNodes     HierarchyNode[]
+}
+
+model HierarchyNode {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  // Position Details
+  title     String   // e.g., "CEO", "Head of Sales"
+  
+  // Person Details (Optional)
+  name      String?
+  email     String?
+  phone     String?
+  location  String?
+  photo     String?  // Base64 or URL
+  
+  // Tree Structure
+  parentId  String?
+  parent    HierarchyNode? @relation("Tree", fields: [parentId], references: [id])
+  children  HierarchyNode[] @relation("Tree")
+  
+  order     Int      @default(0) // For sorting siblings
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model KpiEntry {
+  id        String   @id @default(cuid())
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+  category  String   // "Finance", "Sales", "Manufacturing", etc.
+  metric    String   // "Cash Inflow", "Accounts Receivable", etc.
+  date      DateTime // Representative date for the period
+  period    String   // "Weekly", "Monthly", "Quarterly", "Annual"
+  value     Float
+  target    Float?
+  status    String?  // "Critical", "On Track", etc.
+  meta      Json?    // For deep dive data
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category, period, date])
+  @@index([companyId])
+}
+
+model User {
+  id          String   @id @default(cuid())
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  email       String   @unique
+  username    String?  @unique
+  profileName String?
+  password    String   // Hashed password
+  image       String?  // Avatar URL or Base64
+  role        String   @default("user") // "admin" | "user"
+  isBlocked   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model Settings {
+  id    String @id @default(cuid())
+  key   String @unique
+  value Json
+}
+
+model FinanceMetrics {
+  id          String   @id @default(cuid())
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  period      String   // "Weekly", "Monthly", "Quarterly", "Annual"
+  date        DateTime // For filtering (start date of period)
+  
+  // KPIs
+  revenue     Float    @default(0)
+  expenses    Float    @default(0)
+  profit      Float    @default(0) // Net
+  
+  // Cash Flow
+  inflow      Float    @default(0)
+  outflow     Float    @default(0)
+  
+  // AR / AP
+  arTotal     Float    @default(0)
+  arCurrent   Float    @default(0)
+  arOverdue   Float    @default(0) // 30+ days
+  
+  apTotal     Float    @default(0)
+  apCurrent   Float    @default(0)
+  apOverdue   Float    @default(0) // 30+ days
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model SalesMetrics {
+  id          String   @id @default(cuid())
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  period      String   // "Weekly", "Monthly", "Quarterly", "Annual"
+  date        DateTime // For filtering (start date of period)
+  
+  // Targets & YTD
+  annualTarget Float   @default(0)
+  ordersYtd    Float   @default(0)
+  invoiceYtd   Float   @default(0)
+
+  // Funnel (Quantity)
+  leadsCount        Int @default(0)
+  rfqCount          Int @default(0)
+  quotesCount       Int @default(0)
+  negotiationCount  Int @default(0)
+  orderCount        Int @default(0)
+
+  // Funnel (Value)
+  quotesValue       Float @default(0)
+  negotiationValue  Float @default(0)
+  winValue          Float @default(0)
+  lossValue         Float @default(0) // For analysis
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model ManufacturingMetrics {
+  id          String   @id @default(cuid())
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  period      String   // "Weekly", "Monthly", "Quarterly", "Annual"
+  date        DateTime
+
+  // RFQ Analytics
+  rfqNew      Int      @default(0) // This week
+  rfqStandard Int      @default(0)
+  rfqCustom   Int      @default(0)
+
+  // Project Status
+  projectOnTrack    Int @default(0)
+  projectDelayed    Int @default(0)
+  projectCritical   Int @default(0)
+
+  // Efficiency
+  efficiency        Float @default(0) // Percentage
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model SupplyChainMetrics {
+  id          String   @id @default(cuid())
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  period      String
+  date        DateTime
+
+  // Payment Terms
+  cashTerms   Int      @default(0)
+  net15Terms  Int      @default(0)
+  net30Terms  Int      @default(0)
+  net60Terms  Int      @default(0)
+
+  // Sourcing
+  domesticSource Int   @default(0)
+  intlSource     Int   @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model SupportMetrics {
+  id          String   @id @default(cuid())
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  period      String
+  date        DateTime
+
+  totalTickets    Int @default(0)
+  openTickets     Int @default(0)
+  resolvedTickets Int @default(0)
+  avgResponseTime Float @default(0) // Hours
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model HrMetrics {
+  id          String   @id @default(cuid())
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  period      String
+  date        DateTime
+
+  // Recruitment Funnel
+  recruitedApplied   Int @default(0)
+  recruitedScreening Int @default(0)
+  recruitedInterview Int @default(0)
+  recruitedOffer     Int @default(0)
+  recruitedHired     Int @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String   // "LOGIN", "CREATE_USER", "UPDATE_SETTINGS", etc.
+  entity    String   // "User", "System", "Invoice", etc.
+  entityId  String?  // ID of the affected entity
+  details   Json?    // Flexible JSON
+  userId    String?  // ID of the user performing the action
+  userEmail String?  // Redundant email storage
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
