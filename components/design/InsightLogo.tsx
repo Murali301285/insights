@@ -7,7 +7,7 @@ export function InsightLogo({ className }: { className?: string }) {
             <span>INS</span>
             <div className="relative flex items-center justify-center">
                 {/* The 'Eye' represents the O */}
-                <Eye className="w-6 h-6 text-zinc-900 stroke-[2.5px] animate-[zoom-in-out_3s_ease-in-out_infinite]" />
+                <Eye className="w-6 h-6 text-zinc-900 stroke-[2.5px] rotate-90 animate-[zoom-in-out_3s_ease-in-out_infinite]" />
                 <div className="absolute inset-0 bg-emerald-500/20 rounded-full animate-pulse blur-sm" />
             </div>
             <span>GHT</span>

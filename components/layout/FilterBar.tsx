@@ -23,9 +23,10 @@ import { Badge } from "@/components/ui/badge"
 import { useFilter } from "@/components/providers/FilterProvider"
 
 
+import { IndianRupee, DollarSign } from "lucide-react"
 
 export function FilterBar() {
-    const { selectedCompanyIds, setSelectedCompanyIds, period, setPeriod, currency, setCurrency } = useFilter()
+    const { selectedCompanyIds, setSelectedCompanyIds, currency, setCurrency } = useFilter()
     const [open, setOpen] = React.useState(false)
     const [isAIReportOpen, setIsAIReportOpen] = React.useState(false)
 
@@ -132,10 +133,21 @@ export function FilterBar() {
                     </Command>
                 </PopoverContent>
             </Popover>
+            {/* Currency Toggle */}
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrency(currency === "INR" ? "USD" : "INR")}
+                className="ml-2 gap-1.5 h-8 bg-zinc-50 border-zinc-200 text-zinc-700 hover:bg-zinc-100"
+            >
+                {currency === "INR" ? <IndianRupee className="w-3.5 h-3.5" /> : <DollarSign className="w-3.5 h-3.5" />}
+                <span className="hidden sm:inline text-xs font-semibold">{currency}</span>
+            </Button>
+
             {/* AI Report Button */}
             <Button
                 onClick={() => setIsAIReportOpen(true)}
-                className="bg-purple-600 hover:bg-purple-700 text-white gap-2 shadow-md hover:shadow-lg transition-all ml-2"
+                className="bg-purple-600 hover:bg-purple-700 text-white gap-2 h-8 shadow-sm hover:shadow transition-all ml-2"
             >
                 <BrainCircuit className="w-4 h-4" />
                 <span className="hidden md:inline">Generate Report</span>

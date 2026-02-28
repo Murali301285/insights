@@ -29,13 +29,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="light">
+    <html lang="en" className="light" suppressHydrationWarning>
       <body
         className={cn(
           geistSans.variable,
           geistMono.variable,
           "antialiased min-h-screen bg-zinc-50 font-sans text-zinc-900"
         )}
+        suppressHydrationWarning
       >
         <FilterProvider>
           <HeaderProvider>

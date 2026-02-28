@@ -115,17 +115,25 @@ model FinanceMetrics {
   profit      Float    @default(0) // Net
   
   // Cash Flow
-  inflow      Float    @default(0)
-  outflow     Float    @default(0)
+  inflow            Float    @default(0)
+  outflow           Float    @default(0)
+  cashBalance       Float    @default(0)
+  prevInflow        Float    @default(0)
+  prevOutflow       Float    @default(0)
+  prevCashBalance   Float    @default(0)
   
-  // AR / AP
+  // AR / AP Deep Dive
   arTotal     Float    @default(0)
   arCurrent   Float    @default(0)
-  arOverdue   Float    @default(0) // 30+ days
+  ar0to30     Float    @default(0)
+  ar30to60    Float    @default(0)
+  ar60to90plus Float   @default(0)
   
   apTotal     Float    @default(0)
   apCurrent   Float    @default(0)
-  apOverdue   Float    @default(0) // 30+ days
+  ap0to30     Float    @default(0)
+  ap30to60    Float    @default(0)
+  ap60to90plus Float   @default(0)
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -142,8 +150,8 @@ model SalesMetrics {
   
   // Targets & YTD
   annualTarget Float   @default(0)
-  ordersYtd    Float   @default(0)
-  invoiceYtd   Float   @default(0)
+  ordersYtdPct Float   @default(0) // Percentage 0-100
+  invoiceYtdPct Float  @default(0) // Percentage 0-100
 
   // Funnel (Quantity)
   leadsCount        Int @default(0)
@@ -176,9 +184,9 @@ model ManufacturingMetrics {
   rfqStandard Int      @default(0)
   rfqCustom   Int      @default(0)
 
-  // Project Status
+  // Project Status Deep Dive
   projectOnTrack    Int @default(0)
-  projectDelayed    Int @default(0)
+  projectBehindSchedule Int @default(0)
   projectCritical   Int @default(0)
 
   // Efficiency
@@ -197,15 +205,20 @@ model SupplyChainMetrics {
   period      String
   date        DateTime
 
-  // Payment Terms
-  cashTerms   Int      @default(0)
+  // Payment Status
+  outstandingPayments Float @default(0)
+
+  // Sourcing Nodes
+  domesticSource Int   @default(0)
+  intlSource     Int   @default(0)
+
+  // Payment Terms Deep Dive
+  totalSuppliers Int   @default(0)
+  cashAdvanceTerms Int @default(0)
   net15Terms  Int      @default(0)
   net30Terms  Int      @default(0)
   net60Terms  Int      @default(0)
-
-  // Sourcing
-  domesticSource Int   @default(0)
-  intlSource     Int   @default(0)
+  net90Terms  Int      @default(0)
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -222,6 +235,7 @@ model SupportMetrics {
 
   totalTickets    Int @default(0)
   openTickets     Int @default(0)
+  criticalIssues  Int @default(0)
   resolvedTickets Int @default(0)
   avgResponseTime Float @default(0) // Hours
 
@@ -237,6 +251,13 @@ model HrMetrics {
   company     Company? @relation(fields: [companyId], references: [id])
   period      String
   date        DateTime
+
+  // Org Strength
+  orgStrength        Int @default(0)
+
+  // Open Positions Deep dive
+  openPosLagging     Int @default(0)
+  openPosOnTrack     Int @default(0)
 
   // Recruitment Funnel
   recruitedApplied   Int @default(0)

@@ -1,44 +1,33 @@
 "use client"
 
-import { useState } from "react"
-import {
-    LifeBuoy,
-    AlertOctagon,
-    CheckCircle,
-    Clock,
-    ThumbsUp,
-    MessageSquare,
-    Plus,
-    Eye,
-    TrendingUp,
-    TrendingDown,
-    Heart,
-    Ticket
-} from "lucide-react"
-import { useEffect } from "react"
+import { useState, useEffect } from "react"
+import { PremiumCard } from "@/components/design/PremiumCard"
 import { useHeader } from "@/components/providers/HeaderProvider"
-import { SmartEntrySheet } from "@/components/data-entry/SmartEntrySheet"
+import { useFilter } from "@/components/providers/FilterProvider"
+import {
+    LifeBuoy, CheckCircle2, AlertCircle, Clock, Plus, Eye, Activity
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
-    PieChart,
-    Pie,
-    Cell,
-    ResponsiveContainer,
-    Tooltip,
-    Legend
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+    ResponsiveContainer, Cell, PieChart, Pie, Legend
 } from 'recharts'
-
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { SmartEntrySheet } from "@/components/data-entry/SmartEntrySheet"
 
 export default function SupportPage() {
     const { setHeaderInfo } = useHeader()
+    const { period } = useFilter()
 
     useEffect(() => {
-        setHeaderInfo("Field Support", "Ticket resolution and customer satisfaction.")
+        setHeaderInfo("Field Support & Service", "Monitor ticket volumes, resolution rates, and critical issues.")
     }, [setHeaderInfo])
-    const [period, setPeriod] = useState("Weekly")
+
     const [isEntryOpen, setIsEntryOpen] = useState(false)
     const [metrics, setMetrics] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
+
+    const [criticalModalOpen, setCriticalModalOpen] = useState(false)
 
     const fetchData = async () => {
         setLoading(true)
@@ -59,342 +48,230 @@ export default function SupportPage() {
 
     const latest = metrics[0] || {}
 
-    // Derived Data
-    const openTickets = latest.openTickets || 0
-    const resolved = latest.resolvedTickets || 0
-    const total = latest.totalTickets || (openTickets + resolved)
-
-    // Fallback if total is 0 to avoid empty charts
-    const ticketStatusData = [
-        { name: 'Open', value: openTickets, fill: '#3b82f6' },
-        { name: 'Resolved', value: resolved, fill: '#10b981' },
+    const issuePriorityData = [
+        { name: "Critical", value: latest.criticalIssues || 0, color: "#f43f5e" },
+        { name: "Open Normal", value: (latest.openTickets || 0) - (latest.criticalIssues || 0), color: "#f59e0b" },
+        { name: "Resolved", value: latest.resolvedTickets || 0, color: "#10b981" }
     ]
 
-    // Help Desk Live Feed
-    const supportFeed = [
-        { id: 1, title: "New Ticket #3882", desc: "Login issue reported.", time: "2m ago", type: "info" },
-        { id: 2, title: "Escalation", desc: "Enterprise client outage.", time: "1h ago", type: "alert" },
-        { id: 3, title: "Resolved #3880", desc: "Fixed in 15 mins.", time: "3h ago", type: "success" },
-        { id: 4, title: "Chat Session", desc: "Agent active with User.", time: "4h ago", type: "neutral" },
+    const trendData = metrics.map((m: any) => ({
+        name: new Date(m.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
+        resolved: m.resolvedTickets || 0,
+        open: m.openTickets || 0
+    })).reverse()
+
+    const activeTickets = [
+        { id: "T-8902", title: "System Outage", priority: "Critical", time: "10m ago" },
+        { id: "T-8903", title: "Login Error", priority: "High", time: "1h ago" },
+        { id: "T-8904", title: "Billing Question", priority: "Normal", time: "2h ago" },
     ]
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
+
             {/* Actions Bar */}
             <div className="flex justify-end items-center gap-4 mb-2">
-
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center px-3 py-1.5 bg-rose-50 border border-rose-100 rounded-full">
-                        <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse mr-2" />
-                        <span className="text-sm font-medium text-rose-800">Support Live</span>
-                    </div>
-
-                    <div className="flex items-center bg-white p-1 rounded-lg border border-zinc-200 shadow-sm ml-2">
-                        {["Weekly", "Monthly", "Quarterly", "Annual"].map((p) => (
-                            <button
-                                key={p}
-                                onClick={() => setPeriod(p)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${period === p
-                                    ? "bg-zinc-900 text-white shadow-sm"
-                                    : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50"
-                                    }`}
-                            >
-                                {p}
-                            </button>
-                        ))}
-                    </div>
-
-                    <Button onClick={() => setIsEntryOpen(true)} size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all">
-                        <Plus className="w-4 h-4" />
-                        Entry
-                    </Button>
-                </div>
+                <Button onClick={() => setIsEntryOpen(true)} size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all">
+                    <Plus className="w-4 h-4" />
+                    New Ticket Log
+                </Button>
             </div>
 
-            {/* Main Layout: Grid + Side Panel */}
             <div className="grid grid-cols-12 gap-6 h-auto">
-
-                {/* Left Column: Metrics & Charts - Spans 9 cols */}
                 <div className="col-span-12 lg:col-span-9 space-y-6">
 
-                    {/* KPI Bento Row */}
+                    {/* KPIs */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setIsEntryOpen(true); }}
-                                title="View Data Details"
-                                className="absolute top-4 right-4 p-1.5 rounded-full bg-emerald-50 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100 transition-all z-20 opacity-0 group-hover:opacity-100 animate-pulse"
-                            >
-                                <Eye className="w-4 h-4" />
-                            </button>
-                            <div className="relative z-10">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <p className="text-sm font-medium text-zinc-500">Open Tickets</p>
-                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{openTickets}</h3>
-                                    </div>
-                                    <div className="p-2 bg-blue-50 rounded-xl">
-                                        <MessageSquare className="w-5 h-5 text-blue-600" />
-                                    </div>
-                                </div>
-                                <div className="flex items-center text-xs text-zinc-500 font-medium bg-blue-50 w-fit px-2 py-1 rounded-full">
-                                    {total} Total this period
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setIsEntryOpen(true); }}
-                                title="View Data Details"
-                                className="absolute top-4 right-4 p-1.5 rounded-full bg-emerald-50 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100 transition-all z-20 opacity-0 group-hover:opacity-100 animate-pulse"
-                            >
-                                <Eye className="w-4 h-4" />
-                            </button>
-                            <div className="relative z-10">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <p className="text-sm font-medium text-zinc-500">Critical Issues</p>
-                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{latest.criticalIssues || 0}</h3>
-                                    </div>
-                                    <div className="p-2 bg-rose-50 rounded-xl">
-                                        <AlertOctagon className="w-5 h-5 text-rose-600" />
-                                    </div>
-                                </div>
-                                <div className="w-full bg-zinc-100 h-1.5 rounded-full overflow-hidden">
-                                    <div className="bg-rose-500 h-full" style={{ width: total ? `${((latest.criticalIssues || 0) / total) * 100}%` : '0%' }} />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setIsEntryOpen(true); }}
-                                title="View Data Details"
-                                className="absolute top-4 right-4 p-1.5 rounded-full bg-emerald-50 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100 transition-all z-20 opacity-0 group-hover:opacity-100 animate-pulse"
-                            >
-                                <Eye className="w-4 h-4" />
-                            </button>
-                            <div className="relative z-10">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <p className="text-sm font-medium text-zinc-500">CSAT Score</p>
-                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{latest.csatScore || 0}/5.0</h3>
-                                    </div>
-                                    <div className="p-2 bg-emerald-50 rounded-xl">
-                                        <ThumbsUp className="w-5 h-5 text-emerald-600" />
-                                    </div>
-                                </div>
-                                <div className="flex space-x-1 mt-2">
-                                    {[1, 2, 3, 4, 5].map(s => (
-                                        <div key={s} className={`h-1.5 flex-1 rounded-full ${s <= (latest.csatScore || 0) ? 'bg-emerald-500' : 'bg-emerald-200'}`} />
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
+                        <PremiumCard
+                            title="Total Tickets"
+                            value={latest.totalTickets || 0}
+                            icon={<LifeBuoy className="w-4 h-4 text-blue-600" />}
+                            trend={{ value: 0, label: "Volume this period", positive: true }}
+                            borderGlow="blue"
+                        />
+                        <PremiumCard
+                            title="Open Tickets"
+                            value={latest.openTickets || 0}
+                            icon={<AlertCircle className="w-4 h-4 text-amber-600" />}
+                            trend={{ value: 0, label: "Awaiting resolution", positive: false }}
+                            borderGlow="amber"
+                        />
+                        <PremiumCard
+                            title="Resolved Tickets"
+                            value={latest.resolvedTickets || 0}
+                            icon={<CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+                            trend={{ value: 0, label: "Successfully closed", positive: true }}
+                            borderGlow="emerald"
+                        />
                     </div>
 
-                    {/* Support Excellence Row (FCR, AHT, NPS) */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setIsEntryOpen(true); }}
-                                title="View Data Details"
-                                className="absolute top-4 right-4 p-1.5 rounded-full bg-emerald-50 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100 transition-all z-20 opacity-0 group-hover:opacity-100 animate-pulse"
-                            >
-                                <Eye className="w-4 h-4" />
-                            </button>
-                            <div className="relative z-10">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <p className="text-sm font-medium text-zinc-500">First Contact Resolution</p>
-                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{latest.fcr || 0}%</h3>
-                                    </div>
-                                    <div className="p-2 bg-blue-50 rounded-xl">
-                                        <CheckCircle className="w-5 h-5 text-blue-600" />
-                                    </div>
-                                </div>
-                                <div className="w-full bg-zinc-100 h-1.5 rounded-full overflow-hidden">
-                                    <div className="bg-blue-600 h-full" style={{ width: `${latest.fcr || 0}%` }} />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-amber-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setIsEntryOpen(true); }}
-                                title="View Data Details"
-                                className="absolute top-4 right-4 p-1.5 rounded-full bg-emerald-50 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100 transition-all z-20 opacity-0 group-hover:opacity-100 animate-pulse"
-                            >
-                                <Eye className="w-4 h-4" />
-                            </button>
-                            <div className="relative z-10">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <p className="text-sm font-medium text-zinc-500">Average Handle Time</p>
-                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{latest.aht || 0}m</h3>
-                                    </div>
-                                    <div className="p-2 bg-amber-50 rounded-xl">
-                                        <Clock className="w-5 h-5 text-amber-600" />
-                                    </div>
-                                </div>
-                                <div className="text-xs text-zinc-400">Target: &lt; 15m</div>
-                            </div>
-                        </div>
-
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setIsEntryOpen(true); }}
-                                title="View Data Details"
-                                className="absolute top-4 right-4 p-1.5 rounded-full bg-emerald-50 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100 transition-all z-20 opacity-0 group-hover:opacity-100 animate-pulse"
-                            >
-                                <Eye className="w-4 h-4" />
-                            </button>
-                            <div className="relative z-10">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <p className="text-sm font-medium text-zinc-500">Net Promoter Score</p>
-                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{latest.nps || 0}</h3>
-                                    </div>
-                                    <div className="p-2 bg-rose-50 rounded-xl">
-                                        <Heart className="w-5 h-5 text-rose-600" />
-                                    </div>
-                                </div>
-                                <div className="flex items-center text-xs text-rose-600 font-medium bg-rose-50 w-fit px-2 py-1 rounded-full">
-                                    Customer Sentiment
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Chart Grid */}
-                    <div className="grid grid-cols-12 gap-6 h-[400px]">
-                        {/* Large Chart: Ticket Status Pie */}
-                        <div className="col-span-12 md:col-span-8 bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden group">
-                            <h3 className="font-bold text-zinc-900 mb-6 flex items-center gap-2">
-                                <MessageSquare className="w-4 h-4 text-zinc-400" />
-                                Ticket Status
-                            </h3>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setIsEntryOpen(true); }}
-                                title="View Chart Data"
-                                className="absolute top-6 right-6 p-1.5 rounded-full bg-zinc-50 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition-all z-20 opacity-0 group-hover:opacity-100"
-                            >
-                                <Eye className="w-4 h-4" />
-                            </button>
-                            <div className="h-[300px] w-full">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={ticketStatusData}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={80}
-                                            outerRadius={120}
-                                            paddingAngle={5}
-                                            dataKey="value"
-                                            cornerRadius={8}
-                                        >
-                                            {ticketStatusData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.fill} strokeWidth={0} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip
-                                            contentStyle={{ borderRadius: '8px', border: '1px solid #e4e4e7' }}
-                                        />
-                                        <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-
-                        {/* Smaller Box: Performance Stats */}
-                        <div className="col-span-12 md:col-span-4 bg-zinc-900 rounded-3xl p-6 shadow-2xl relative overflow-hidden flex flex-col justify-between group">
+                    {/* Deep Dives */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Critical Issues */}
+                        <div
+                            className="bg-zinc-900 rounded-3xl p-6 shadow-xl relative overflow-hidden cursor-pointer group transition-all hover:scale-[1.01]"
+                            onClick={() => setCriticalModalOpen(true)}
+                        >
                             <div className="absolute top-0 right-0 w-48 h-48 bg-rose-500/10 rounded-full blur-3xl -mr-12 -mt-12 pointer-events-none" />
-                            <div>
-                                <h3 className="font-bold text-white mb-2 z-10 relative">Support KPIs</h3>
-                                <p className="text-zinc-400 text-xs relative z-10">Efficiency Metrics</p>
-                            </div>
                             <button
-                                onClick={(e) => { e.stopPropagation(); setIsEntryOpen(true); }}
-                                title="View Details"
-                                className="absolute top-6 right-6 p-1.5 rounded-full bg-white/10 text-zinc-400 hover:text-white hover:bg-white/20 transition-all z-20 opacity-0 group-hover:opacity-100"
+                                title="Deep Dive"
+                                className="absolute top-6 right-6 p-1.5 rounded-full bg-white/10 text-zinc-400 group-hover:text-rose-400 group-hover:bg-rose-400/20 transition-all z-20"
                             >
                                 <Eye className="w-4 h-4" />
                             </button>
-
-                            <div className="space-y-4 relative z-10">
-                                {/* Avg Response Time */}
-                                <div className="p-4 bg-white/5 rounded-xl border border-white/10">
-                                    <div className="flex items-center space-x-3 mb-2">
-                                        <Clock className="w-5 h-5 text-zinc-400" />
-                                        <span className="text-xs font-medium text-zinc-300">Avg. Response Time</span>
-                                    </div>
-                                    <div className="text-3xl font-bold text-white">{latest.avgResponseTime || 0}<span className="text-sm font-normal text-zinc-500 ml-1">hrs</span></div>
-                                    <div className="text-[10px] text-emerald-400 font-medium mt-1">Faster than SLA</div>
+                            <div className="relative z-10">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <h3 className="font-bold text-white text-lg">Critical Issues</h3>
+                                    <span className="text-[10px] bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full font-semibold uppercase">Deep Dive</span>
                                 </div>
+                                <p className="text-zinc-400 text-sm mb-4">High priority escalations</p>
 
-                                {/* Resolution Rate */}
-                                <div className="p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
-                                    <div className="flex items-center space-x-3 mb-2">
-                                        <CheckCircle className="w-5 h-5 text-emerald-500" />
-                                        <span className="text-xs font-medium text-emerald-200">Resolution Rate</span>
+                                <div className="flex justify-between items-center bg-rose-500/10 p-4 rounded-xl border border-rose-500/20 border-l-4 border-l-rose-500">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-rose-500/20 rounded-full">
+                                            <AlertCircle className="w-6 h-6 text-rose-400" />
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-rose-200">Needs Immediate Action</div>
+                                            <div className="text-2xl font-bold text-white">{latest.criticalIssues || 0}</div>
+                                        </div>
                                     </div>
-                                    <div className="text-3xl font-bold text-emerald-400">
-                                        {total ? Math.round((resolved / total) * 100) : 0}%
+                                    <div className="bg-rose-500 text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse">
+                                        ACT NOW
                                     </div>
-                                    <div className="text-[10px] text-emerald-600 font-medium mt-1">Tickets Resolved</div>
                                 </div>
                             </div>
+                        </div>
 
-                            <Button variant="outline" size="sm" className="w-full mt-4 bg-white/5 border-white/10 text-zinc-300 hover:text-white hover:bg-white/10">
-                                View Team Stats
-                            </Button>
+                        {/* Avg Response Time */}
+                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 className="font-bold text-zinc-900 text-lg">Avg Response Time</h3>
+                                    <p className="text-zinc-500 text-sm">Time to first reply</p>
+                                </div>
+                                <div className="p-2 bg-blue-50 rounded-xl">
+                                    <Clock className="w-5 h-5 text-blue-600" />
+                                </div>
+                            </div>
+                            <div className="flex items-baseline gap-2 mb-4">
+                                <span className="text-4xl font-bold text-zinc-900">{latest.avgResponseTime || 0}h</span>
+                            </div>
+                            <div className="flex gap-2">
+                                <div className="h-2 flex-1 bg-emerald-500 rounded-l-full" />
+                                <div className="h-2 flex-1 bg-emerald-500" />
+                                <div className="h-2 flex-1 bg-zinc-100 rounded-r-full" />
+                            </div>
+                            <div className="flex justify-between mt-2 text-xs font-semibold text-emerald-600 w-2/3 pr-2">
+                                <span>Fast</span>
+                                <span>Normal</span>
+                            </div>
                         </div>
                     </div>
 
+                    {/* Chart Section */}
+                    <div className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden h-[300px]">
+                        <h3 className="font-bold text-zinc-900 mb-6 flex items-center gap-2">
+                            <Activity className="w-4 h-4 text-zinc-400" />
+                            Ticket Resolution Trend
+                        </h3>
+                        {trendData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="80%">
+                                <BarChart data={trendData} margin={{ top: 0, right: 30, left: 20, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f4f4f5" />
+                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} dy={10} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} />
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                        cursor={{ fill: '#f4f4f5' }}
+                                    />
+                                    <Legend verticalAlign="top" height={36} />
+                                    <Bar dataKey="resolved" name="Resolved" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                    <Bar dataKey="open" name="Open" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="flex h-full items-center justify-center text-zinc-400">No data available.</div>
+                        )}
+                    </div>
                 </div>
 
-                {/* Right Column: Live Feed - Spans 3 cols */}
+                {/* Right Column */}
                 <div className="col-span-12 lg:col-span-3 h-full min-h-[500px]">
-                    <div className="h-full w-full bg-white rounded-3xl p-6 flex flex-col border border-zinc-200 shadow-sm relative overflow-hidden">
+                    <div className="h-full w-full bg-white rounded-3xl p-6 flex flex-col border border-zinc-200 shadow-sm align-start relative overflow-hidden">
                         <div className="flex items-center justify-between mb-6">
-                            <h3 className="font-bold text-zinc-900">Live Support</h3>
-                            <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                            <h3 className="font-bold text-zinc-900">Active High Priority</h3>
                         </div>
-
                         <div className="flex-1 space-y-4 overflow-hidden relative">
-                            {/* Mock Feed Items */}
-                            {supportFeed.map((item, i) => (
-                                <div key={i} className="flex gap-3 items-start p-3 rounded-xl bg-zinc-50 border border-zinc-100">
-                                    <div className={`w-1.5 h-1.5 mt-2 rounded-full shrink-0 ${item.type === 'success' ? 'bg-emerald-500' : item.type === 'alert' ? 'bg-rose-500' : 'bg-blue-500'}`} />
-                                    <div>
-                                        <h4 className="text-sm font-semibold text-zinc-900">{item.title}</h4>
-                                        <p className="text-xs text-zinc-500">{item.desc}</p>
-                                        <span className="text-[10px] text-zinc-400 mt-1 block">{item.time}</span>
+                            {activeTickets.map((ticket, i) => (
+                                <div key={i} className="flex flex-col gap-2 p-4 rounded-xl bg-zinc-50 border border-zinc-100 border-l-4 border-l-rose-400">
+                                    <div className="flex justify-between items-center">
+                                        <h4 className="text-sm font-bold text-zinc-900">{ticket.title}</h4>
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs text-zinc-500">
+                                        <span>{ticket.id}</span>
+                                        <span className={`px-2 py-0.5 rounded-full font-semibold ${ticket.priority === 'Critical' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                                            {ticket.priority}
+                                        </span>
+                                    </div>
+                                    <div className="text-[10px] text-zinc-400 font-medium tracking-wide">
+                                        Opened {ticket.time}
                                     </div>
                                 </div>
                             ))}
-
-                            <div className="p-4 bg-rose-50 rounded-2xl mt-8 border border-rose-100">
-                                <div className="flex justify-between items-center mb-2">
-                                    <h4 className="text-sm font-bold text-rose-900">Queued</h4>
-                                    <span className="text-xs font-medium text-rose-700 bg-rose-200 px-2 py-0.5 rounded-full">High</span>
-                                </div>
-                                <div className="text-2xl font-bold text-rose-800">12 Pending</div>
-                                <p className="text-xs text-rose-600 mt-1">Wait time ~15m.</p>
-                            </div>
                         </div>
                     </div>
                 </div>
-
             </div>
+
+            {/* Critical Issues Modal */}
+            <Dialog open={criticalModalOpen} onOpenChange={setCriticalModalOpen}>
+                <DialogContent className="sm:max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+                            Critical Issues Breakdown <span className="text-xs bg-rose-100 text-rose-800 px-2 py-1 rounded-full uppercase tracking-wider">Deep Dive</span>
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="py-6 flex flex-col items-center">
+                        <div className="h-[250px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={issuePriorityData}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={60}
+                                        outerRadius={100}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                    >
+                                        {issuePriorityData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                    />
+                                    <Legend verticalAlign="bottom" height={36} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+
+                        <div className="w-full mt-6 space-y-3">
+                            {issuePriorityData.map((d, i) => (
+                                <div key={i} className="flex justify-between items-center bg-zinc-50 p-3 rounded-lg border border-zinc-100">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
+                                        <span className="font-semibold text-zinc-700">{d.name}</span>
+                                    </div>
+                                    <span className="font-bold text-zinc-900 text-lg">{d.value}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             <SmartEntrySheet
                 isOpen={isEntryOpen}
