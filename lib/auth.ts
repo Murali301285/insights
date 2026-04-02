@@ -34,16 +34,17 @@ export async function getSession() {
 }
 
 export async function login(userData: { id: string; email: string; name: string; image?: string; role: string }) {
-    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 1 Day
+    const maxAge = 5 * 60; // 5 Minutes strict
+    const expires = new Date(Date.now() + maxAge * 1000);
     const session = await encrypt({ user: userData, expires });
 
     const cookieStore = await cookies();
-    cookieStore.set("session", session, { expires, httpOnly: true, sameSite: "lax" });
+    cookieStore.set("session", session, { maxAge, expires, httpOnly: true, sameSite: "lax" });
 }
 
 export async function logout() {
     const cookieStore = await cookies();
-    cookieStore.set("session", "", { expires: new Date(0) });
+    cookieStore.set("session", "", { maxAge: 0, expires: new Date(0) });
 }
 
 export async function updateSession(request: NextRequest) {
@@ -52,14 +53,21 @@ export async function updateSession(request: NextRequest) {
 
     // Refresh session expiration on activity
     const parsed = await decrypt(session);
-    parsed.expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    if (!parsed) return NextResponse.next(); // Do not crash, let middleware handle invalidation
+
+    // Prevent token bloat by stripping previous JWT metadata
+    const { iat, exp, ...cleanPayload } = parsed;
+
+    const maxAge = 5 * 60; // 5 Minutes strict
+    cleanPayload.expires = new Date(Date.now() + maxAge * 1000);
 
     const res = NextResponse.next();
     res.cookies.set({
         name: "session",
-        value: await encrypt(parsed),
+        value: await encrypt(cleanPayload),
         httpOnly: true,
-        expires: parsed.expires,
+        maxAge: maxAge,
+        expires: cleanPayload.expires,
     });
 
     return res;

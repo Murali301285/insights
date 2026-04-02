@@ -35,7 +35,7 @@ export function ShellLayout({ children, user }: ShellLayoutProps) {
             <AppSidebar user={user} />
             <main className="flex-1 relative z-10 flex flex-col overflow-hidden">
                 {/* Top Header for User Profile */}
-                <header className="flex justify-between items-center px-8 py-4 shrink-0 z-50">
+                <header className="flex justify-between items-center px-8 py-4 shrink-0 z-50 bg-white border-b border-zinc-200 shadow-sm">
                     <HeaderDisplay />
                     <div className="flex items-center gap-4">
                         <FilterBar />

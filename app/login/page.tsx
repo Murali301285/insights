@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { InsightLogo, InsightBackground } from "@/components/design/InsightLogo"
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,19 @@ export default function LoginPage() {
     const router = useRouter()
     const [loading, setLoading] = useState(false)
     const [showPassword, setShowPassword] = useState(false)
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('timeout') === 'true') {
+                toast.error("Session Expired", {
+                    description: "You have been logged out due to inactivity or an invalid session.",
+                    duration: 5000
+                });
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        }
+    }, [])
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
@@ -50,8 +63,9 @@ export default function LoginPage() {
             <InsightBackground />
 
             <div className="z-10 w-full max-w-md px-4">
-                <div className="mb-8 flex justify-center">
+                <div className="mb-8 flex flex-col items-center justify-center">
                     <InsightLogo className="text-3xl" />
+                    <span className="text-emerald-600 font-bold tracking-widest text-sm mt-1 uppercase">Intelligence</span>
                 </div>
 
                 <Card className="border-zinc-200 shadow-sm">

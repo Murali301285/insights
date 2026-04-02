@@ -32,8 +32,12 @@ export function FilterBar() {
 
     // Companies state
     const [companies, setCompanies] = React.useState<{ value: string, label: string }[]>([])
+    const [currentTime, setCurrentTime] = React.useState<string | null>(null)
 
     React.useEffect(() => {
+        // Hydration fix for date
+        setCurrentTime(new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }))
+
         const fetchCompanies = async () => {
             try {
                 const res = await fetch('/api/companies')
@@ -67,7 +71,7 @@ export function FilterBar() {
             <div className="hidden lg:flex flex-col items-end mr-4">
                 <span className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider">Last Updated</span>
                 <span className="text-xs font-bold text-zinc-700">
-                    {new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} by <span className="text-indigo-600">Admin</span>
+                    {currentTime ? currentTime : "..."} by <span className="text-indigo-600">Admin</span>
                 </span>
             </div>
 

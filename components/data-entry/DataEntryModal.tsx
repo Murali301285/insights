@@ -101,7 +101,7 @@ export function DataEntryModal({ isOpen, onClose, category }: DataEntryModalProp
     const [activeTab, setActiveTab] = useState("entry")
     const [loading, setLoading] = useState(false)
     const [date, setDate] = useState(new Date().toISOString().split('T')[0])
-    const [period, setPeriod] = useState("Monthly")
+    const [period, setPeriod] = useState("Weekly")
     const [formData, setFormData] = useState<Record<string, any>>({})
     const [logs, setLogs] = useState<any[]>([])
 

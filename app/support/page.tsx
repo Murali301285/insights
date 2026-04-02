@@ -5,7 +5,8 @@ import { PremiumCard } from "@/components/design/PremiumCard"
 import { useHeader } from "@/components/providers/HeaderProvider"
 import { useFilter } from "@/components/providers/FilterProvider"
 import {
-    LifeBuoy, CheckCircle2, AlertCircle, Clock, Plus, Eye, Activity
+    LifeBuoy, CheckCircle2, AlertCircle, Clock, Plus, Eye, Activity,
+    ArrowUpRight, ArrowDownRight
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,11 +14,12 @@ import {
     ResponsiveContainer, Cell, PieChart, Pie, Legend
 } from 'recharts'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { SmartEntrySheet } from "@/components/data-entry/SmartEntrySheet"
+import { TicketManager } from "@/components/data-entry/TicketManager"
+import { cn } from "@/lib/utils"
 
 export default function SupportPage() {
     const { setHeaderInfo } = useHeader()
-    const { period } = useFilter()
+    const { period: globalPeriod } = useFilter()
 
     useEffect(() => {
         setHeaderInfo("Field Support & Service", "Monitor ticket volumes, resolution rates, and critical issues.")
@@ -26,15 +28,19 @@ export default function SupportPage() {
     const [isEntryOpen, setIsEntryOpen] = useState(false)
     const [metrics, setMetrics] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
+    const [localPeriod, setLocalPeriod] = useState("Weekly")
 
     const [criticalModalOpen, setCriticalModalOpen] = useState(false)
+    const [totalTicketsModalOpen, setTotalTicketsModalOpen] = useState(false)
+    const [openTicketsModalOpen, setOpenTicketsModalOpen] = useState(false)
+    const [resolvedTicketsModalOpen, setResolvedTicketsModalOpen] = useState(false)
 
     const fetchData = async () => {
         setLoading(true)
         try {
-            const res = await fetch(`/api/metrics?category=support&period=${period}`)
+            const res = await fetch(`/api/metrics?category=support&period=${localPeriod}`)
             const data = await res.json()
-            setMetrics(data || [])
+            setMetrics(Array.isArray(data) ? data : [])
         } catch (error) {
             console.error(error)
         } finally {
@@ -44,9 +50,27 @@ export default function SupportPage() {
 
     useEffect(() => {
         fetchData()
-    }, [period])
+    }, [localPeriod])
 
     const latest = metrics[0] || {}
+
+    const getDiff = (curr: number, prev: number) => {
+        if (!prev || prev === 0) return 0
+        return ((curr - prev) / prev) * 100
+    }
+
+    const getPeriodText = () => {
+        if (localPeriod === "Weekly") return "week"
+        if (localPeriod === "Monthly") return "month"
+        if (localPeriod === "Quarterly") return "quarter"
+        if (localPeriod === "Annual") return "year"
+        return "month"
+    }
+    const periodText = getPeriodText()
+
+    const ticketsDiff = getDiff(latest.totalTickets || 0, latest.prevTotalTickets || 0)
+    const openDiff = getDiff(latest.openTickets || 0, latest.prevOpenTickets || 0)
+    const resolvedDiff = getDiff(latest.resolvedTickets || 0, latest.prevResolvedTickets || 0)
 
     const issuePriorityData = [
         { name: "Critical", value: latest.criticalIssues || 0, color: "#f43f5e" },
@@ -71,9 +95,26 @@ export default function SupportPage() {
 
             {/* Actions Bar */}
             <div className="flex justify-end items-center gap-4 mb-2">
-                <Button onClick={() => setIsEntryOpen(true)} size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all">
+                {/* Local Period Toggle */}
+                <div className="flex bg-zinc-100 p-1 rounded-full border border-zinc-200">
+                    {['Weekly', 'Monthly', 'Quarterly', 'Annual'].map((p) => (
+                        <button
+                            key={p}
+                            onClick={() => setLocalPeriod(p)}
+                            className={cn(
+                                "px-4 py-1.5 text-sm rounded-full font-medium transition-colors",
+                                localPeriod === p
+                                    ? "bg-zinc-900 text-white shadow-sm"
+                                    : "text-zinc-500 hover:text-zinc-900"
+                            )}
+                        >
+                            {p}
+                        </button>
+                    ))}
+                </div>
+                <Button onClick={() => setIsEntryOpen(true)} size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all h-9 rounded-full px-5">
                     <Plus className="w-4 h-4" />
-                    New Ticket Log
+                    Entry
                 </Button>
             </div>
 
@@ -82,27 +123,80 @@ export default function SupportPage() {
 
                     {/* KPIs */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <PremiumCard
-                            title="Total Tickets"
-                            value={latest.totalTickets || 0}
-                            icon={<LifeBuoy className="w-4 h-4 text-blue-600" />}
-                            trend={{ value: 0, label: "Volume this period", positive: true }}
-                            borderGlow="blue"
-                        />
-                        <PremiumCard
-                            title="Open Tickets"
-                            value={latest.openTickets || 0}
-                            icon={<AlertCircle className="w-4 h-4 text-amber-600" />}
-                            trend={{ value: 0, label: "Awaiting resolution", positive: false }}
-                            borderGlow="amber"
-                        />
-                        <PremiumCard
-                            title="Resolved Tickets"
-                            value={latest.resolvedTickets || 0}
-                            icon={<CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-                            trend={{ value: 0, label: "Successfully closed", positive: true }}
-                            borderGlow="emerald"
-                        />
+                        {/* Total Tickets */}
+                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
+                            <div className="relative z-10 flex flex-col h-full justify-between">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                        <p className="text-sm font-medium text-zinc-500">Total Tickets</p>
+                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{latest.totalTickets || 0}</h3>
+                                    </div>
+                                    <div className="flex flex-col gap-2 relative z-20">
+                                        <button onClick={() => setTotalTicketsModalOpen(true)} className="ml-auto p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-blue-600 transition-all z-20">
+                                            <Eye className="w-4 h-4" />
+                                        </button>
+                                        <div className="p-2 bg-blue-50 rounded-xl">
+                                            <LifeBuoy className="w-5 h-5 text-blue-600" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className={`flex items-center text-[10px] font-semibold w-fit px-2 py-0.5 rounded-full ${ticketsDiff < 0 ? 'text-emerald-600 bg-emerald-50' : ticketsDiff > 0 ? 'text-amber-600 bg-amber-50' : 'text-zinc-600 bg-zinc-50'}`}>
+                                    {ticketsDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : ticketsDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : null}
+                                    {Math.abs(ticketsDiff).toFixed(1)}% vs prev {periodText}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Open Tickets */}
+                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-amber-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
+                            <div className="relative z-10 flex flex-col h-full justify-between">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                        <p className="text-sm font-medium text-zinc-500">Open Tickets</p>
+                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{latest.openTickets || 0}</h3>
+                                    </div>
+                                    <div className="flex flex-col gap-2 relative z-20">
+                                        <button onClick={() => setOpenTicketsModalOpen(true)} className="ml-auto p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-amber-600 transition-all z-20">
+                                            <Eye className="w-4 h-4" />
+                                        </button>
+                                        <div className="p-2 bg-amber-50 rounded-xl">
+                                            <AlertCircle className="w-5 h-5 text-amber-600" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className={`flex items-center text-[10px] font-semibold w-fit px-2 py-0.5 rounded-full ${openDiff < 0 ? 'text-emerald-600 bg-emerald-50' : openDiff > 0 ? 'text-rose-600 bg-rose-50' : 'text-zinc-600 bg-zinc-50'}`}>
+                                    {openDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : openDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : null}
+                                    {Math.abs(openDiff).toFixed(1)}% vs prev {periodText}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Resolved Tickets */}
+                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
+                            <div className="relative z-10 flex flex-col h-full justify-between">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                        <p className="text-sm font-medium text-zinc-500">Resolved Tickets</p>
+                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{latest.resolvedTickets || 0}</h3>
+                                    </div>
+                                    <div className="flex flex-col gap-2 relative z-20">
+                                        <button onClick={() => setResolvedTicketsModalOpen(true)} className="ml-auto p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-emerald-600 transition-all z-20">
+                                            <Eye className="w-4 h-4" />
+                                        </button>
+                                        <div className="p-2 bg-emerald-50 rounded-xl">
+                                            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className={`flex items-center text-[10px] font-semibold w-fit px-2 py-0.5 rounded-full ${resolvedDiff > 0 ? 'text-emerald-600 bg-emerald-50' : resolvedDiff < 0 ? 'text-rose-600 bg-rose-50' : 'text-amber-600 bg-amber-50'}`}>
+                                    {resolvedDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : resolvedDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : null}
+                                    {Math.abs(resolvedDiff).toFixed(1)}% vs prev {periodText}
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Deep Dives */}
@@ -273,10 +367,66 @@ export default function SupportPage() {
                 </DialogContent>
             </Dialog>
 
-            <SmartEntrySheet
+            {/* Total Tickets Modal */}
+            <Dialog open={totalTicketsModalOpen} onOpenChange={setTotalTicketsModalOpen}>
+                <DialogContent className="sm:max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold">Total Support Volume</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                        <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                            <div>
+                                <p className="text-sm text-blue-600 font-medium">Recorded Volume</p>
+                                <p className="text-2xl font-bold text-blue-700">{latest.totalTickets || 0}</p>
+                            </div>
+                            <LifeBuoy className="w-8 h-8 text-blue-500 opacity-50" />
+                        </div>
+                        <p className="text-sm text-zinc-500">This metric represents the total number of support cases and field service requests logged into the system during the selected period.</p>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Open Tickets Modal */}
+            <Dialog open={openTicketsModalOpen} onOpenChange={setOpenTicketsModalOpen}>
+                <DialogContent className="sm:max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold">Open Tickets Status</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                        <div className="flex items-center justify-between p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                            <div>
+                                <p className="text-sm text-amber-600 font-medium">Pending Resolution</p>
+                                <p className="text-2xl font-bold text-amber-700">{latest.openTickets || 0}</p>
+                            </div>
+                            <AlertCircle className="w-8 h-8 text-amber-500 opacity-50" />
+                        </div>
+                        <p className="text-sm text-zinc-500">This metric shows the current backlog of unresolved support tickets, indicating the volume of ongoing field service demands.</p>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Resolved Tickets Modal */}
+            <Dialog open={resolvedTicketsModalOpen} onOpenChange={setResolvedTicketsModalOpen}>
+                <DialogContent className="sm:max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold">Resolved Tickets Details</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                        <div className="flex items-center justify-between p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
+                            <div>
+                                <p className="text-sm text-emerald-600 font-medium">Completed Service</p>
+                                <p className="text-2xl font-bold text-emerald-700">{latest.resolvedTickets || 0}</p>
+                            </div>
+                            <CheckCircle2 className="w-8 h-8 text-emerald-500 opacity-50" />
+                        </div>
+                        <p className="text-sm text-zinc-500">This metric represents the number of support requests successfully closed and resolved, reflecting your team's throughput.</p>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <TicketManager
                 isOpen={isEntryOpen}
                 onClose={() => { setIsEntryOpen(false); fetchData(); }}
-                category="support"
             />
         </div>
     )

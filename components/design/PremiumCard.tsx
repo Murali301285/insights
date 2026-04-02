@@ -7,11 +7,15 @@ interface PremiumCardProps extends React.ComponentProps<typeof Card> {
     title?: string
     subtitle?: string
     status?: "good" | "warning" | "critical" | "neutral"
-    children: React.ReactNode
+    borderGlow?: "blue" | "emerald" | "purple" | "amber" | "rose" | "zinc"
+    children?: React.ReactNode
     onInfoClick?: () => void
+    icon?: React.ReactNode
+    value?: string | number
+    trend?: { value: number, label: string, positive: boolean }
 }
 
-export function PremiumCard({ title, subtitle, status = "good", className, children, onInfoClick, ...props }: PremiumCardProps) {
+export function PremiumCard({ title, subtitle, status = "good", borderGlow, className, children, icon, value, trend, onInfoClick, ...props }: PremiumCardProps) {
     const statusColors = {
         good: "bg-emerald-500",
         warning: "bg-amber-500",

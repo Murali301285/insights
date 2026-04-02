@@ -1,23 +1,28 @@
 import { NextRequest } from "next/server";
-import { updateSession, getSession } from "@/lib/auth";
+import { updateSession, decrypt } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
 export async function middleware(request: NextRequest) {
-    // 1. Update session expiration if active
-    // await updateSession(request);
-
-    // 2. Protect Routes
-    const session = request.cookies.get("session")?.value;
+    const sessionValue = request.cookies.get("session")?.value;
     const path = request.nextUrl.pathname;
 
     // Public Routes (Login, Static Assets)
     if (path.startsWith("/login") || path.startsWith("/api/auth") || path.startsWith("/api/setup") || path.startsWith("/_next") || path.includes(".")) {
-        return await updateSession(request);
+        if (sessionValue) return await updateSession(request);
+        return NextResponse.next();
     }
 
     // Protected Routes
-    if (!session) {
-        return NextResponse.redirect(new URL("/login", request.url));
+    if (!sessionValue) {
+        return NextResponse.redirect(new URL("/login?timeout=true", request.url));
+    }
+
+    // Verify token identity strictly
+    const parsed = await decrypt(sessionValue);
+    if (!parsed || (parsed.expires && new Date(parsed.expires).getTime() < Date.now())) {
+        const response = NextResponse.redirect(new URL("/login?timeout=true", request.url));
+        response.cookies.delete("session");
+        return response;
     }
 
     return await updateSession(request);

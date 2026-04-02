@@ -15,7 +15,7 @@ const FilterContext = createContext<FilterContextType | undefined>(undefined)
 
 export function FilterProvider({ children }: { children: ReactNode }) {
     const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([])
-    const [period, setPeriod] = useState("Monthly")
+    const [period, setPeriod] = useState("Weekly")
     const [currency, setCurrency] = useState("INR")
 
     return (

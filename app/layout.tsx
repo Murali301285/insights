@@ -7,6 +7,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { HeaderProvider } from "@/components/providers/HeaderProvider";
 import { FilterProvider } from "@/components/providers/FilterProvider";
 import { DetailViewProvider } from "@/components/providers/DetailViewProvider";
+import { SessionManager } from "@/components/providers/SessionManager";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,7 +20,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "InsideCode | Insight Dashboard",
+  title: "Insight Intelligence",
   description: "B2B SaaS Analytics Platform",
 };
 
@@ -39,13 +40,15 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <FilterProvider>
-          <HeaderProvider>
-            <DetailViewProvider>
-              <AppShell>
-                {children}
-              </AppShell>
-            </DetailViewProvider>
-          </HeaderProvider>
+          <SessionManager>
+            <HeaderProvider>
+              <DetailViewProvider>
+                <AppShell>
+                  {children}
+                </AppShell>
+              </DetailViewProvider>
+            </HeaderProvider>
+          </SessionManager>
           <Toaster />
         </FilterProvider>
       </body>

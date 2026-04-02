@@ -34,7 +34,7 @@ export default function FinancePage() {
         try {
             const res = await fetch(`/api/metrics?category=finance&period=${period}`)
             const data = await res.json()
-            setMetrics(data || [])
+            setMetrics(Array.isArray(data) ? data : [])
         } catch (error) {
             console.error(error)
         } finally {

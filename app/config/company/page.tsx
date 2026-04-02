@@ -4,7 +4,8 @@ import { useState, useEffect } from "react"
 import { useHeader } from "@/components/providers/HeaderProvider"
 import { DataTable } from "@/components/ui/data-table"
 import { Button } from "@/components/ui/button"
-import { Plus, MoreHorizontal, Pencil, Trash, Ban } from "lucide-react"
+import { Plus, MoreHorizontal, Pencil, Trash, Ban, ArrowUpDown } from "lucide-react"
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -101,20 +102,73 @@ export default function CompanyConfigPage() {
     // Columns Definition
     const columns: ColumnDef<Company>[] = [
         {
+            id: "index",
+            header: "Sl No.",
+            cell: ({ row }) => row.index + 1,
+        },
+        {
             accessorKey: "name",
-            header: "Company Name",
+            header: ({ column }) => {
+                return (
+                    <Button variant="ghost" className="-ml-3 h-8 data-[state=open]:bg-accent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+                        Company Name
+                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                    </Button>
+                )
+            },
+            cell: ({ row }) => {
+                const company = row.original;
+                return (
+                    <HoverCard>
+                        <HoverCardTrigger asChild>
+                            <span className="cursor-pointer font-medium hover:underline text-emerald-700">{company.name}</span>
+                        </HoverCardTrigger>
+                        <HoverCardContent className="w-64" side="right">
+                            <div className="space-y-2">
+                                <h4 className="text-sm font-semibold">{company.name}</h4>
+                                <div className="text-xs text-muted-foreground">
+                                    <p><span className="font-semibold text-zinc-700">Code:</span> {company.code || "N/A"}</p>
+                                    <p><span className="font-semibold text-zinc-700">Email:</span> {company.contactEmail || "N/A"}</p>
+                                    <p><span className="font-semibold text-zinc-700">Status:</span> {company.isBlocked ? "Blocked" : "Active"}</p>
+                                </div>
+                            </div>
+                        </HoverCardContent>
+                    </HoverCard>
+                )
+            }
         },
         {
             accessorKey: "code",
-            header: "Code",
+            header: ({ column }) => {
+                return (
+                    <Button variant="ghost" className="-ml-3 h-8 data-[state=open]:bg-accent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+                        Code
+                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                    </Button>
+                )
+            },
         },
         {
             accessorKey: "contactEmail",
-            header: "Email",
+            header: ({ column }) => {
+                return (
+                    <Button variant="ghost" className="-ml-3 h-8 data-[state=open]:bg-accent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+                        Email
+                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                    </Button>
+                )
+            },
         },
         {
             accessorKey: "isBlocked",
-            header: "Status",
+            header: ({ column }) => {
+                return (
+                    <Button variant="ghost" className="-ml-3 h-8 data-[state=open]:bg-accent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+                        Status
+                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                    </Button>
+                )
+            },
             cell: ({ row }) => (
                 <span className={row.original.isBlocked ? "text-red-500 font-medium" : "text-emerald-500 font-medium"}>
                     {row.original.isBlocked ? "Blocked" : "Active"}
@@ -158,7 +212,7 @@ export default function CompanyConfigPage() {
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <h2 className="text-lg font-medium">Organizations</h2>
+                <h2 className="text-lg font-medium">Companies</h2>
                 <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                     <DialogTrigger asChild>
                         <Button className="bg-emerald-600 hover:bg-emerald-700">

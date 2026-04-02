@@ -7,7 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 model Company {
   id                 String   @id @default(cuid())
   name               String
@@ -21,39 +20,48 @@ model Company {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  users              User[]
-  kpiEntries         KpiEntry[]
-  financeMetrics     FinanceMetrics[]
-  salesMetrics       SalesMetrics[]
+  users                User[]
+  kpiEntries           KpiEntry[]
+  financeMetrics       FinanceMetrics[]
+  salesMetrics         SalesMetrics[]
   manufacturingMetrics ManufacturingMetrics[]
-  supplyChainMetrics SupplyChainMetrics[]
-  supportMetrics     SupportMetrics[]
-  hrMetrics          HrMetrics[]
-  hierarchyNodes     HierarchyNode[]
+  supplyChainMetrics   SupplyChainMetrics[]
+  supportMetrics       SupportMetrics[]
+  hrMetrics            HrMetrics[]
+  hierarchyNodes       HierarchyNode[]
+  CategoryMaster       CategoryMaster[]
+  PaymentTypeMaster    PaymentTypeMaster[]
+  CustomerMaster       CustomerMaster[]
+  SupplierMaster       SupplierMaster[]
+  ZoneMaster           ZoneMaster[]
+  StatusMaster         StatusMaster[]
+  StageMaster          StageMaster[]
+  TargetMaster         TargetMaster[]
+  SupportTicket        SupportTicket[]
 }
 
 model HierarchyNode {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   companyId String
-  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
   // Position Details
-  title     String   // e.g., "CEO", "Head of Sales"
-  
+  title String // e.g., "CEO", "Head of Sales"
+
   // Person Details (Optional)
-  name      String?
-  email     String?
-  phone     String?
-  location  String?
-  photo     String?  // Base64 or URL
-  
+  name     String?
+  email    String?
+  phone    String?
+  location String?
+  photo    String? // Base64 or URL
+
   // Tree Structure
-  parentId  String?
-  parent    HierarchyNode? @relation("Tree", fields: [parentId], references: [id])
-  children  HierarchyNode[] @relation("Tree")
-  
-  order     Int      @default(0) // For sorting siblings
-  
+  parentId String?
+  parent   HierarchyNode?  @relation("Tree", fields: [parentId], references: [id])
+  children HierarchyNode[] @relation("Tree")
+
+  order Int @default(0) // For sorting siblings
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -64,14 +72,14 @@ model KpiEntry {
   id        String   @id @default(cuid())
   companyId String?
   company   Company? @relation(fields: [companyId], references: [id])
-  category  String   // "Finance", "Sales", "Manufacturing", etc.
-  metric    String   // "Cash Inflow", "Accounts Receivable", etc.
+  category  String // "Finance", "Sales", "Manufacturing", etc.
+  metric    String // "Cash Inflow", "Accounts Receivable", etc.
   date      DateTime // Representative date for the period
-  period    String   // "Weekly", "Monthly", "Quarterly", "Annual"
+  period    String // "Weekly", "Monthly", "Quarterly", "Annual"
   value     Float
   target    Float?
-  status    String?  // "Critical", "On Track", etc.
-  meta      Json?    // For deep dive data
+  status    String? // "Critical", "On Track", etc.
+  meta      Json? // For deep dive data
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -80,20 +88,23 @@ model KpiEntry {
 }
 
 model User {
-  id          String   @id @default(cuid())
-  companyId   String?
-  company     Company? @relation(fields: [companyId], references: [id])
-  email       String   @unique
-  username    String?  @unique
-  profileName String?
-  password    String   // Hashed password
-  image       String?  // Avatar URL or Base64
-  role        String   @default("user") // "admin" | "user"
-  isBlocked   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String    @id @default(cuid())
+  hasGlobalAccess Boolean   @default(false)
+  companies       Company[]
+  email           String    @unique
+  username        String?   @unique
+  profileName     String?
+  password        String // Hashed password
+  image           String? // Avatar URL or Base64
+  role            String    @default("user") // "admin" | "user"
+  isBlocked       Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  @@index([companyId])
+  opportunities Opportunity[]
+  SupportTicket SupportTicket[]
+
+  @@index([hasGlobalAccess])
 }
 
 model Settings {
@@ -103,161 +114,161 @@ model Settings {
 }
 
 model FinanceMetrics {
-  id          String   @id @default(cuid())
-  companyId   String?
-  company     Company? @relation(fields: [companyId], references: [id])
-  period      String   // "Weekly", "Monthly", "Quarterly", "Annual"
-  date        DateTime // For filtering (start date of period)
-  
-  // KPIs
-  revenue     Float    @default(0)
-  expenses    Float    @default(0)
-  profit      Float    @default(0) // Net
-  
-  // Cash Flow
-  inflow            Float    @default(0)
-  outflow           Float    @default(0)
-  cashBalance       Float    @default(0)
-  prevInflow        Float    @default(0)
-  prevOutflow       Float    @default(0)
-  prevCashBalance   Float    @default(0)
-  
-  // AR / AP Deep Dive
-  arTotal     Float    @default(0)
-  arCurrent   Float    @default(0)
-  ar0to30     Float    @default(0)
-  ar30to60    Float    @default(0)
-  ar60to90plus Float   @default(0)
-  
-  apTotal     Float    @default(0)
-  apCurrent   Float    @default(0)
-  ap0to30     Float    @default(0)
-  ap30to60    Float    @default(0)
-  ap60to90plus Float   @default(0)
+  id        String   @id @default(cuid())
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+  period    String // "Weekly", "Monthly", "Quarterly", "Annual"
+  date      DateTime // For filtering (start date of period)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  // KPIs
+  revenue  Float @default(0)
+  expenses Float @default(0)
+  profit   Float @default(0) // Net
+
+  // Cash Flow
+  inflow          Float @default(0)
+  outflow         Float @default(0)
+  cashBalance     Float @default(0)
+  prevInflow      Float @default(0)
+  prevOutflow     Float @default(0)
+  prevCashBalance Float @default(0)
+
+  // AR / AP Deep Dive
+  arTotal      Float @default(0)
+  arCurrent    Float @default(0)
+  ar0to30      Float @default(0)
+  ar30to60     Float @default(0)
+  ar60to90plus Float @default(0)
+
+  apTotal      Float @default(0)
+  apCurrent    Float @default(0)
+  ap0to30      Float @default(0)
+  ap30to60     Float @default(0)
+  ap60to90plus Float @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId])
 }
 
 model SalesMetrics {
-  id          String   @id @default(cuid())
-  companyId   String?
-  company     Company? @relation(fields: [companyId], references: [id])
-  period      String   // "Weekly", "Monthly", "Quarterly", "Annual"
-  date        DateTime // For filtering (start date of period)
-  
+  id        String   @id @default(cuid())
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+  period    String // "Weekly", "Monthly", "Quarterly", "Annual"
+  date      DateTime // For filtering (start date of period)
+
   // Targets & YTD
-  annualTarget Float   @default(0)
-  ordersYtdPct Float   @default(0) // Percentage 0-100
-  invoiceYtdPct Float  @default(0) // Percentage 0-100
+  annualTarget  Float @default(0)
+  ordersYtdPct  Float @default(0) // Percentage 0-100
+  invoiceYtdPct Float @default(0) // Percentage 0-100
 
   // Funnel (Quantity)
-  leadsCount        Int @default(0)
-  rfqCount          Int @default(0)
-  quotesCount       Int @default(0)
-  negotiationCount  Int @default(0)
-  orderCount        Int @default(0)
+  leadsCount       Int @default(0)
+  rfqCount         Int @default(0)
+  quotesCount      Int @default(0)
+  negotiationCount Int @default(0)
+  orderCount       Int @default(0)
 
   // Funnel (Value)
-  quotesValue       Float @default(0)
-  negotiationValue  Float @default(0)
-  winValue          Float @default(0)
-  lossValue         Float @default(0) // For analysis
+  quotesValue      Float @default(0)
+  negotiationValue Float @default(0)
+  winValue         Float @default(0)
+  lossValue        Float @default(0) // For analysis
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId])
 }
 
 model ManufacturingMetrics {
-  id          String   @id @default(cuid())
-  companyId   String?
-  company     Company? @relation(fields: [companyId], references: [id])
-  period      String   // "Weekly", "Monthly", "Quarterly", "Annual"
-  date        DateTime
+  id        String   @id @default(cuid())
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+  period    String // "Weekly", "Monthly", "Quarterly", "Annual"
+  date      DateTime
 
   // RFQ Analytics
-  rfqNew      Int      @default(0) // This week
-  rfqStandard Int      @default(0)
-  rfqCustom   Int      @default(0)
+  rfqNew      Int @default(0) // This week
+  rfqStandard Int @default(0)
+  rfqCustom   Int @default(0)
 
   // Project Status Deep Dive
-  projectOnTrack    Int @default(0)
+  projectOnTrack        Int @default(0)
   projectBehindSchedule Int @default(0)
-  projectCritical   Int @default(0)
+  projectCritical       Int @default(0)
 
   // Efficiency
-  efficiency        Float @default(0) // Percentage
+  efficiency Float @default(0) // Percentage
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId])
 }
 
 model SupplyChainMetrics {
-  id          String   @id @default(cuid())
-  companyId   String?
-  company     Company? @relation(fields: [companyId], references: [id])
-  period      String
-  date        DateTime
+  id        String   @id @default(cuid())
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+  period    String
+  date      DateTime
 
   // Payment Status
   outstandingPayments Float @default(0)
 
   // Sourcing Nodes
-  domesticSource Int   @default(0)
-  intlSource     Int   @default(0)
+  domesticSource Int @default(0)
+  intlSource     Int @default(0)
 
   // Payment Terms Deep Dive
-  totalSuppliers Int   @default(0)
+  totalSuppliers   Int @default(0)
   cashAdvanceTerms Int @default(0)
-  net15Terms  Int      @default(0)
-  net30Terms  Int      @default(0)
-  net60Terms  Int      @default(0)
-  net90Terms  Int      @default(0)
+  net15Terms       Int @default(0)
+  net30Terms       Int @default(0)
+  net60Terms       Int @default(0)
+  net90Terms       Int @default(0)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId])
 }
 
 model SupportMetrics {
-  id          String   @id @default(cuid())
-  companyId   String?
-  company     Company? @relation(fields: [companyId], references: [id])
-  period      String
-  date        DateTime
+  id        String   @id @default(cuid())
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+  period    String
+  date      DateTime
 
-  totalTickets    Int @default(0)
-  openTickets     Int @default(0)
-  criticalIssues  Int @default(0)
-  resolvedTickets Int @default(0)
+  totalTickets    Int   @default(0)
+  openTickets     Int   @default(0)
+  criticalIssues  Int   @default(0)
+  resolvedTickets Int   @default(0)
   avgResponseTime Float @default(0) // Hours
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId])
 }
 
 model HrMetrics {
-  id          String   @id @default(cuid())
-  companyId   String?
-  company     Company? @relation(fields: [companyId], references: [id])
-  period      String
-  date        DateTime
+  id        String   @id @default(cuid())
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+  period    String
+  date      DateTime
 
   // Org Strength
-  orgStrength        Int @default(0)
+  orgStrength Int @default(0)
 
   // Open Positions Deep dive
-  openPosLagging     Int @default(0)
-  openPosOnTrack     Int @default(0)
+  openPosLagging Int @default(0)
+  openPosOnTrack Int @default(0)
 
   // Recruitment Funnel
   recruitedApplied   Int @default(0)
@@ -266,20 +277,359 @@ model HrMetrics {
   recruitedOffer     Int @default(0)
   recruitedHired     Int @default(0)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId])
 }
 
 model AuditLog {
   id        String   @id @default(cuid())
-  action    String   // "LOGIN", "CREATE_USER", "UPDATE_SETTINGS", etc.
-  entity    String   // "User", "System", "Invoice", etc.
-  entityId  String?  // ID of the affected entity
-  details   Json?    // Flexible JSON
-  userId    String?  // ID of the user performing the action
-  userEmail String?  // Redundant email storage
+  action    String // "LOGIN", "CREATE_USER", "UPDATE_SETTINGS", etc.
+  entity    String // "User", "System", "Invoice", etc.
+  entityId  String? // ID of the affected entity
+  details   Json? // Flexible JSON
+  userId    String? // ID of the user performing the action
+  userEmail String? // Redundant email storage
   ipAddress String?
   createdAt DateTime @default(now())
+}
+
+// -----------------------------------------------------------------------------
+// CONFIGURATION MASTERS
+// -----------------------------------------------------------------------------
+
+model CategoryMaster {
+  slno         Int      @id @default(autoincrement())
+  companyId    String?
+  company      Company? @relation(fields: [companyId], references: [id])
+  categoryName String
+  remarks      String?
+  isActive     Boolean  @default(true)
+  isDelete     Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  createdBy String?
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  customers     CustomerMaster[] @relation("CustomerCategories")
+  suppliers     SupplierMaster[] @relation("SupplierCategories")
+  opportunities Opportunity[]
+
+  @@unique([companyId, categoryName])
+}
+
+model PaymentTypeMaster {
+  slno        Int      @id @default(autoincrement())
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  paymentType String
+  remarks     String?
+  isActive    Boolean  @default(true)
+  isDelete    Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  createdBy String?
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  customers     CustomerMaster[]
+  suppliers     SupplierMaster[]
+  opportunities Opportunity[]
+
+  @@unique([companyId, paymentType])
+}
+
+model CustomerMaster {
+  slno         Int      @id @default(autoincrement())
+  companyId    String?
+  company      Company? @relation(fields: [companyId], references: [id])
+  customerName String
+  remarks      String?
+  usb          String?
+  isActive     Boolean  @default(true)
+  isDelete     Boolean  @default(false)
+
+  paymentTypeId Int?
+  paymentType   PaymentTypeMaster? @relation(fields: [paymentTypeId], references: [slno])
+
+  categories CategoryMaster[]  @relation("CustomerCategories")
+  contacts   CustomerContact[]
+  addresses  CustomerAddress[]
+
+  createdAt DateTime @default(now())
+  createdBy String?
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  opportunities Opportunity[]
+
+  @@unique([companyId, customerName])
+}
+
+model CustomerContact {
+  id           String         @id @default(cuid())
+  customerSlno Int
+  customer     CustomerMaster @relation(fields: [customerSlno], references: [slno], onDelete: Cascade)
+
+  contactPerson String
+  contactEmail  String?
+  contactNumber String?
+}
+
+model CustomerAddress {
+  id           String         @id @default(cuid())
+  customerSlno Int
+  customer     CustomerMaster @relation(fields: [customerSlno], references: [slno], onDelete: Cascade)
+
+  addressName String
+  address     String
+}
+
+model SupplierMaster {
+  slno         Int      @id @default(autoincrement())
+  companyId    String?
+  company      Company? @relation(fields: [companyId], references: [id])
+  supplierName String
+  remarks      String?
+  usb          String?
+  isActive     Boolean  @default(true)
+  isDelete     Boolean  @default(false)
+
+  paymentTypeId Int?
+  paymentType   PaymentTypeMaster? @relation(fields: [paymentTypeId], references: [slno])
+
+  categories CategoryMaster[]  @relation("SupplierCategories")
+  contacts   SupplierContact[]
+  addresses  SupplierAddress[]
+
+  createdAt DateTime @default(now())
+  createdBy String?
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@unique([companyId, supplierName])
+}
+
+model SupplierContact {
+  id           String         @id @default(cuid())
+  supplierSlno Int
+  supplier     SupplierMaster @relation(fields: [supplierSlno], references: [slno], onDelete: Cascade)
+
+  contactPerson String
+  contactEmail  String?
+  contactNumber String?
+}
+
+model SupplierAddress {
+  id           String         @id @default(cuid())
+  supplierSlno Int
+  supplier     SupplierMaster @relation(fields: [supplierSlno], references: [slno], onDelete: Cascade)
+
+  addressName String
+  address     String
+}
+
+model ZoneMaster {
+  slno          Int           @id @default(autoincrement())
+  companyId     String?
+  company       Company?      @relation(fields: [companyId], references: [id])
+  zoneName      String
+  remarks       String?
+  isActive      Boolean       @default(true)
+  isDelete      Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  createdBy     String?
+  updatedBy     String?
+  opportunities Opportunity[]
+
+  @@unique([companyId, zoneName])
+}
+
+model StatusMaster {
+  slno          Int                        @id @default(autoincrement())
+  companyId     String?
+  company       Company?                   @relation(fields: [companyId], references: [id])
+  statusName    String
+  order         Int
+  remarks       String?
+  isActive      Boolean                    @default(true)
+  isDelete      Boolean                    @default(false)
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+  createdBy     String?
+  updatedBy     String?
+  opportunities Opportunity[]
+  histories     OpportunityStatusHistory[]
+
+  @@unique([companyId, statusName])
+  @@unique([companyId, order])
+}
+
+model StageMaster {
+  slno       Int      @id @default(autoincrement())
+  companyId  String?
+  company    Company? @relation(fields: [companyId], references: [id])
+  stageName  String
+  order      Int
+  percentage Int      @default(0)
+  remarks    String?
+  isActive   Boolean  @default(true)
+  isDelete   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  createdBy  String?
+  updatedBy  String?
+
+  orders         Order[]
+  orderHistories OrderHistory[]
+
+  @@unique([companyId, stageName])
+  @@unique([companyId, order])
+}
+
+model Opportunity {
+  id              String            @id @default(cuid())
+  slno            Int               @unique @default(autoincrement())
+  oppNumber       String?           @unique
+  date            DateTime
+  opportunityName String
+  customerId      Int
+  customer        CustomerMaster    @relation(fields: [customerId], references: [slno])
+  categoryId      Int
+  category        CategoryMaster    @relation(fields: [categoryId], references: [slno])
+  value           Float
+  paymentTypeId   Int
+  paymentType     PaymentTypeMaster @relation(fields: [paymentTypeId], references: [slno])
+  zoneId          Int
+  zone            ZoneMaster        @relation(fields: [zoneId], references: [slno])
+  statusId        Int
+  status          StatusMaster      @relation(fields: [statusId], references: [slno])
+  inchargeId      String
+  incharge        User              @relation(fields: [inchargeId], references: [id])
+  remarks         String?
+  createdAt       DateTime          @default(now())
+  isDelete        Boolean           @default(false)
+
+  comments  OpportunityComment[]
+  histories OpportunityStatusHistory[]
+  order     Order?
+}
+
+model OpportunityStatusHistory {
+  id            String       @id @default(cuid())
+  opportunityId String
+  opportunity   Opportunity  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  statusId      Int
+  status        StatusMaster @relation(fields: [statusId], references: [slno])
+  startDate     DateTime     @default(now())
+  endDate       DateTime?
+  daysSpent     Int?
+  remarks       String?
+}
+
+model OpportunityComment {
+  id            String      @id @default(cuid())
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  comment       String
+  createdDate   DateTime    @default(now())
+  createdBy     String
+}
+
+model Order {
+  id               String          @id @default(cuid())
+  orderNo          String          @unique
+  opportunityId    String          @unique
+  opportunity      Opportunity     @relation(fields: [opportunityId], references: [id])
+  date             DateTime
+  targetDate       DateTime?
+  orderIncharge    String?
+  currentStageId   Int?
+  currentStage     StageMaster?    @relation(fields: [currentStageId], references: [slno])
+  history          OrderHistory[]
+  isClosed         Boolean         @default(false)
+  closeReason      String?
+  closeAttachments Json?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  createdBy        String?
+  updatedBy        String?
+  SupportTicket    SupportTicket[]
+}
+
+model OrderHistory {
+  id          String      @id @default(cuid())
+  orderId     String
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  stageId     Int
+  stage       StageMaster @relation(fields: [stageId], references: [slno])
+  startDate   DateTime
+  endDate     DateTime?
+  enteredBy   String
+  remarks     String?
+  attachments Json?
+  createdAt   DateTime    @default(now())
+}
+
+model TargetMaster {
+  id            String  @id @default(cuid())
+  companyId     String
+  company       Company @relation(fields: [companyId], references: [id])
+  category      String // e.g. "sales"
+  financialYear String // e.g., "2025-26"
+
+  // Monthly Breakdown
+  apr Float @default(0)
+  may Float @default(0)
+  jun Float @default(0)
+  jul Float @default(0)
+  aug Float @default(0)
+  sep Float @default(0)
+  oct Float @default(0)
+  nov Float @default(0)
+  dec Float @default(0)
+  jan Float @default(0)
+  feb Float @default(0)
+  mar Float @default(0)
+
+  totalTarget Float @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, category, financialYear])
+}
+
+model SupportTicket {
+  id         String    @id @default(cuid())
+  ticketNo   String    @unique
+  companyId  String
+  company    Company   @relation(fields: [companyId], references: [id])
+  type       String // "INTERNAL" | "EXTERNAL"
+  date       DateTime
+  details    String
+  targetDate DateTime?
+  actualDays Int?
+  inchargeId String?
+  incharge   User?     @relation(fields: [inchargeId], references: [id])
+
+  // Only for EXTERNAL tickets
+  orderId String?
+  order   Order?  @relation(fields: [orderId], references: [id])
+
+  status           String  @default("OPEN") // "OPEN" | "COMPLETED" | "CLOSED"
+  isClosed         Boolean @default(false)
+  closeReason      String?
+  closeAttachments Json?
+
+  comments    Json?
+  attachments Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
 }

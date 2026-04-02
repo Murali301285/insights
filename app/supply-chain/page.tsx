@@ -7,7 +7,8 @@ import { useFilter } from "@/components/providers/FilterProvider"
 import { formatCurrency } from "@/lib/utils"
 import {
     Truck, CheckCircle2, Package, Globe, Plus, AlertCircle,
-    Building2, FileText, ScrollText, Eye, AreaChart as AreaChartIcon
+    Building2, FileText, ScrollText, Eye, AreaChart as AreaChartIcon,
+    ArrowUpRight, ArrowDownRight
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,10 +17,11 @@ import {
 } from 'recharts'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { SmartEntrySheet } from "@/components/data-entry/SmartEntrySheet"
+import { cn } from "@/lib/utils"
 
 export default function SupplyChainPage() {
     const { setHeaderInfo } = useHeader()
-    const { period, currency } = useFilter()
+    const { period: globalPeriod, currency } = useFilter()
 
     useEffect(() => {
         setHeaderInfo("Supply Chain Management", "Monitor supplier payments, terms, and inventory health.")
@@ -28,15 +30,19 @@ export default function SupplyChainPage() {
     const [isEntryOpen, setIsEntryOpen] = useState(false)
     const [metrics, setMetrics] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
+    const [localPeriod, setLocalPeriod] = useState("Weekly")
 
     const [termsModalOpen, setTermsModalOpen] = useState(false)
+    const [suppliersModalOpen, setSuppliersModalOpen] = useState(false)
+    const [paymentModalOpen, setPaymentModalOpen] = useState(false)
+    const [deliveryModalOpen, setDeliveryModalOpen] = useState(false)
 
     const fetchData = async () => {
         setLoading(true)
         try {
-            const res = await fetch(`/api/metrics?category=supplyChain&period=${period}`)
+            const res = await fetch(`/api/metrics?category=supplyChain&period=${localPeriod}`)
             const data = await res.json()
-            setMetrics(data || [])
+            setMetrics(Array.isArray(data) ? data : [])
         } catch (error) {
             console.error(error)
         } finally {
@@ -46,9 +52,27 @@ export default function SupplyChainPage() {
 
     useEffect(() => {
         fetchData()
-    }, [period])
+    }, [localPeriod])
 
     const latest = metrics[0] || {}
+
+    const getDiff = (curr: number, prev: number) => {
+        if (!prev || prev === 0) return 0
+        return ((curr - prev) / prev) * 100
+    }
+
+    const getPeriodText = () => {
+        if (localPeriod === "Weekly") return "week"
+        if (localPeriod === "Monthly") return "month"
+        if (localPeriod === "Quarterly") return "quarter"
+        if (localPeriod === "Annual") return "year"
+        return "month"
+    }
+    const periodText = getPeriodText()
+
+    const suppliersDiff = getDiff(latest.totalSuppliers || 0, latest.prevTotalSuppliers || 0)
+    const paymentDiff = getDiff(latest.outstandingPayments || 0, latest.prevOutstandingPayments || 0)
+    const deliveryDiff = getDiff(latest.onTimeDelivery || 0, latest.prevOnTimeDelivery || 0)
 
     // Supplier Terms Data
     const termsData = [
@@ -76,9 +100,26 @@ export default function SupplyChainPage() {
 
             {/* Actions Bar */}
             <div className="flex justify-end items-center gap-4 mb-2">
-                <Button onClick={() => setIsEntryOpen(true)} size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all">
+                {/* Local Period Toggle */}
+                <div className="flex bg-zinc-100 p-1 rounded-full border border-zinc-200">
+                    {['Weekly', 'Monthly', 'Quarterly', 'Annual'].map((p) => (
+                        <button
+                            key={p}
+                            onClick={() => setLocalPeriod(p)}
+                            className={cn(
+                                "px-4 py-1.5 text-sm rounded-full font-medium transition-colors",
+                                localPeriod === p
+                                    ? "bg-zinc-900 text-white shadow-sm"
+                                    : "text-zinc-500 hover:text-zinc-900"
+                            )}
+                        >
+                            {p}
+                        </button>
+                    ))}
+                </div>
+                <Button onClick={() => setIsEntryOpen(true)} size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all h-9 rounded-full px-5">
                     <Plus className="w-4 h-4" />
-                    New Log
+                    Entry
                 </Button>
             </div>
 
@@ -87,24 +128,80 @@ export default function SupplyChainPage() {
 
                     {/* KPIs */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <PremiumCard
-                            title="Total Suppliers"
-                            value={latest.totalSuppliers || 0}
-                            icon={<Building2 className="w-4 h-4 text-emerald-600" />}
-                            trend={{ value: 0, label: "Active vendors", positive: true }}
-                        />
-                        <PremiumCard
-                            title="Payment Status"
-                            value={formatCurrency(latest.outstandingPayments || 0, currency)}
-                            icon={<FileText className="w-4 h-4 text-rose-600" />}
-                            trend={{ value: 0, label: "Total outstanding payments", positive: false }}
-                        />
-                        <PremiumCard
-                            title="On-Time Delivery"
-                            value={`${latest.onTimeDelivery || 0}%`}
-                            icon={<Truck className="w-4 h-4 text-blue-600" />}
-                            trend={{ value: 0, label: "Network reliability", positive: true }}
-                        />
+                        {/* Total Suppliers */}
+                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
+                            <div className="relative z-10 flex flex-col h-full justify-between">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                        <p className="text-sm font-medium text-zinc-500">Total Suppliers</p>
+                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{latest.totalSuppliers || 0}</h3>
+                                    </div>
+                                    <div className="flex flex-col gap-2 relative z-20">
+                                        <button onClick={() => setSuppliersModalOpen(true)} className="ml-auto p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-emerald-600 transition-all z-20">
+                                            <Eye className="w-4 h-4" />
+                                        </button>
+                                        <div className="p-2 bg-emerald-50 rounded-xl">
+                                            <Building2 className="w-5 h-5 text-emerald-600" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className={`flex items-center text-[10px] font-semibold w-fit px-2 py-0.5 rounded-full ${suppliersDiff > 0 ? 'text-emerald-600 bg-emerald-50' : suppliersDiff < 0 ? 'text-rose-600 bg-rose-50' : 'text-amber-600 bg-amber-50'}`}>
+                                    {suppliersDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : suppliersDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : null}
+                                    {Math.abs(suppliersDiff).toFixed(1)}% vs prev {periodText}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Payment Status */}
+                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
+                            <div className="relative z-10 flex flex-col h-full justify-between">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                        <p className="text-sm font-medium text-zinc-500">Payment Status</p>
+                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{formatCurrency(latest.outstandingPayments || 0, currency)}</h3>
+                                    </div>
+                                    <div className="flex flex-col gap-2 relative z-20">
+                                        <button onClick={() => setPaymentModalOpen(true)} className="ml-auto p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-rose-600 transition-all z-20">
+                                            <Eye className="w-4 h-4" />
+                                        </button>
+                                        <div className="p-2 bg-rose-50 rounded-xl">
+                                            <FileText className="w-5 h-5 text-rose-600" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className={`flex items-center text-[10px] font-semibold w-fit px-2 py-0.5 rounded-full ${paymentDiff < 0 ? 'text-emerald-600 bg-emerald-50' : paymentDiff > 0 ? 'text-rose-600 bg-rose-50' : 'text-amber-600 bg-amber-50'}`}>
+                                    {paymentDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : paymentDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : null}
+                                    {Math.abs(paymentDiff).toFixed(1)}% vs prev {periodText}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* On-Time Delivery */}
+                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
+                            <div className="relative z-10 flex flex-col h-full justify-between">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                        <p className="text-sm font-medium text-zinc-500">On-Time Delivery</p>
+                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{latest.onTimeDelivery || 0}%</h3>
+                                    </div>
+                                    <div className="flex flex-col gap-2 relative z-20">
+                                        <button onClick={() => setDeliveryModalOpen(true)} className="ml-auto p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-blue-600 transition-all z-20">
+                                            <Eye className="w-4 h-4" />
+                                        </button>
+                                        <div className="p-2 bg-blue-50 rounded-xl">
+                                            <Truck className="w-5 h-5 text-blue-600" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className={`flex items-center text-[10px] font-semibold w-fit px-2 py-0.5 rounded-full ${deliveryDiff > 0 ? 'text-emerald-600 bg-emerald-50' : deliveryDiff < 0 ? 'text-rose-600 bg-rose-50' : 'text-amber-600 bg-amber-50'}`}>
+                                    {deliveryDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : deliveryDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : null}
+                                    {Math.abs(deliveryDiff).toFixed(1)}% vs prev {periodText}
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Deep Dives */}
@@ -206,8 +303,8 @@ export default function SupplyChainPage() {
                                     <div className="flex justify-between items-center">
                                         <h4 className="text-xs font-bold text-zinc-900">{ship.id}</h4>
                                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${ship.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' :
-                                                ship.status === 'Delayed' || ship.status === 'Customs' ? 'bg-rose-100 text-rose-700' :
-                                                    'bg-blue-100 text-blue-700'
+                                            ship.status === 'Delayed' || ship.status === 'Customs' ? 'bg-rose-100 text-rose-700' :
+                                                'bg-blue-100 text-blue-700'
                                             }`}>
                                             {ship.status}
                                         </span>
@@ -265,6 +362,63 @@ export default function SupplyChainPage() {
                                 </div>
                             ))}
                         </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Total Suppliers Modal */}
+            <Dialog open={suppliersModalOpen} onOpenChange={setSuppliersModalOpen}>
+                <DialogContent className="sm:max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold">Supplier Network Details</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                        <div className="flex items-center justify-between p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
+                            <div>
+                                <p className="text-sm text-emerald-600 font-medium">Active Vendors</p>
+                                <p className="text-2xl font-bold text-emerald-700">{latest.totalSuppliers || 0}</p>
+                            </div>
+                            <Building2 className="w-8 h-8 text-emerald-500 opacity-50" />
+                        </div>
+                        <p className="text-sm text-zinc-500">This metric represents the total number of active vendors and suppliers integrated into your supply chain network for the selected period.</p>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Payment Status Modal */}
+            <Dialog open={paymentModalOpen} onOpenChange={setPaymentModalOpen}>
+                <DialogContent className="sm:max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold">Outstanding Payments Details</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                        <div className="flex items-center justify-between p-4 bg-rose-50 border border-rose-100 rounded-xl">
+                            <div>
+                                <p className="text-sm text-rose-600 font-medium">Pending Approvals</p>
+                                <p className="text-2xl font-bold text-rose-700">{formatCurrency(latest.outstandingPayments || 0, currency)}</p>
+                            </div>
+                            <FileText className="w-8 h-8 text-rose-500 opacity-50" />
+                        </div>
+                        <p className="text-sm text-zinc-500">This metric indicates the total value of outstanding supplier invoices that have been received but are awaiting payment or final authorization.</p>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* On-Time Delivery Modal */}
+            <Dialog open={deliveryModalOpen} onOpenChange={setDeliveryModalOpen}>
+                <DialogContent className="sm:max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold">On-Time Delivery Performance</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                        <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                            <div>
+                                <p className="text-sm text-blue-600 font-medium">SLA Completion</p>
+                                <p className="text-2xl font-bold text-blue-700">{latest.onTimeDelivery || 0}%</p>
+                            </div>
+                            <Truck className="w-8 h-8 text-blue-500 opacity-50" />
+                        </div>
+                        <p className="text-sm text-zinc-500">This percentage indicates how many supply shipments arrived within the designated contractual delivery window, measuring vendor reliability.</p>
                     </div>
                 </DialogContent>
             </Dialog>

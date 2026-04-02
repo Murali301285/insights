@@ -63,7 +63,7 @@ export function SmartSheet() {
 
     // Initialize a blank row
     const addRow = () => {
-        setRows([...rows, { period: "Monthly", date: new Date().toISOString().split('T')[0] }])
+        setRows([...rows, { period: "Weekly", date: new Date().toISOString().split('T')[0] }])
     }
 
     // Handle Input Change
@@ -106,8 +106,8 @@ export function SmartSheet() {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="finance">Finance & Accounting</SelectItem>
-                            <SelectItem value="sales">Sales & Marketing</SelectItem>
-                            <SelectItem value="manufacturing">Manufacturing</SelectItem>
+                            <SelectItem value="sales">Business Acquisition</SelectItem>
+                            <SelectItem value="manufacturing">Order fulfilment</SelectItem>
                             <SelectItem value="supplyChain">Supply Chain</SelectItem>
                             <SelectItem value="support">Field Support</SelectItem>
                             <SelectItem value="hr">HR & Admin</SelectItem>

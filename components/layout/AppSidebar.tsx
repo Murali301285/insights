@@ -22,7 +22,7 @@ import { usePathname, useRouter } from "next/navigation"
 
 interface NavItem {
     title: string
-    icon: any
+    icon?: any
     href?: string
     role?: string
     children?: NavItem[]
@@ -31,8 +31,8 @@ interface NavItem {
 const parseNav: NavItem[] = [
     { title: "Dashboard", icon: LayoutDashboard, href: "/" },
     { title: "Finance", icon: PieChart, href: "/finance" },
-    { title: "Sales & Marketing", icon: Users, href: "/sales" },
-    { title: "Manufacturing", icon: Factory, href: "/manufacturing" },
+    { title: "Business Acquisition", icon: Users, href: "/sales" },
+    { title: "Order fulfilment", icon: Factory, href: "/manufacturing" },
     { title: "Supply Chain", icon: Package, href: "/supply-chain" },
     { title: "Field Support", icon: Search, href: "/support" },
     { title: "HR & Admin", icon: Users, href: "/hr" },
@@ -42,8 +42,15 @@ const parseNav: NavItem[] = [
         icon: Wrench,
         role: "admin",
         children: [
-            { title: "User", href: "/config/user", icon: Users },
-            { title: "Company", href: "/config/company", icon: Building },
+            { title: "Category", href: "/config/category" },
+            { title: "Payment Type", href: "/config/payment-type" },
+            { title: "Customer", href: "/config/customer" },
+            { title: "Supplier", href: "/config/supplier" },
+            { title: "User", href: "/config/user" },
+            { title: "Company", href: "/config/company" },
+            { title: "Zone", href: "/config/zone" },
+            { title: "Status", href: "/config/status" },
+            { title: "Stage", href: "/config/stage" },
         ]
     },
 ]
@@ -58,9 +65,16 @@ interface AppSidebarProps {
 
 export function AppSidebar({ user }: AppSidebarProps) {
     const [collapsed, setCollapsed] = React.useState(false)
-    const [openConfig, setOpenConfig] = React.useState(true) // Default open for visibility
+    const [openConfig, setOpenConfig] = React.useState(false) // Default closed as requested by user
     const pathname = usePathname()
     const router = useRouter()
+
+    // Auto-close config menu if navigating away
+    React.useEffect(() => {
+        if (!pathname.startsWith('/config')) {
+            setOpenConfig(false)
+        }
+    }, [pathname])
 
     // Filter Navigation based on Role
     const filteredNav = parseNav.filter(item => {
@@ -77,8 +91,9 @@ export function AppSidebar({ user }: AppSidebarProps) {
         >
             {/* Header */}
             <div className="flex items-center h-16 px-4 border-b border-zinc-100 relative justify-end">
-                <div className={cn("absolute left-1/2 -translate-x-1/2 transition-all duration-300", collapsed ? "scale-75" : "scale-100")}>
+                <div className={cn("absolute flex flex-col items-center justify-center left-1/2 -translate-x-1/2 transition-all duration-300", collapsed ? "scale-75" : "scale-100")}>
                     <InsightLogo className={cn("text-xl transition-all duration-300", collapsed ? "!text-[0px] [&_span]:hidden" : "")} />
+                    <span className={cn("text-emerald-600 font-bold tracking-[0.15em] text-[8px] -mt-0.5 uppercase transition-all duration-300", collapsed ? "opacity-0 hidden" : "opacity-100")}>Intelligence</span>
                 </div>
 
                 <Button
