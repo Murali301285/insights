@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils"
 // @ts-ignore
 import { OpportunityManager } from "@/components/data-entry/OpportunityManager"
 import { OrderManager } from "@/components/data-entry/OrderManager"
+import { FundValueManager } from "@/components/data-entry/FundValueManager"
 
 // Schema Definitions
 type FieldDef = { label: string, key: string, type: string, width?: string, groupTitle?: string, bgColor?: string, tab?: string };
@@ -119,6 +120,8 @@ export function SmartEntrySheet({ isOpen, onClose, category }: SmartEntrySheetPr
         let tabs = Array.from(new Set(fields.map((f: any) => f.tab).filter(Boolean))) as string[];
         if (category === "sales") {
             tabs = ["Targets", "New Opportunity"];
+        } else if (category === "finance") {
+            tabs = ["Cash Statement", "Fund Value"];
         }
         return tabs;
     }, [fields, category])
@@ -133,9 +136,9 @@ export function SmartEntrySheet({ isOpen, onClose, category }: SmartEntrySheetPr
     }, [availableTabs, activeTab])
 
     const displayedFields = useMemo(() => {
-        if (!activeTab) return fields;
+        if (!activeTab || (category === "finance" && activeTab === "Cash Statement")) return fields;
         return fields.filter((f: any) => f.tab === activeTab);
-    }, [fields, activeTab])
+    }, [fields, activeTab, category])
 
     useEffect(() => {
         if (isOpen && activeCompanyId) {
@@ -295,7 +298,7 @@ export function SmartEntrySheet({ isOpen, onClose, category }: SmartEntrySheetPr
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-[95vw] w-full h-[80vh] flex flex-col p-0 gap-0 overflow-hidden bg-zinc-50">
+            <DialogContent className={cn("w-full h-[80vh] flex flex-col p-0 gap-0 overflow-hidden bg-zinc-50 transition-all duration-300", activeTab === "Fund Value" ? "max-w-5xl" : "max-w-[95vw]")}>
 
                 {/* Header Section */}
                 <div className="p-6 border-b border-zinc-200 bg-white flex justify-between items-start">
@@ -372,6 +375,8 @@ export function SmartEntrySheet({ isOpen, onClose, category }: SmartEntrySheetPr
                         </div>
                     ) : activeTab === "New Opportunity" ? (
                         <OpportunityManager onClose={onClose} activeCompanyId={activeCompanyId} />
+                    ) : activeTab === "Fund Value" ? (
+                        <FundValueManager activeCompanyId={activeCompanyId} />
                     ) : category === "manufacturing" ? (
                         <OrderManager onClose={onClose} activeCompanyId={activeCompanyId} />
                     ) : isTargetTab ? (

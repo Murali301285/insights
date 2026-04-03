@@ -44,6 +44,7 @@ export default function ManufacturingPage() {
                 // toast.success("Metrics saved");
                 fetchData();
                 setLogData({ efficiency: "", rfqNew: "", rfqStandard: "", rfqCustom: "", projectOnTrack: "", projectBehindSchedule: "", projectCritical: "" })
+                setIsMetricsLogOpen(false)
             }
         } catch (e) { }
     }
@@ -116,9 +117,18 @@ export default function ManufacturingPage() {
         { id: "WO-2024-092", client: "Soylent", status: "On Track", progress: 95 },
     ]
 
+    const [customerChartMode, setCustomerChartMode] = useState<"values" | "orders">("values")
+
+    const topCustomers = [
+        { name: "TechNova Corp", value: 450000, orders: 85 },
+        { name: "Global Logistics", value: 380000, orders: 110 },
+        { name: "Apex Supply Co", value: 320000, orders: 60 },
+        { name: "Nexus Industries", value: 290000, orders: 40 },
+        { name: "Prime Resources", value: 210000, orders: 75 }
+    ]
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
-
             {/* Actions Bar */}
             <div className="flex justify-end items-center gap-4 mb-2">
                 {/* Local Period Toggle */}
@@ -149,74 +159,71 @@ export default function ManufacturingPage() {
 
                     {/* RFQ Row */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {/* Annual Target */}
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
-                            <div className="relative z-10 flex flex-col h-full justify-between">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <p className="text-sm font-medium text-zinc-500">Annual Target</p>
-                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{formatCurrency(latest.annualTarget || 0, currency)}</h3>
-                                    </div>
-                                    <div className="flex flex-col gap-2 relative z-20">
-                                        <div className="p-2 bg-emerald-50 ml-auto rounded-xl">
-                                            <TrendingUp className="w-5 h-5 text-emerald-600" />
-                                        </div>
+                        {/* Total No of Orders */}
+                        <div className="bg-emerald-50/50 rounded-2xl p-5 border border-emerald-100/50 shadow-sm flex flex-col justify-between hover:shadow-md transition-all duration-300 relative">
+                            <div className="flex justify-between items-start mb-3">
+                                <div>
+                                    <h3 className="font-semibold text-emerald-800 text-sm mb-1">Total No of Orders</h3>
+                                    <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{latest.productionVolume || 0}</h2>
+                                </div>
+                                <div className="flex flex-col items-center gap-3">
+                                    <button className="text-zinc-400 hover:text-emerald-600 transition-colors">
+                                        <Eye className="w-4 h-4" />
+                                    </button>
+                                    <div className="bg-white p-2 rounded-full shadow-sm border border-emerald-100">
+                                        <TrendingUp className="w-5 h-5 text-emerald-600" />
                                     </div>
                                 </div>
-                                <div className="flex items-center text-[10px] font-semibold w-fit px-2 py-0.5 rounded-full text-emerald-600 bg-emerald-50">
-                                    Manufacturing Quota
-                                </div>
+                            </div>
+                            <div className="flex items-center text-[10px] font-semibold w-fit px-2 py-0.5 rounded-full text-emerald-700 bg-white shadow-sm border border-emerald-100/50">
+                                Manufacturing Quota
                             </div>
                         </div>
 
-                        {/* Standard RFQs */}
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
-                            <div className="relative z-10 flex flex-col h-full justify-between">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <p className="text-sm font-medium text-zinc-500">Standard RFQs</p>
-                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{latest.rfqStandard || 0}</h3>
-                                    </div>
-                                    <div className="flex flex-col gap-2 relative z-20">
-                                        <button onClick={() => setRfqStandardModalOpen(true)} className="ml-auto p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-emerald-600 transition-all z-20">
-                                            <Eye className="w-4 h-4" />
-                                        </button>
-                                        <div className="p-2 bg-emerald-50 rounded-xl">
-                                            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                                        </div>
+                        {/* Total Value */}
+                        <div className="bg-emerald-50/50 rounded-2xl p-5 border border-emerald-100/50 shadow-sm flex flex-col justify-between hover:shadow-md transition-all duration-300 relative">
+                            <div className="flex justify-between items-start mb-3">
+                                <div>
+                                    <h3 className="font-semibold text-emerald-800 text-sm mb-1">Total Value</h3>
+                                    <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{formatCurrency(latest.annualTarget || 0, currency)}</h2>
+                                </div>
+                                <div className="flex flex-col items-center gap-3">
+                                    <button onClick={() => setRfqStandardModalOpen(true)} className="text-zinc-400 hover:text-emerald-600 transition-colors">
+                                        <Eye className="w-4 h-4" />
+                                    </button>
+                                    <div className="bg-white p-2 rounded-full shadow-sm border border-emerald-100">
+                                        <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                                     </div>
                                 </div>
-                                <div className={`flex items-center text-[10px] font-semibold w-fit px-2 py-0.5 rounded-full ${rfqStandardDiff > 0 ? 'text-emerald-600 bg-emerald-50' : rfqStandardDiff < 0 ? 'text-rose-600 bg-rose-50' : 'text-amber-600 bg-amber-50'}`}>
-                                    {rfqStandardDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : rfqStandardDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : null}
-                                    {Math.abs(rfqStandardDiff).toFixed(1)}% vs prev {periodText}
-                                </div>
+                            </div>
+                            <div className={`flex items-center text-[10px] font-semibold w-fit px-2 py-0.5 rounded-full bg-white shadow-sm border ${rfqStandardDiff > 0 ? 'text-emerald-700 border-emerald-200' : rfqStandardDiff < 0 ? 'text-rose-700 border-rose-200' : 'text-amber-700 border-amber-200'}`}>
+                                {rfqStandardDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : rfqStandardDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : null}
+                                {Math.abs(rfqStandardDiff).toFixed(1)}% vs prev {periodText}
                             </div>
                         </div>
 
-                        {/* Custom RFQs */}
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-purple-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
-                            <div className="relative z-10 flex flex-col h-full justify-between">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <p className="text-sm font-medium text-zinc-500">Custom RFQs</p>
-                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{latest.rfqCustom || 0}</h3>
-                                    </div>
-                                    <div className="flex flex-col gap-2 relative z-20">
-                                        <button onClick={() => setRfqCustomModalOpen(true)} className="ml-auto p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-purple-600 transition-all z-20">
-                                            <Eye className="w-4 h-4" />
-                                        </button>
-                                        <div className="p-2 bg-purple-50 rounded-xl">
-                                            <Settings className="w-5 h-5 text-purple-600" />
-                                        </div>
+                        {/* New Order (this week) */}
+                        <div className="bg-blue-50/50 rounded-2xl p-5 border border-blue-100/50 shadow-sm flex flex-col justify-between hover:shadow-md transition-all duration-300 relative">
+                            <div className="flex justify-between items-start mb-3">
+                                <div>
+                                    <h3 className="font-semibold text-blue-800 text-sm mb-1">New Order (this week)</h3>
+                                    <div className="flex items-baseline gap-2">
+                                        <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{latest.rfqCustom || 0}</h2>
+                                        <span className="text-sm font-bold text-zinc-400">{formatCurrency(latest.rfqCustom * 125000 || 0, currency)}</span>
                                     </div>
                                 </div>
-                                <div className={`flex items-center text-[10px] font-semibold w-fit px-2 py-0.5 rounded-full ${rfqCustomDiff > 0 ? 'text-emerald-600 bg-emerald-50' : rfqCustomDiff < 0 ? 'text-rose-600 bg-rose-50' : 'text-amber-600 bg-amber-50'}`}>
-                                    {rfqCustomDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : rfqCustomDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : null}
-                                    {Math.abs(rfqCustomDiff).toFixed(1)}% vs prev {periodText}
+                                <div className="flex flex-col items-center gap-3">
+                                    <button onClick={() => setRfqCustomModalOpen(true)} className="text-zinc-400 hover:text-blue-600 transition-colors">
+                                        <Eye className="w-4 h-4" />
+                                    </button>
+                                    <div className="bg-white p-2 rounded-full shadow-sm border border-blue-100">
+                                        <Settings className="w-5 h-5 text-blue-600" />
+                                    </div>
                                 </div>
+                            </div>
+                            <div className={`flex items-center text-[10px] font-semibold w-fit px-2 py-0.5 rounded-full bg-white shadow-sm border ${rfqCustomDiff > 0 ? 'text-blue-700 border-blue-200' : rfqCustomDiff < 0 ? 'text-rose-700 border-rose-200' : 'text-amber-700 border-amber-200'}`}>
+                                {rfqCustomDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : rfqCustomDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : null}
+                                {Math.abs(rfqCustomDiff).toFixed(1)}% vs prev {periodText}
                             </div>
                         </div>
                     </div>
@@ -238,7 +245,6 @@ export default function ManufacturingPage() {
                             <div className="relative z-10">
                                 <div className="flex items-center gap-2 mb-2">
                                     <h3 className="font-bold text-white text-lg">Project Status</h3>
-                                    <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-semibold uppercase">Deep Dive</span>
                                 </div>
                                 <p className="text-zinc-400 text-sm mb-4">Total Active Projects: <span className="text-white font-bold">{totalProjects}</span></p>
                                 <div className="space-y-3">
@@ -254,23 +260,27 @@ export default function ManufacturingPage() {
                             </div>
                         </div>
 
-                        {/* Overall Efficiency */}
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm relative overflow-hidden">
+                        {/* OTIF Replacement for Efficiency */}
+                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm relative overflow-hidden flex flex-col justify-between">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
                             <div className="flex justify-between items-start mb-4">
                                 <div>
-                                    <h3 className="font-bold text-zinc-900 text-lg">Plant Efficiency</h3>
-                                    <p className="text-zinc-500 text-sm">Overall Equipment Effectiveness</p>
+                                    <h3 className="font-bold text-zinc-900 text-lg">On-Time Delivery</h3>
+                                    <p className="text-zinc-500 text-sm">On-Time In-Full (OTIF)</p>
                                 </div>
-                                <div className="p-2 bg-emerald-50 rounded-xl">
-                                    <Activity className="w-5 h-5 text-emerald-600" />
+                                <div className="flex gap-2 relative z-20">
+                                    <div className="p-2 bg-emerald-50 rounded-xl cursor-pointer" onClick={() => setIsMetricsLogOpen(true)}>
+                                        <Activity className="w-5 h-5 text-emerald-600" />
+                                    </div>
                                 </div>
                             </div>
-                            <div className="flex items-baseline gap-2 mb-4">
-                                <span className="text-4xl font-bold text-zinc-900">{latest.efficiency || 0}%</span>
-                            </div>
-                            <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-emerald-500" style={{ width: `${latest.efficiency || 0}%` }} />
+                            <div>
+                                <div className="flex items-baseline gap-2 mb-4">
+                                    <span className="text-4xl font-black text-zinc-900 tracking-tight">70%</span>
+                                </div>
+                                <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden">
+                                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `70%` }} />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -303,6 +313,49 @@ export default function ManufacturingPage() {
                             <div className="flex h-full items-center justify-center text-zinc-400">No data available.</div>
                         )}
                     </div>
+
+                    {/* Top Performing Customer Section */}
+                    <div className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden h-[340px]">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="font-bold text-zinc-900 flex items-center gap-2">
+                                <LayoutList className="w-4 h-4 text-zinc-400" />
+                                Top Performing Customer
+                            </h3>
+                            <div className="flex bg-zinc-50 border border-zinc-200 rounded-lg p-0.5 shadow-sm">
+                                <button onClick={() => setCustomerChartMode("values")} className={cn("px-3 py-1.5 text-xs font-semibold rounded-md transition-all", customerChartMode === "values" ? "bg-white text-zinc-900 shadow-sm border border-zinc-200" : "text-zinc-500 hover:text-zinc-700")}>
+                                    Values
+                                </button>
+                                <button onClick={() => setCustomerChartMode("orders")} className={cn("px-3 py-1.5 text-xs font-semibold rounded-md transition-all", customerChartMode === "orders" ? "bg-white text-zinc-900 shadow-sm border border-zinc-200" : "text-zinc-500 hover:text-zinc-700")}>
+                                    No of Orders
+                                </button>
+                            </div>
+                        </div>
+
+                        <ResponsiveContainer width="100%" height="80%">
+                            {(() => {
+                                const activeDataKey = customerChartMode === "values" ? "value" : "orders";
+                                const sortedData = [...topCustomers].sort((a, b) => a[activeDataKey] - b[activeDataKey]);
+                                return (
+                                    <BarChart data={sortedData} layout="vertical" margin={{ top: 0, right: 60, left: 10, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f4f4f5" />
+                                        <XAxis type="number" hide />
+                                        <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#52525b', fontSize: 11, fontWeight: 500 }} width={100} />
+                                        <RechartsTooltip
+                                            cursor={{ fill: 'transparent' }}
+                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                                            formatter={(val: any) => [customerChartMode === "values" ? formatCurrency(val, currency) : val, customerChartMode === "values" ? "Total Value" : "Orders"]}
+                                        />
+                                        <Bar dataKey={activeDataKey} fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={24}>
+                                            <LabelList dataKey={activeDataKey} position="right" formatter={(val: any) => customerChartMode === "values" ? formatCurrency(val, currency).replace(".00", "") : val} fill="#52525b" fontSize={11} fontWeight={600} />
+                                            {sortedData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={['#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb'][index % 5]} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                );
+                            })()}
+                        </ResponsiveContainer>
+                    </div>
                 </div>
 
                 {/* Right Column */}
@@ -332,36 +385,6 @@ export default function ManufacturingPage() {
                                     </div>
                                 </div>
                             ))}
-                        </div>
-                    </div>
-
-                    {/* Quick Log Metrics Section */}
-                    <div className="w-full bg-white rounded-3xl p-6 flex flex-col border border-zinc-200 shadow-sm mt-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-bold text-zinc-900">Quick Log Weekly KPIs</h3>
-                        </div>
-                        <div className="space-y-3">
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-[10px] uppercase font-bold text-zinc-500">Efficiency %</label>
-                                    <input type="number" className="w-full text-sm p-1.5 border rounded-md" value={logData.efficiency} onChange={e => setLogData({ ...logData, efficiency: e.target.value })} />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] uppercase font-bold text-zinc-500">New RFQs</label>
-                                    <input type="number" className="w-full text-sm p-1.5 border rounded-md" value={logData.rfqNew} onChange={e => setLogData({ ...logData, rfqNew: e.target.value })} />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-[10px] uppercase font-bold text-zinc-500">On Track Pj</label>
-                                    <input type="number" className="w-full text-sm p-1.5 border rounded-md" value={logData.projectOnTrack} onChange={e => setLogData({ ...logData, projectOnTrack: e.target.value })} />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] uppercase font-bold text-zinc-500">Critical Pj</label>
-                                    <input type="number" className="w-full text-sm p-1.5 border rounded-md" value={logData.projectCritical} onChange={e => setLogData({ ...logData, projectCritical: e.target.value })} />
-                                </div>
-                            </div>
-                            <Button onClick={handleLogSave} size="sm" className="w-full bg-zinc-900 text-white mt-2">Save Metrics</Button>
                         </div>
                     </div>
                 </div>
@@ -468,6 +491,39 @@ export default function ManufacturingPage() {
                             <Settings className="w-8 h-8 text-purple-500 opacity-50" />
                         </div>
                         <p className="text-sm text-zinc-500">This metric represents RFQs that require specialized engineering, bespoke manufacturing routes, or non-standard parts, driving custom quoting cycles.</p>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isMetricsLogOpen} onOpenChange={setIsMetricsLogOpen}>
+                <DialogContent className="sm:max-w-md bg-white border border-zinc-200">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold flex items-center justify-between">
+                            Quick Log Weekly KPIs
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Efficiency %</label>
+                                <input type="number" className="w-full text-sm p-2 border rounded-lg focus:ring-1 focus:ring-emerald-500" value={logData.efficiency} onChange={e => setLogData({ ...logData, efficiency: e.target.value })} />
+                            </div>
+                            <div>
+                                <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">New RFQs</label>
+                                <input type="number" className="w-full text-sm p-2 border rounded-lg focus:ring-1 focus:ring-emerald-500" value={logData.rfqNew} onChange={e => setLogData({ ...logData, rfqNew: e.target.value })} />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">On Track Pj</label>
+                                <input type="number" className="w-full text-sm p-2 border rounded-lg focus:ring-1 focus:ring-emerald-500" value={logData.projectOnTrack} onChange={e => setLogData({ ...logData, projectOnTrack: e.target.value })} />
+                            </div>
+                            <div>
+                                <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Critical Pj</label>
+                                <input type="number" className="w-full text-sm p-2 border rounded-lg focus:ring-1 focus:ring-emerald-500" value={logData.projectCritical} onChange={e => setLogData({ ...logData, projectCritical: e.target.value })} />
+                            </div>
+                        </div>
+                        <Button onClick={handleLogSave} className="w-full bg-zinc-900 hover:bg-zinc-800 text-white mt-4 py-6 font-bold shadow-sm">Save Metrics</Button>
                     </div>
                 </DialogContent>
             </Dialog>

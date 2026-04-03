@@ -28,6 +28,7 @@ model Company {
   supplyChainMetrics   SupplyChainMetrics[]
   supportMetrics       SupportMetrics[]
   hrMetrics            HrMetrics[]
+  financeFundValues    FinanceFundValue[]
   hierarchyNodes       HierarchyNode[]
   CategoryMaster       CategoryMaster[]
   PaymentTypeMaster    PaymentTypeMaster[]
@@ -38,6 +39,7 @@ model Company {
   StageMaster          StageMaster[]
   TargetMaster         TargetMaster[]
   SupportTicket        SupportTicket[]
+  InventoryOrder       InventoryOrder[]
 }
 
 model HierarchyNode {
@@ -111,6 +113,20 @@ model Settings {
   id    String @id @default(cuid())
   key   String @unique
   value Json
+}
+
+model FinanceFundValue {
+  id        Int      @id @default(autoincrement())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  date      DateTime
+  fundValue Float
+  utilised  Float
+  remarks   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
 }
 
 model FinanceMetrics {
@@ -334,9 +350,10 @@ model PaymentTypeMaster {
   updatedAt DateTime @updatedAt
   updatedBy String?
 
-  customers     CustomerMaster[]
-  suppliers     SupplierMaster[]
-  opportunities Opportunity[]
+  customers      CustomerMaster[]
+  suppliers      SupplierMaster[]
+  opportunities  Opportunity[]
+  InventoryOrder InventoryOrder[]
 
   @@unique([companyId, paymentType])
 }
@@ -404,10 +421,11 @@ model SupplierMaster {
   contacts   SupplierContact[]
   addresses  SupplierAddress[]
 
-  createdAt DateTime @default(now())
-  createdBy String?
-  updatedAt DateTime @updatedAt
-  updatedBy String?
+  createdAt      DateTime         @default(now())
+  createdBy      String?
+  updatedAt      DateTime         @updatedAt
+  updatedBy      String?
+  InventoryOrder InventoryOrder[]
 
   @@unique([companyId, supplierName])
 }
@@ -540,24 +558,25 @@ model OpportunityComment {
 }
 
 model Order {
-  id               String          @id @default(cuid())
-  orderNo          String          @unique
-  opportunityId    String          @unique
-  opportunity      Opportunity     @relation(fields: [opportunityId], references: [id])
+  id               String           @id @default(cuid())
+  orderNo          String           @unique
+  opportunityId    String           @unique
+  opportunity      Opportunity      @relation(fields: [opportunityId], references: [id])
   date             DateTime
   targetDate       DateTime?
   orderIncharge    String?
   currentStageId   Int?
-  currentStage     StageMaster?    @relation(fields: [currentStageId], references: [slno])
+  currentStage     StageMaster?     @relation(fields: [currentStageId], references: [slno])
   history          OrderHistory[]
-  isClosed         Boolean         @default(false)
+  isClosed         Boolean          @default(false)
   closeReason      String?
   closeAttachments Json?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
   createdBy        String?
   updatedBy        String?
   SupportTicket    SupportTicket[]
+  InventoryOrder   InventoryOrder[]
 }
 
 model OrderHistory {
@@ -632,4 +651,48 @@ model SupportTicket {
   updatedAt DateTime @updatedAt
   createdBy String?
   updatedBy String?
+}
+
+model InventoryOrder {
+  id               String             @id @default(uuid())
+  orderNumber      String
+  date             DateTime
+  details          String?            @db.Text
+  supplierSlno     Int
+  supplier         SupplierMaster     @relation(fields: [supplierSlno], references: [slno])
+  companyId        String?
+  company          Company?           @relation(fields: [companyId], references: [id])
+  paymentTypeId    Int?
+  paymentType      PaymentTypeMaster? @relation(fields: [paymentTypeId], references: [slno])
+  expectedDelivery DateTime?
+  conditions       String?            @db.Text
+  remarks          String?            @db.Text
+  total            Float
+  status           String             @default("Pending")
+  receiveStatus    String?
+  receivedOn       DateTime?
+
+  type    String  @default("INTERNAL")
+  orderId String?
+  order   Order?  @relation(fields: [orderId], references: [id])
+
+  items InventoryItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model InventoryItem {
+  id               String         @id @default(uuid())
+  inventoryOrderId String
+  inventoryOrder   InventoryOrder @relation(fields: [inventoryOrderId], references: [id], onDelete: Cascade)
+  name             String
+  price            Float
+  quantity         Float
+  tax              Float
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

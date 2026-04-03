@@ -13,10 +13,10 @@ import {
 import { Button } from "@/components/ui/button"
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, Cell, AreaChart, Area
+    ResponsiveContainer, Cell, AreaChart, Area, LabelList
 } from 'recharts'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { SmartEntrySheet } from "@/components/data-entry/SmartEntrySheet"
+import { InventoryManager } from "@/components/data-entry/InventoryManager"
 import { cn } from "@/lib/utils"
 
 export default function SupplyChainPage() {
@@ -36,6 +36,7 @@ export default function SupplyChainPage() {
     const [suppliersModalOpen, setSuppliersModalOpen] = useState(false)
     const [paymentModalOpen, setPaymentModalOpen] = useState(false)
     const [deliveryModalOpen, setDeliveryModalOpen] = useState(false)
+    const [supplierMetricMode, setSupplierMetricMode] = useState<"Values" | "Shipments">("Values")
 
     const fetchData = async () => {
         setLoading(true)
@@ -95,6 +96,14 @@ export default function SupplyChainPage() {
         { id: "SHP-784", origin: "Texas", dest: "NY Hub", status: "Delivered", eta: "Today" },
     ]
 
+    const topSuppliersData = [
+        { name: "TechNova Corp", value: 450000, shipments: 124 },
+        { name: "Global Logistics", value: 380000, shipments: 98 },
+        { name: "Apex Supply Co", value: 320000, shipments: 112 },
+        { name: "Nexus Industries", value: 290000, shipments: 76 },
+        { name: "Prime Resources", value: 210000, shipments: 54 }
+    ]
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
 
@@ -129,77 +138,76 @@ export default function SupplyChainPage() {
                     {/* KPIs */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* Total Suppliers */}
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
-                            <div className="relative z-10 flex flex-col h-full justify-between">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <p className="text-sm font-medium text-zinc-500">Total Suppliers</p>
-                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{latest.totalSuppliers || 0}</h3>
-                                    </div>
-                                    <div className="flex flex-col gap-2 relative z-20">
-                                        <button onClick={() => setSuppliersModalOpen(true)} className="ml-auto p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-emerald-600 transition-all z-20">
-                                            <Eye className="w-4 h-4" />
-                                        </button>
-                                        <div className="p-2 bg-emerald-50 rounded-xl">
-                                            <Building2 className="w-5 h-5 text-emerald-600" />
-                                        </div>
+                        <div className="bg-white rounded-2xl p-5 border border-zinc-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative">
+                            <div className="flex justify-between items-start mb-3">
+                                <div>
+                                    <h3 className="font-semibold text-zinc-500 text-sm mb-1">Total Suppliers</h3>
+                                    <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{latest.totalSuppliers || 0}</h2>
+                                    <p className="text-sm font-bold text-zinc-400 mt-1">Active suppliers: {latest.totalSuppliers || 0}</p>
+                                </div>
+                                <div className="flex flex-col items-center gap-3 relative z-20">
+                                    <button onClick={() => setSuppliersModalOpen(true)} className="text-zinc-400 hover:text-emerald-600 transition-colors">
+                                        <Eye className="w-4 h-4" />
+                                    </button>
+                                    <div className="bg-emerald-50 p-2 rounded-full shadow-sm border border-emerald-100/50">
+                                        <Building2 className="w-5 h-5 text-emerald-600" />
                                     </div>
                                 </div>
-                                <div className={`flex items-center text-[10px] font-semibold w-fit px-2 py-0.5 rounded-full ${suppliersDiff > 0 ? 'text-emerald-600 bg-emerald-50' : suppliersDiff < 0 ? 'text-rose-600 bg-rose-50' : 'text-amber-600 bg-amber-50'}`}>
-                                    {suppliersDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : suppliersDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : null}
-                                    {Math.abs(suppliersDiff).toFixed(1)}% vs prev {periodText}
+                            </div>
+                            <div className={`flex items-center text-[10px] font-semibold w-fit px-2 py-0.5 rounded-full border bg-white ${suppliersDiff > 0 ? 'text-emerald-700 border-emerald-200' : suppliersDiff < 0 ? 'text-rose-700 border-rose-200' : 'text-amber-700 border-amber-200'}`}>
+                                {suppliersDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : suppliersDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : null}
+                                {Math.abs(suppliersDiff).toFixed(1)}% vs prev {periodText}
+                            </div>
+                        </div>
+
+                        {/* Total No of Shipments */}
+                        <div className="bg-white rounded-2xl p-5 border border-zinc-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative">
+                            <div className="flex justify-between items-start mb-3">
+                                <div>
+                                    <h3 className="font-semibold text-zinc-500 text-sm mb-1">Total No of Shipments</h3>
+                                    <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{latest.totalSuppliers ? latest.totalSuppliers * 14 : 0}</h2>
+                                    <div className="flex gap-4 mt-1">
+                                        <p className="text-sm font-bold text-amber-500 tracking-tight">InTransit: 45</p>
+                                    </div>
                                 </div>
+                                <div className="flex flex-col items-center gap-3 relative z-20">
+                                    <button onClick={() => setPaymentModalOpen(true)} className="text-zinc-400 hover:text-rose-600 transition-colors">
+                                        <Eye className="w-4 h-4" />
+                                    </button>
+                                    <div className="bg-rose-50 p-2 rounded-full shadow-sm border border-rose-100/50">
+                                        <Truck className="w-5 h-5 text-rose-600" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className={`flex items-center text-[10px] font-semibold w-fit px-2 py-0.5 rounded-full border bg-white ${paymentDiff < 0 ? 'text-emerald-700 border-emerald-200' : paymentDiff > 0 ? 'text-rose-700 border-rose-200' : 'text-amber-700 border-amber-200'}`}>
+                                {paymentDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : paymentDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : null}
+                                {Math.abs(paymentDiff).toFixed(1)}% vs prev {periodText}
                             </div>
                         </div>
 
                         {/* Payment Status */}
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
-                            <div className="relative z-10 flex flex-col h-full justify-between">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <p className="text-sm font-medium text-zinc-500">Payment Status</p>
-                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{formatCurrency(latest.outstandingPayments || 0, currency)}</h3>
-                                    </div>
-                                    <div className="flex flex-col gap-2 relative z-20">
-                                        <button onClick={() => setPaymentModalOpen(true)} className="ml-auto p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-rose-600 transition-all z-20">
-                                            <Eye className="w-4 h-4" />
-                                        </button>
-                                        <div className="p-2 bg-rose-50 rounded-xl">
-                                            <FileText className="w-5 h-5 text-rose-600" />
-                                        </div>
+                        <div className="bg-white rounded-2xl p-5 border border-zinc-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative">
+                            <div className="flex justify-between items-start mb-3">
+                                <div>
+                                    <h3 className="font-semibold text-zinc-500 text-sm mb-1">Payment Status</h3>
+                                    <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{formatCurrency(latest.outstandingPayments || 0, currency)}</h2>
+                                    <div className="flex gap-3 mt-1 text-[11px] font-bold text-zinc-400 mt-2">
+                                        <span>Credit: <span className="text-zinc-600">{formatCurrency((latest.outstandingPayments || 0) * 0.4, currency)}</span></span>
+                                        <span className="text-emerald-600 border-l border-zinc-200 pl-3">Pay this week: {formatCurrency((latest.outstandingPayments || 0) * 0.2, currency)}</span>
                                     </div>
                                 </div>
-                                <div className={`flex items-center text-[10px] font-semibold w-fit px-2 py-0.5 rounded-full ${paymentDiff < 0 ? 'text-emerald-600 bg-emerald-50' : paymentDiff > 0 ? 'text-rose-600 bg-rose-50' : 'text-amber-600 bg-amber-50'}`}>
-                                    {paymentDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : paymentDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : null}
-                                    {Math.abs(paymentDiff).toFixed(1)}% vs prev {periodText}
+                                <div className="flex flex-col items-center gap-3 relative z-20">
+                                    <button onClick={() => setDeliveryModalOpen(true)} className="text-zinc-400 hover:text-blue-600 transition-colors">
+                                        <Eye className="w-4 h-4" />
+                                    </button>
+                                    <div className="bg-blue-50 p-2 rounded-full shadow-sm border border-blue-100/50">
+                                        <FileText className="w-5 h-5 text-blue-600" />
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-
-                        {/* On-Time Delivery */}
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
-                            <div className="relative z-10 flex flex-col h-full justify-between">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <p className="text-sm font-medium text-zinc-500">On-Time Delivery</p>
-                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{latest.onTimeDelivery || 0}%</h3>
-                                    </div>
-                                    <div className="flex flex-col gap-2 relative z-20">
-                                        <button onClick={() => setDeliveryModalOpen(true)} className="ml-auto p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-blue-600 transition-all z-20">
-                                            <Eye className="w-4 h-4" />
-                                        </button>
-                                        <div className="p-2 bg-blue-50 rounded-xl">
-                                            <Truck className="w-5 h-5 text-blue-600" />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className={`flex items-center text-[10px] font-semibold w-fit px-2 py-0.5 rounded-full ${deliveryDiff > 0 ? 'text-emerald-600 bg-emerald-50' : deliveryDiff < 0 ? 'text-rose-600 bg-rose-50' : 'text-amber-600 bg-amber-50'}`}>
-                                    {deliveryDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : deliveryDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : null}
-                                    {Math.abs(deliveryDiff).toFixed(1)}% vs prev {periodText}
-                                </div>
+                            <div className={`flex items-center text-[10px] font-semibold w-fit px-2 py-0.5 rounded-full border bg-white ${deliveryDiff > 0 ? 'text-emerald-700 border-emerald-200' : deliveryDiff < 0 ? 'text-rose-700 border-rose-200' : 'text-amber-700 border-amber-200'}`}>
+                                {deliveryDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : deliveryDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : null}
+                                {Math.abs(deliveryDiff).toFixed(1)}% vs prev {periodText}
                             </div>
                         </div>
                     </div>
@@ -261,33 +269,94 @@ export default function SupplyChainPage() {
                     </div>
 
                     {/* Chart Section */}
-                    <div className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden h-[300px]">
-                        <h3 className="font-bold text-zinc-900 mb-6 flex items-center gap-2">
-                            <AreaChartIcon className="w-4 h-4 text-zinc-400" />
-                            On-Time Delivery Trend
-                        </h3>
-                        {trendData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="80%">
-                                <AreaChart data={trendData}>
-                                    <defs>
-                                        <linearGradient id="colorDelivery" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
-                                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f4f4f5" />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} dy={10} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} domain={[0, 100]} />
-                                    <Tooltip
-                                        contentStyle={{ borderRadius: '8px', border: '1px solid #e4e4e7', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                        itemStyle={{ fontSize: '12px' }}
-                                    />
-                                    <Area type="monotone" dataKey="delivery" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorDelivery)" name="On-Time %" />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="flex h-full items-center justify-center text-zinc-400">No data available.</div>
-                        )}
+                        <div className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden flex flex-col gap-6">
+                        {/* Top Performers Chart */}
+                        <div>
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="font-bold text-zinc-900 flex items-center gap-2">
+                                    <Building2 className="w-4 h-4 text-zinc-400" />
+                                    Top Performing Supplier
+                                </h3>
+                                <div className="flex bg-zinc-50 p-1 rounded-md border border-zinc-200/60">
+                                    <button
+                                        onClick={() => setSupplierMetricMode("Values")}
+                                        className={cn("px-4 py-1.5 text-xs rounded font-semibold transition-all", supplierMetricMode === "Values" ? "bg-white text-zinc-900 shadow-sm border border-zinc-200/40" : "text-zinc-500 hover:text-zinc-800")}
+                                    >
+                                        Values
+                                    </button>
+                                    <button
+                                        onClick={() => setSupplierMetricMode("Shipments")}
+                                        className={cn("px-4 py-1.5 text-xs rounded font-semibold transition-all", supplierMetricMode === "Shipments" ? "bg-white text-zinc-900 shadow-sm border border-zinc-200/40" : "text-zinc-500 hover:text-zinc-800")}
+                                    >
+                                        No of Shipments
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="h-[250px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    {(() => {
+                                        const sortedData = [...topSuppliersData].sort((a, b) => supplierMetricMode === "Values" ? b.value - a.value : b.shipments - a.shipments);
+                                        const getBarColor = (index: number, mode: string) => {
+                                            const blueGradient = ["#1d4ed8", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd"];
+                                            const emeraldGradient = ["#047857", "#059669", "#10b981", "#34d399", "#6ee7b7"];
+                                            const colors = mode === "Values" ? blueGradient : emeraldGradient;
+                                            return colors[Math.min(index, colors.length - 1)];
+                                        };
+                                        return (
+                                    <BarChart data={sortedData} layout="vertical" margin={{ top: 0, right: 80, left: 40, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f4f4f5" />
+                                        <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} />
+                                        <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#3f3f46', fontSize: 13, fontWeight: 600 }} />
+                                        <Tooltip
+                                            cursor={{ fill: '#f4f4f5' }}
+                                            contentStyle={{ borderRadius: '8px', border: '1px solid #e4e4e7', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                            formatter={(value: any) => supplierMetricMode === "Values" ? formatCurrency(value, currency) : [value, "Shipments"]}
+                                        />
+                                        <Bar dataKey={supplierMetricMode === "Values" ? "value" : "shipments"} radius={[0, 4, 4, 0]} maxBarSize={28}>
+                                            {sortedData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={getBarColor(index, supplierMetricMode)} />
+                                            ))}
+                                            <LabelList 
+                                                dataKey={supplierMetricMode === "Values" ? "value" : "shipments"} 
+                                                position="right" 
+                                                fontSize={12} 
+                                                fontWeight={700} 
+                                                fill="#52525b" 
+                                                formatter={(value: any) => supplierMetricMode === "Values" ? formatCurrency(value, currency) : value} 
+                                            />
+                                        </Bar>
+                                    </BarChart>
+                                    );
+                                    })()}
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        {/* Inactive Suppliers */}
+                        <div className="border-t border-zinc-100 pt-6">
+                            <h3 className="font-bold text-zinc-900 flex items-center gap-2 mb-4">
+                                <AlertCircle className="w-4 h-4 text-rose-400" />
+                                Inactive Suppliers
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {[
+                                    { name: "Zenith Materials", days: 65, lastDelivery: "Jan 12" },
+                                    { name: "Oasis Fabrics", days: 82, lastDelivery: "Dec 25" },
+                                    { name: "Vanguard Parts", days: 120, lastDelivery: "Nov 15" }
+                                ].map((inc, i) => (
+                                    <div key={i} className="bg-rose-50/40 border border-rose-100/50 p-4 rounded-xl flex flex-col justify-between hover:bg-rose-50/80 transition-colors">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <p className="font-bold text-zinc-900 text-sm truncate">{inc.name}</p>
+                                            <div className="text-right flex-shrink-0">
+                                                <p className="font-black text-rose-600 leading-none">{inc.days}</p>
+                                                <p className="text-[9px] uppercase font-bold text-rose-400/80 tracking-wider">Days</p>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs font-semibold text-zinc-500 mt-auto">Last delivery: {inc.lastDelivery}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -423,10 +492,9 @@ export default function SupplyChainPage() {
                 </DialogContent>
             </Dialog>
 
-            <SmartEntrySheet
+            <InventoryManager
                 isOpen={isEntryOpen}
                 onClose={() => { setIsEntryOpen(false); fetchData(); }}
-                category="supplyChain"
             />
         </div>
     )

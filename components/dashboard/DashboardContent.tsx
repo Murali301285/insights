@@ -117,13 +117,6 @@ export function DashboardContent({ user }: DashboardContentProps) {
         <div className="space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-8 pt-0">
             {/* Actions Bar */}
             <div className="flex justify-end items-center gap-2 mb-2">
-
-                <div className="flex items-center gap-2">
-                    <div className="flex items-center px-2 py-1 bg-emerald-50 border border-emerald-100 rounded-full">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-2" />
-                        <span className="text-xs font-medium text-emerald-800">System Optimal</span>
-                    </div>
-                </div>
             </div>
 
             {/* Main Layout: Grid + Side Panel */}
@@ -147,15 +140,28 @@ export function DashboardContent({ user }: DashboardContentProps) {
                                         <ArrowRight className="w-6 h-6 text-zinc-500 group-hover:text-white transition-colors" />
                                     </div>
 
-                                    <div>
+                                    <div className="w-full">
                                         <h2 className="text-3xl font-bold text-white mb-2">Finance Hub</h2>
                                         <p className="text-zinc-400 max-w-md">Real-time cash flow, P&L analysis, and expense tracking at a granular level.</p>
 
-                                        <div className="mt-6 flex items-baseline gap-2">
-                                            <div className="text-4xl font-bold text-white">$2.4M</div>
-                                            <div className="text-sm font-medium text-emerald-400 flex items-center">
-                                                <TrendingUp className="w-4 h-4 mr-1" />
-                                                +12.4% Revenue
+                                        <div className="mt-6 grid grid-cols-3 gap-4">
+                                            <div>
+                                                <p className="text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">Annual Target</p>
+                                                <div className="text-2xl font-bold text-white">₹24.0Cr</div>
+                                            </div>
+                                            <div>
+                                                <p className="text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">Orders</p>
+                                                <div className="text-2xl font-bold text-white">₹16.5Cr</div>
+                                            </div>
+                                            <div>
+                                                <p className="text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">Revenue</p>
+                                                <div className="text-2xl font-bold text-white flex items-center gap-2">
+                                                    ₹12.2Cr
+                                                    <span className="text-[10px] font-medium text-emerald-400 flex items-center bg-emerald-500/20 px-1.5 py-0.5 rounded-full">
+                                                        <TrendingUp className="w-3 h-3 mr-0.5" />
+                                                        +12%
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -184,7 +190,7 @@ export function DashboardContent({ user }: DashboardContentProps) {
 
                                 <div className="space-y-4 flex-1 flex flex-col justify-end">
                                     <div className="space-y-1 mb-2">
-                                        <h3 className="text-xl font-bold text-zinc-900">Sales & Pipeline</h3>
+                                        <h3 className="text-xl font-bold text-zinc-900">Business Acquisition</h3>
                                         <p className="text-sm text-zinc-500">Track leads and conversion rates.</p>
                                     </div>
 
@@ -224,17 +230,26 @@ export function DashboardContent({ user }: DashboardContentProps) {
                     {/* Manufacturing (Medium - 4x1) */}
                     <div className="col-span-12 md:col-span-4 row-span-1 group relative">
                         <Link href="/manufacturing" className="block h-full w-full">
-                            <div className="h-full w-full bg-white rounded-3xl p-5 border border-zinc-200 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-amber-200 flex items-center justify-between">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-2">
+                            <div className="h-full w-full bg-white rounded-3xl p-4 sm:p-5 border border-zinc-200 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-amber-200 flex items-center justify-center">
+                                <div className="w-full flex flex-col items-center justify-center">
+                                    <div className="flex items-center gap-2 mb-4 justify-center">
                                         <Factory className="w-5 h-5 text-amber-600" />
-                                        <span className="font-bold text-zinc-700">Manufacturing</span>
+                                        <span className="font-bold text-zinc-700 text-lg">Order Fulfillment</span>
                                     </div>
-                                    <div className="text-2xl font-bold text-zinc-900">92%</div>
-                                    <div className="text-xs text-zinc-500">OEE Efficiency</div>
-                                </div>
-                                <div className="h-16 w-16 rounded-full border-4 border-zinc-100 border-t-amber-500 animate-spin-slow flex items-center justify-center">
-                                    <Zap className="w-6 h-6 text-amber-500" />
+                                    <div className="flex gap-6 items-center justify-center text-center">
+                                        <div className="flex flex-col items-center">
+                                            <div className="text-3xl font-black text-zinc-900">124</div>
+                                            <div className="text-[11px] uppercase font-bold text-zinc-500 tracking-widest mt-1">Orders</div>
+                                        </div>
+                                        <div className="flex flex-col items-center">
+                                            <div className="text-3xl font-black text-emerald-600">98</div>
+                                            <div className="text-[11px] uppercase font-bold text-emerald-600/90 tracking-widest mt-1">On Track</div>
+                                        </div>
+                                        <div className="flex flex-col items-center">
+                                            <div className="text-3xl font-black text-rose-600">5</div>
+                                            <div className="text-[11px] uppercase font-bold text-rose-600/90 tracking-widest mt-1">Critical</div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </Link>
@@ -250,18 +265,25 @@ export function DashboardContent({ user }: DashboardContentProps) {
                     {/* Supply Chain (Small - 4x1) */}
                     <div className="col-span-12 md:col-span-4 row-span-1 group relative">
                         <Link href="/supply-chain" className="block h-full w-full">
-                            <div className="h-full w-full bg-white rounded-3xl p-5 border border-zinc-200 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-indigo-200 flex flex-col justify-center relative overflow-hidden">
+                            <div className="h-full w-full bg-white rounded-3xl p-4 sm:p-5 border border-zinc-200 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-indigo-200 flex flex-col justify-center items-center relative overflow-hidden text-center">
                                 <div className="absolute inset-0 bg-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                                <div className="flex items-center justify-between z-10">
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <Package className="w-5 h-5 text-indigo-600" />
-                                            <span className="font-bold text-zinc-700">Supply Chain</span>
-                                        </div>
-                                        <div className="text-xs text-zinc-500">98% On-Time Delivery</div>
-                                    </div>
-                                    <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                                <div className="w-full flex flex-col items-center z-10">
+                                    <div className="flex items-center gap-2 mb-4 justify-center">
                                         <Package className="w-5 h-5 text-indigo-600" />
+                                        <span className="font-bold text-zinc-700 text-lg">Supply Chain</span>
+                                    </div>
+                                    <div className="flex gap-8 mb-3 justify-center text-center">
+                                        <div className="flex flex-col items-center">
+                                            <div className="text-3xl font-black text-zinc-900">45</div>
+                                            <div className="text-[11px] uppercase font-bold text-zinc-500 tracking-widest mt-1">Suppliers</div>
+                                        </div>
+                                        <div className="flex flex-col items-center">
+                                            <div className="text-3xl font-black text-indigo-600">32</div>
+                                            <div className="text-[11px] uppercase font-bold text-indigo-600/90 tracking-widest mt-1">Credit</div>
+                                        </div>
+                                    </div>
+                                    <div className="text-xs font-bold text-emerald-600 flex items-center justify-center gap-1.5 bg-emerald-50 px-3 py-1 rounded-full">
+                                        +3 <span className="text-[10px] uppercase font-bold text-emerald-600/80 tracking-wider">New This Month</span>
                                     </div>
                                 </div>
                             </div>
@@ -279,9 +301,18 @@ export function DashboardContent({ user }: DashboardContentProps) {
                     <div className="col-span-6 md:col-span-2 row-span-1 group relative">
                         <Link href="/support" className="block h-full w-full">
                             <div className="h-full w-full bg-rose-50 rounded-3xl p-4 transition-all duration-300 hover:scale-[1.03] hover:shadow-md flex flex-col items-center justify-center text-center">
-                                <Search className="w-6 h-6 text-rose-600 mb-2" />
-                                <span className="text-sm font-bold text-rose-900">Support</span>
-                                <div className="text-xs font-medium text-rose-700 mt-1 bg-rose-100 px-2 py-0.5 rounded-full">42 Open</div>
+                                <Search className="w-5 h-5 text-rose-600 mb-1" />
+                                <span className="text-sm font-bold text-rose-900 mb-2">Support</span>
+                                <div className="flex gap-2 w-full justify-center">
+                                    <div className="flex flex-col items-center bg-rose-100/80 px-3 py-1.5 rounded-xl">
+                                        <span className="text-lg font-black text-rose-700 leading-none mb-1">12</span>
+                                        <span className="text-[8px] font-bold text-rose-600/70 uppercase tracking-wider">Internal</span>
+                                    </div>
+                                    <div className="flex flex-col items-center bg-rose-100/80 px-3 py-1.5 rounded-xl">
+                                        <span className="text-lg font-black text-rose-700 leading-none mb-1">30</span>
+                                        <span className="text-[8px] font-bold text-rose-600/70 uppercase tracking-wider">External</span>
+                                    </div>
+                                </div>
                             </div>
                         </Link>
                         <button

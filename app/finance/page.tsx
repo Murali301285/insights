@@ -126,76 +126,82 @@ export default function FinancePage() {
                     {/* KPI Bento Row */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* Cash Inflow */}
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
-                            <div className="relative z-10">
+                        <div className="bg-emerald-50/40 rounded-3xl p-6 border border-emerald-100/50 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-100/50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
+                            <div className="relative z-10 flex flex-col h-full justify-between">
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
-                                        <p className="text-sm font-medium text-zinc-500">Cash Inflow</p>
+                                        <p className="text-sm font-medium text-emerald-800/70">Cash Inflow</p>
                                         <h3 className="text-2xl font-bold text-zinc-900 mt-1">{formatCurrency(latest.inflow || 0, currency)}</h3>
                                     </div>
-                                    <div className="flex flex-col gap-2">
-                                        <button onClick={() => { setInsightModalType("Inflow"); setInsightModalOpen(true); }} className="ml-auto p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-emerald-600 transition-all z-20">
+                                    <div className="flex flex-col gap-2 items-end">
+                                        <button onClick={() => { setInsightModalType("Inflow"); setInsightModalOpen(true); }} className="p-1.5 rounded-full hover:bg-emerald-100 text-zinc-400 hover:text-emerald-600 transition-all z-20">
                                             <Eye className="w-4 h-4" />
                                         </button>
-                                        <div className="p-2 bg-emerald-50 rounded-xl">
-                                            <TrendingUp className="w-5 h-5 text-emerald-600" />
+                                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center border border-emerald-100 shadow-sm mt-1">
+                                            <TrendingUp className="w-4 h-4 text-emerald-600" />
                                         </div>
                                     </div>
                                 </div>
-                                <div className={`flex items-center text-xs font-medium w-fit px-2 py-1 rounded-full ${inflowDiff > 0 ? 'text-emerald-600 bg-emerald-50' : inflowDiff < 0 ? 'text-rose-600 bg-rose-50' : 'text-amber-600 bg-amber-50'}`}>
-                                    {inflowDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : inflowDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : null}
-                                    {Math.abs(inflowDiff).toFixed(1)}% vs prev {periodText}
+                                <div className="mt-auto pt-2">
+                                     <span className={`inline-block px-2 py-0.5 rounded-full bg-white border shadow-sm text-[10px] font-semibold flex items-center w-fit ${inflowDiff >= 0 ? 'text-emerald-600 border-emerald-100/50' : 'text-rose-600 border-rose-100/50'}`}>
+                                        {inflowDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : inflowDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : null}
+                                        {Math.abs(inflowDiff).toFixed(1)}% vs prev {periodText}
+                                    </span>
                                 </div>
                             </div>
                         </div>
 
                         {/* Cash Outflow */}
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
-                            <div className="relative z-10">
+                        <div className="bg-rose-50/40 rounded-3xl p-6 border border-rose-100/50 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-100/50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
+                            <div className="relative z-10 flex flex-col h-full justify-between">
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
-                                        <p className="text-sm font-medium text-zinc-500">Cash Outflow</p>
+                                        <p className="text-sm font-medium text-rose-800/70">Cash Outflow</p>
                                         <h3 className="text-2xl font-bold text-zinc-900 mt-1">{formatCurrency(latest.outflow || 0, currency)}</h3>
                                     </div>
-                                    <div className="flex flex-col gap-2">
-                                        <button onClick={() => { setInsightModalType("Outflow"); setInsightModalOpen(true); }} className="ml-auto p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-rose-600 transition-all z-20">
+                                    <div className="flex flex-col gap-2 items-end">
+                                        <button onClick={() => { setInsightModalType("Outflow"); setInsightModalOpen(true); }} className="p-1.5 rounded-full hover:bg-rose-100 text-zinc-400 hover:text-rose-600 transition-all z-20">
                                             <Eye className="w-4 h-4" />
                                         </button>
-                                        <div className="p-2 bg-rose-50 rounded-xl">
-                                            <TrendingDown className="w-5 h-5 text-rose-600" />
+                                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center border border-rose-100 shadow-sm mt-1">
+                                            <TrendingDown className="w-4 h-4 text-rose-600" />
                                         </div>
                                     </div>
                                 </div>
-                                <div className={`flex items-center text-xs font-medium w-fit px-2 py-1 rounded-full ${outflowDiff < 0 ? 'text-emerald-600 bg-emerald-50' : outflowDiff > 0 ? 'text-rose-600 bg-rose-50' : 'text-amber-600 bg-amber-50'}`}>
-                                    {outflowDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : outflowDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : null}
-                                    {Math.abs(outflowDiff).toFixed(1)}% vs prev {periodText}
+                                <div className="mt-auto pt-2">
+                                     <span className={`inline-block px-2 py-0.5 rounded-full bg-white border shadow-sm text-[10px] font-semibold flex items-center w-fit ${outflowDiff <= 0 ? 'text-emerald-600 border-emerald-100/50' : 'text-rose-600 border-rose-100/50'}`}>
+                                        {outflowDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : outflowDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : null}
+                                        {Math.abs(outflowDiff).toFixed(1)}% vs prev {periodText}
+                                    </span>
                                 </div>
                             </div>
                         </div>
 
                         {/* Cash Balance */}
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
-                            <div className="relative z-10">
+                        <div className="bg-blue-50/40 rounded-3xl p-6 border border-blue-100/50 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-blue-100/50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
+                            <div className="relative z-10 flex flex-col h-full justify-between">
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
-                                        <p className="text-sm font-medium text-zinc-500">Cash Balance</p>
+                                        <p className="text-sm font-medium text-blue-800/70">Cash Balance</p>
                                         <h3 className="text-2xl font-bold text-zinc-900 mt-1">{formatCurrency(latest.cashBalance || 0, currency)}</h3>
                                     </div>
-                                    <div className="flex flex-col gap-2">
-                                        <button onClick={() => { setInsightModalType("Balance"); setInsightModalOpen(true); }} className="ml-auto p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-blue-600 transition-all z-20">
+                                    <div className="flex flex-col gap-2 items-end">
+                                        <button onClick={() => { setInsightModalType("Balance"); setInsightModalOpen(true); }} className="p-1.5 rounded-full hover:bg-blue-100 text-zinc-400 hover:text-blue-600 transition-all z-20">
                                             <Eye className="w-4 h-4" />
                                         </button>
-                                        <div className="p-2 bg-blue-50 rounded-xl">
-                                            <Wallet className="w-5 h-5 text-blue-600" />
+                                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center border border-blue-100 shadow-sm mt-1">
+                                            <Wallet className="w-4 h-4 text-blue-600" />
                                         </div>
                                     </div>
                                 </div>
-                                <div className={`flex items-center text-xs font-medium w-fit px-2 py-1 rounded-full ${balanceDiff > 0 ? 'text-blue-600 bg-blue-50' : balanceDiff < 0 ? 'text-rose-600 bg-rose-50' : 'text-amber-600 bg-amber-50'}`}>
-                                    {balanceDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : balanceDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : null}
-                                    {Math.abs(balanceDiff).toFixed(1)}% vs prev {periodText}
+                                <div className="mt-auto pt-2">
+                                     <span className={`inline-block px-2 py-0.5 rounded-full bg-white border shadow-sm text-[10px] font-semibold flex items-center w-fit ${balanceDiff >= 0 ? 'text-blue-600 border-blue-100/50' : 'text-rose-600 border-rose-100/50'}`}>
+                                        {balanceDiff > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : balanceDiff < 0 ? <ArrowDownRight className="w-3 h-3 mr-1" /> : null}
+                                        {Math.abs(balanceDiff).toFixed(1)}% vs prev {periodText}
+                                    </span>
                                 </div>
                             </div>
                         </div>

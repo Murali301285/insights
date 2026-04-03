@@ -14,13 +14,18 @@ export async function middleware(request: NextRequest) {
 
     // Protected Routes
     if (!sessionValue) {
+        if (request.nextUrl.pathname.startsWith("/api")) {
+            return NextResponse.json({ error: "Unauthorized", redirect: "/login?timeout=true" }, { status: 401 });
+        }
         return NextResponse.redirect(new URL("/login?timeout=true", request.url));
     }
 
     // Verify token identity strictly
     const parsed = await decrypt(sessionValue);
     if (!parsed || (parsed.expires && new Date(parsed.expires).getTime() < Date.now())) {
-        const response = NextResponse.redirect(new URL("/login?timeout=true", request.url));
+        const response = request.nextUrl.pathname.startsWith("/api") 
+            ? NextResponse.json({ error: "Session Expired", redirect: "/login?timeout=true" }, { status: 401 })
+            : NextResponse.redirect(new URL("/login?timeout=true", request.url));
         response.cookies.delete("session");
         return response;
     }
