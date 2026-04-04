@@ -13,7 +13,7 @@ import { CashInsightsModal } from "@/components/finance/CashInsightsModal"
 
 export default function FinancePage() {
     const { setHeaderInfo } = useHeader()
-    const { period, setPeriod, currency } = useFilter()
+    const { period, setPeriod, currency, selectedCompanyIds } = useFilter()
 
     useEffect(() => {
         setHeaderInfo("Finance & Accounting", "Cash flow monitoring and AP/AR aging analysis.")
@@ -32,7 +32,17 @@ export default function FinancePage() {
     const fetchData = async () => {
         setLoading(true)
         try {
-            const res = await fetch(`/api/metrics?category=finance&period=${period}`)
+            let url = `/api/metrics?category=finance&period=${period}`
+            
+            if (selectedCompanyIds && selectedCompanyIds.length > 0) {
+                if (selectedCompanyIds.length === 1) {
+                    url += `&companyId=${selectedCompanyIds[0]}`
+                } else {
+                    url += `&companies=${selectedCompanyIds.join(',')}`
+                }
+            }
+
+            const res = await fetch(url)
             const data = await res.json()
             setMetrics(Array.isArray(data) ? data : [])
         } catch (error) {
@@ -44,7 +54,7 @@ export default function FinancePage() {
 
     useEffect(() => {
         fetchData()
-    }, [period])
+    }, [period, selectedCompanyIds])
 
     const latest = metrics[0] || {}
 
@@ -88,13 +98,7 @@ export default function FinancePage() {
         { name: "60-90+ Days", value: latest.ap60to90plus || 0 }
     ]
 
-    const transactions = [
-        { id: 1, title: "Invoice Paid", desc: "Acme Corp - #INV-2024", time: "Just now", type: "inflow" },
-        { id: 2, title: "Server Cost", desc: "AWS Monthly Bill", time: "2h ago", type: "outflow" },
-        { id: 3, title: "Tax Payment", desc: "Quarterly GST", time: "1d ago", type: "outflow" },
-        { id: 4, title: "Subscription", desc: "New User License", time: "2d ago", type: "inflow" },
-    ]
-
+    const transactions: any[] = []
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
             {/* Actions Bar */}
@@ -231,11 +235,11 @@ export default function FinancePage() {
                                     <div className="h-40 w-full">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={[
-                                                { name: "Total", value: latest.arTotal || 120500, fill: "#3f3f46" },
-                                                { name: "Current", value: latest.arCurrent || 45000, fill: "#10b981" },
-                                                { name: "PD 0-30", value: latest.ar0to30 || 30000, fill: "#f59e0b" },
-                                                { name: "PD 30-60", value: latest.ar30to60 || 25000, fill: "#f97316" },
-                                                { name: "PD 60-90+", value: latest.ar60to90plus || 20500, fill: "#ef4444" }
+                                                { name: "Total", value: latest.arTotal ?? 0, fill: "#3f3f46" },
+                                                { name: "Current", value: latest.arCurrent ?? 0, fill: "#10b981" },
+                                                { name: "PD 0-30", value: latest.ar0to30 ?? 0, fill: "#f59e0b" },
+                                                { name: "PD 30-60", value: latest.ar30to60 ?? 0, fill: "#f97316" },
+                                                { name: "PD 60-90+", value: latest.ar60to90plus ?? 0, fill: "#ef4444" }
                                             ]} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                                                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#27272a" />
                                                 <XAxis dataKey="name" type="category" tickLine={false} axisLine={false} tick={{ fill: '#a1a1aa', fontSize: 10 }} />
@@ -243,6 +247,7 @@ export default function FinancePage() {
                                                 <Tooltip
                                                     cursor={{ fill: 'rgba(255,255,255,0.05)' }}
                                                     contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px', color: '#fff' }}
+                                                    itemStyle={{ color: '#fff' }}
                                                     formatter={(val: any) => formatCurrency(val, currency)}
                                                 />
                                                 <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={32}>
@@ -285,11 +290,11 @@ export default function FinancePage() {
                                     <div className="h-40 w-full">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={[
-                                                { name: "Total", value: latest.apTotal || 85000, fill: "#3f3f46" },
-                                                { name: "Current", value: latest.apCurrent || 25000, fill: "#10b981" },
-                                                { name: "PD 0-30", value: latest.ap0to30 || 40000, fill: "#f59e0b" },
-                                                { name: "PD 30-60", value: latest.ap30to60 || 15000, fill: "#f97316" },
-                                                { name: "PD 60-90+", value: latest.ap60to90plus || 5000, fill: "#ef4444" }
+                                                { name: "Total", value: latest.apTotal ?? 0, fill: "#3f3f46" },
+                                                { name: "Current", value: latest.apCurrent ?? 0, fill: "#10b981" },
+                                                { name: "PD 0-30", value: latest.ap0to30 ?? 0, fill: "#f59e0b" },
+                                                { name: "PD 30-60", value: latest.ap30to60 ?? 0, fill: "#f97316" },
+                                                { name: "PD 60-90+", value: latest.ap60to90plus ?? 0, fill: "#ef4444" }
                                             ]} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                                                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#27272a" />
                                                 <XAxis dataKey="name" type="category" tickLine={false} axisLine={false} tick={{ fill: '#a1a1aa', fontSize: 10 }} />
@@ -297,6 +302,7 @@ export default function FinancePage() {
                                                 <Tooltip
                                                     cursor={{ fill: 'rgba(255,255,255,0.05)' }}
                                                     contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px', color: '#fff' }}
+                                                    itemStyle={{ color: '#fff' }}
                                                     formatter={(val: any) => formatCurrency(val, currency)}
                                                 />
                                                 <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={32}>
@@ -318,40 +324,56 @@ export default function FinancePage() {
                         </div>
                     </div>
 
-                    {/* Chart Area */}
-                    <div className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden h-[300px]">
-                        <h3 className="font-bold text-zinc-900 mb-6 flex items-center gap-2">
-                            <TrendingUp className="w-4 h-4 text-zinc-400" />
-                            Cash Flow Trend
-                        </h3>
-                        {chartData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="80%">
-                                <AreaChart data={chartData}>
-                                    <defs>
-                                        <linearGradient id="colorInflow" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />
-                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                                        </linearGradient>
-                                        <linearGradient id="colorOutflow" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.1} />
-                                            <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f4f4f5" />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} dy={10} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} tickFormatter={(value) => formatCurrency(value, currency)} />
-                                    <Tooltip
-                                        contentStyle={{ borderRadius: '8px', border: '1px solid #e4e4e7', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                        itemStyle={{ fontSize: '12px' }}
-                                        formatter={(val: any) => formatCurrency(val, currency)}
-                                    />
-                                    <Area type="monotone" dataKey="inflow" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorInflow)" name="Inflow" />
-                                    <Area type="monotone" dataKey="outflow" stroke="#f43f5e" strokeWidth={2} fillOpacity={1} fill="url(#colorOutflow)" name="Outflow" />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="flex h-full items-center justify-center text-zinc-400">No data available.</div>
-                        )}
+                    {/* Fund Metrics Area */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Total Fund */}
+                        <div className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-bold text-zinc-500 text-sm uppercase tracking-wider">Total Fund</h3>
+                                <div className="p-2 bg-emerald-50 rounded-full">
+                                    <DollarSign className="w-4 h-4 text-emerald-600" />
+                                </div>
+                            </div>
+                            <div className="text-3xl font-black text-zinc-900 mt-2">
+                                {formatCurrency(latest.totalFund || 0, currency)}
+                            </div>
+                        </div>
+
+                        {/* Utilised Fund */}
+                        <div className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-bold text-zinc-500 text-sm uppercase tracking-wider">Utilised</h3>
+                                <div className="p-2 bg-rose-50 rounded-full">
+                                    <TrendingUp className="w-4 h-4 text-rose-600" />
+                                </div>
+                            </div>
+                            <div className="text-3xl font-black text-zinc-900 mt-2">
+                                {formatCurrency(latest.totalUtilised || 0, currency)}
+                            </div>
+                            <div className="mt-4 flex items-center">
+                                <span className="text-[11px] font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-md border border-rose-100 uppercase tracking-widest">
+                                    {latest.totalFund ? ((latest.totalUtilised / latest.totalFund) * 100).toFixed(1) + "% Used" : "0.0% Used"}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Available Fund */}
+                        <div className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-bold text-zinc-500 text-sm uppercase tracking-wider">Available Fund</h3>
+                                <div className="p-2 bg-blue-50 rounded-full">
+                                    <Wallet className="w-4 h-4 text-blue-600" />
+                                </div>
+                            </div>
+                            <div className="text-3xl font-black text-zinc-900 mt-2">
+                                {formatCurrency(latest.totalAvailable || 0, currency)}
+                            </div>
+                            <div className="mt-4 flex items-center">
+                                <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-100 uppercase tracking-widest">
+                                    {latest.totalFund ? ((latest.totalAvailable / latest.totalFund) * 100).toFixed(1) + "% Free" : "100.0% Free"}
+                                </span>
+                            </div>
+                        </div>
                     </div>
 
                 </div>

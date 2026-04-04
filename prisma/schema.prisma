@@ -37,8 +37,10 @@ model Company {
   ZoneMaster           ZoneMaster[]
   StatusMaster         StatusMaster[]
   StageMaster          StageMaster[]
+  RequestStageMaster   RequestStageMaster[]
   TargetMaster         TargetMaster[]
   SupportTicket        SupportTicket[]
+  SupplyRequest        SupplyRequest[]
   InventoryOrder       InventoryOrder[]
 }
 
@@ -105,6 +107,7 @@ model User {
 
   opportunities Opportunity[]
   SupportTicket SupportTicket[]
+  SupplyRequest SupplyRequest[]
 
   @@index([hasGlobalAccess])
 }
@@ -218,6 +221,10 @@ model ManufacturingMetrics {
 
   // Efficiency
   efficiency Float @default(0) // Percentage
+
+  // Order Fulfilment Override Integration
+  orderValue       Float? // Manually input value, fallback to Sales 'winValue'
+  productionVolume Int? // Manually input volume, fallback to Sales 'orderCount'
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -426,6 +433,7 @@ model SupplierMaster {
   updatedAt      DateTime         @updatedAt
   updatedBy      String?
   InventoryOrder InventoryOrder[]
+  SupplyRequest  SupplyRequest[]
 
   @@unique([companyId, supplierName])
 }
@@ -508,6 +516,26 @@ model StageMaster {
   @@unique([companyId, order])
 }
 
+model RequestStageMaster {
+  slno       Int      @id @default(autoincrement())
+  companyId  String?
+  company    Company? @relation(fields: [companyId], references: [id])
+  statusName String
+  order      Int
+  remarks    String?
+  isActive   Boolean  @default(true)
+  isDelete   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  createdBy  String?
+  updatedBy  String?
+
+  supplyRequests SupplyRequest[]
+
+  @@unique([companyId, statusName])
+  @@unique([companyId, order])
+}
+
 model Opportunity {
   id              String            @id @default(cuid())
   slno            Int               @unique @default(autoincrement())
@@ -565,6 +593,7 @@ model Order {
   date             DateTime
   targetDate       DateTime?
   orderIncharge    String?
+  orderValue       Float? // Explicit override for the value of this single order
   currentStageId   Int?
   currentStage     StageMaster?     @relation(fields: [currentStageId], references: [slno])
   history          OrderHistory[]
@@ -577,6 +606,7 @@ model Order {
   updatedBy        String?
   SupportTicket    SupportTicket[]
   InventoryOrder   InventoryOrder[]
+  SupplyRequest    SupplyRequest[]
 }
 
 model OrderHistory {
@@ -695,4 +725,39 @@ model InventoryItem {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model SupplyRequest {
+  id         String    @id @default(cuid())
+  requestNo  String    @unique
+  companyId  String
+  company    Company   @relation(fields: [companyId], references: [id])
+  date       DateTime
+  details    String
+  targetDate DateTime?
+  actualDays Int?
+  inchargeId String?
+  incharge   User?     @relation(fields: [inchargeId], references: [id])
+
+  type    String  @default("INTERNAL") // INTERNAL | EXTERNAL
+  orderId String?
+  order   Order?  @relation(fields: [orderId], references: [id])
+
+  supplierSlno Int?
+  supplier     SupplierMaster? @relation(fields: [supplierSlno], references: [slno])
+
+  // Pipeline Tracking
+  currentStageSlno Int?
+  stage            RequestStageMaster? @relation(fields: [currentStageSlno], references: [slno])
+  status           String              @default("OPEN")
+
+  // JSON Audit Trails
+  stageHistory Json? // [{ stageSlno, stageName, order, date, remarks, attachments, updatedBy }]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([companyId])
 }

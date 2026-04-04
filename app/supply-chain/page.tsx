@@ -16,12 +16,12 @@ import {
     ResponsiveContainer, Cell, AreaChart, Area, LabelList
 } from 'recharts'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { InventoryManager } from "@/components/data-entry/InventoryManager"
+import { RequestManager } from "@/components/data-entry/RequestManager"
 import { cn } from "@/lib/utils"
 
 export default function SupplyChainPage() {
     const { setHeaderInfo } = useHeader()
-    const { period: globalPeriod, currency } = useFilter()
+    const { period: globalPeriod, currency, selectedCompanyIds } = useFilter()
 
     useEffect(() => {
         setHeaderInfo("Supply Chain Management", "Monitor supplier payments, terms, and inventory health.")
@@ -41,7 +41,8 @@ export default function SupplyChainPage() {
     const fetchData = async () => {
         setLoading(true)
         try {
-            const res = await fetch(`/api/metrics?category=supplyChain&period=${localPeriod}`)
+            const companyParam = selectedCompanyIds.length > 0 ? `&companies=${selectedCompanyIds.join(',')}` : '';
+            const res = await fetch(`/api/metrics?category=supplyChain&period=${localPeriod}${companyParam}`)
             const data = await res.json()
             setMetrics(Array.isArray(data) ? data : [])
         } catch (error) {
@@ -53,7 +54,7 @@ export default function SupplyChainPage() {
 
     useEffect(() => {
         fetchData()
-    }, [localPeriod])
+    }, [localPeriod, selectedCompanyIds])
 
     const latest = metrics[0] || {}
 
@@ -75,34 +76,16 @@ export default function SupplyChainPage() {
     const paymentDiff = getDiff(latest.outstandingPayments || 0, latest.prevOutstandingPayments || 0)
     const deliveryDiff = getDiff(latest.onTimeDelivery || 0, latest.prevOnTimeDelivery || 0)
 
-    // Supplier Terms Data
-    const termsData = [
-        { name: "Advance", value: latest.cashAdvanceTerms || 0, color: "#f59e0b" },
-        { name: "Net 15", value: latest.net15Terms || 0, color: "#10b981" },
-        { name: "Net 30", value: latest.net30Terms || 0, color: "#3b82f6" },
-        { name: "Net 60", value: latest.net60Terms || 0, color: "#8b5cf6" },
-        { name: "Net 90+", value: latest.net90Terms || 0, color: "#f43f5e" }
-    ]
-
-    // Trend
+    // Pulling dynamic arrays injected from APIs
+    const termsData = latest.termsData || []
     const trendData = metrics.map((m: any) => ({
         name: new Date(m.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
         delivery: m.onTimeDelivery || 0
     })).reverse()
-
-    const activeShipments = [
-        { id: "SHP-782", origin: "Shenzhen", dest: "NY Hub", status: "In Transit", eta: "2 Days" },
-        { id: "SHP-783", origin: "Berlin", dest: "London", status: "Customs", eta: "Delayed" },
-        { id: "SHP-784", origin: "Texas", dest: "NY Hub", status: "Delivered", eta: "Today" },
-    ]
-
-    const topSuppliersData = [
-        { name: "TechNova Corp", value: 450000, shipments: 124 },
-        { name: "Global Logistics", value: 380000, shipments: 98 },
-        { name: "Apex Supply Co", value: 320000, shipments: 112 },
-        { name: "Nexus Industries", value: 290000, shipments: 76 },
-        { name: "Prime Resources", value: 210000, shipments: 54 }
-    ]
+    
+    const activeShipments = latest.activeShipments || []
+    const topSuppliersData = latest.topSuppliersData || []
+    const inactiveSuppliers = latest.inactiveSuppliers || []
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
@@ -128,7 +111,7 @@ export default function SupplyChainPage() {
                 </div>
                 <Button onClick={() => setIsEntryOpen(true)} size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all h-9 rounded-full px-5">
                     <Plus className="w-4 h-4" />
-                    Entry
+                    New Request
                 </Button>
             </div>
 
@@ -138,10 +121,10 @@ export default function SupplyChainPage() {
                     {/* KPIs */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* Total Suppliers */}
-                        <div className="bg-white rounded-2xl p-5 border border-zinc-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative">
+                        <div className="bg-emerald-50/50 rounded-2xl p-5 border border-emerald-100/50 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative">
                             <div className="flex justify-between items-start mb-3">
                                 <div>
-                                    <h3 className="font-semibold text-zinc-500 text-sm mb-1">Total Suppliers</h3>
+                                    <h3 className="font-semibold text-emerald-800 text-sm mb-1">Total Suppliers</h3>
                                     <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{latest.totalSuppliers || 0}</h2>
                                     <p className="text-sm font-bold text-zinc-400 mt-1">Active suppliers: {latest.totalSuppliers || 0}</p>
                                 </div>
@@ -161,13 +144,13 @@ export default function SupplyChainPage() {
                         </div>
 
                         {/* Total No of Shipments */}
-                        <div className="bg-white rounded-2xl p-5 border border-zinc-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative">
+                        <div className="bg-rose-50/50 rounded-2xl p-5 border border-rose-100/50 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative">
                             <div className="flex justify-between items-start mb-3">
                                 <div>
-                                    <h3 className="font-semibold text-zinc-500 text-sm mb-1">Total No of Shipments</h3>
-                                    <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{latest.totalSuppliers ? latest.totalSuppliers * 14 : 0}</h2>
+                                    <h3 className="font-semibold text-rose-800 text-sm mb-1">Total No of Shipments</h3>
+                                    <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{latest.totalShipments || 0}</h2>
                                     <div className="flex gap-4 mt-1">
-                                        <p className="text-sm font-bold text-amber-500 tracking-tight">InTransit: 45</p>
+                                        <p className="text-sm font-bold text-amber-500 tracking-tight">InTransit: {latest.inTransitShipments || 0}</p>
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-center gap-3 relative z-20">
@@ -186,10 +169,10 @@ export default function SupplyChainPage() {
                         </div>
 
                         {/* Payment Status */}
-                        <div className="bg-white rounded-2xl p-5 border border-zinc-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative">
+                        <div className="bg-blue-50/50 rounded-2xl p-5 border border-blue-100/50 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative">
                             <div className="flex justify-between items-start mb-3">
                                 <div>
-                                    <h3 className="font-semibold text-zinc-500 text-sm mb-1">Payment Status</h3>
+                                    <h3 className="font-semibold text-blue-800 text-sm mb-1">Payment Status</h3>
                                     <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{formatCurrency(latest.outstandingPayments || 0, currency)}</h2>
                                     <div className="flex gap-3 mt-1 text-[11px] font-bold text-zinc-400 mt-2">
                                         <span>Credit: <span className="text-zinc-600">{formatCurrency((latest.outstandingPayments || 0) * 0.4, currency)}</span></span>
@@ -239,12 +222,16 @@ export default function SupplyChainPage() {
                                         </div>
                                         <div>
                                             <div className="text-xs text-zinc-400">Most Common</div>
-                                            <div className="text-sm font-bold text-white">Net 30 ({latest.net30Terms || 0})</div>
+                                            {(() => {
+                                                const sortedTerms = [...termsData].sort((a,b) => b.value - a.value);
+                                                const best = sortedTerms[0] || { name: 'N/A', value: 0 };
+                                                return <div className="text-sm font-bold text-white">{best.name} ({best.value})</div>
+                                            })()}
                                         </div>
                                     </div>
                                     <div className="text-xs text-zinc-500 text-right">
                                         Total Terms<br />
-                                        <span className="text-white font-semibold">{(latest.cashAdvanceTerms || 0) + (latest.net15Terms || 0) + (latest.net30Terms || 0) + (latest.net60Terms || 0) + (latest.net90Terms || 0)}</span>
+                                        <span className="text-white font-semibold">{termsData.reduce((acc: number, cur: any) => acc + (cur.value || 0), 0)}</span>
                                     </div>
                                 </div>
                             </div>
@@ -339,11 +326,7 @@ export default function SupplyChainPage() {
                                 Inactive Suppliers
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {[
-                                    { name: "Zenith Materials", days: 65, lastDelivery: "Jan 12" },
-                                    { name: "Oasis Fabrics", days: 82, lastDelivery: "Dec 25" },
-                                    { name: "Vanguard Parts", days: 120, lastDelivery: "Nov 15" }
-                                ].map((inc, i) => (
+                                {inactiveSuppliers.map((inc: any, i: number) => (
                                     <div key={i} className="bg-rose-50/40 border border-rose-100/50 p-4 rounded-xl flex flex-col justify-between hover:bg-rose-50/80 transition-colors">
                                         <div className="flex justify-between items-start mb-2">
                                             <p className="font-bold text-zinc-900 text-sm truncate">{inc.name}</p>
@@ -367,7 +350,7 @@ export default function SupplyChainPage() {
                             <h3 className="font-bold text-zinc-900">Active Shipments</h3>
                         </div>
                         <div className="flex-1 space-y-4 overflow-hidden relative">
-                            {activeShipments.map((ship, i) => (
+                            {activeShipments.map((ship: any, i: number) => (
                                 <div key={i} className="flex flex-col gap-2 p-4 rounded-xl bg-zinc-50 border border-zinc-100">
                                     <div className="flex justify-between items-center">
                                         <h4 className="text-xs font-bold text-zinc-900">{ship.id}</h4>
@@ -415,7 +398,7 @@ export default function SupplyChainPage() {
                                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                                     />
                                     <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                                        {termsData.map((entry, index) => (
+                                        {termsData.map((entry: any, index: number) => (
                                             <Cell key={`cell-${index}`} fill={entry.color} />
                                         ))}
                                     </Bar>
@@ -424,7 +407,7 @@ export default function SupplyChainPage() {
                         </div>
 
                         <div className="grid grid-cols-5 gap-3 mt-8 w-full">
-                            {termsData.map((d, i) => (
+                            {termsData.map((d: any, i: number) => (
                                 <div key={i} className="flex flex-col items-center text-center bg-zinc-50 p-3 rounded-lg border border-zinc-100">
                                     <p className="text-xs font-semibold text-zinc-500 mb-1 leading-tight">{d.name}</p>
                                     <p className="text-lg font-bold text-zinc-900">{d.value}</p>
@@ -492,7 +475,7 @@ export default function SupplyChainPage() {
                 </DialogContent>
             </Dialog>
 
-            <InventoryManager
+            <RequestManager
                 isOpen={isEntryOpen}
                 onClose={() => { setIsEntryOpen(false); fetchData(); }}
             />

@@ -108,7 +108,7 @@ export async function PUT(req: Request) {
                     await tx.orderHistory.update({
                         where: { id: activeHistory.id },
                         data: {
-                            remarks: body.remarks || activeHistory.remarks,
+                            remarks: body.remarks ? (activeHistory.remarks ? activeHistory.remarks + '\n\n' + body.remarks : body.remarks) : activeHistory.remarks,
                             attachments: body.attachments || activeHistory.attachments
                         }
                     });
@@ -116,11 +116,17 @@ export async function PUT(req: Request) {
             }
 
             const updateData: any = {
-                currentStageId: newStageId,
                 orderIncharge: body.orderIncharge !== undefined ? body.orderIncharge : existing.orderIncharge,
-                targetDate: body.targetDate ? new Date(body.targetDate) : undefined,
+                targetDate: body.targetDate === undefined ? undefined : (body.targetDate ? new Date(body.targetDate) : null),
                 updatedBy: user,
             };
+            if (body.currentStageId !== undefined) {
+                updateData.currentStageId = newStageId;
+            }
+            
+            if (body.orderValue !== undefined) {
+                updateData.orderValue = body.orderValue === '' || body.orderValue === null ? null : parseFloat(body.orderValue);
+            }
 
             if (body.isClosed !== undefined) updateData.isClosed = body.isClosed;
             if (body.closeReason !== undefined) updateData.closeReason = body.closeReason;

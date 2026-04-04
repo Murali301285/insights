@@ -30,6 +30,7 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
     const [loading, setLoading] = useState(true)
 
     const [viewOrder, setViewOrder] = useState<any>(null)
+    const [timelineOrder, setTimelineOrder] = useState<any>(null)
     const [updatingStatus, setUpdatingStatus] = useState(false)
     const [viewTab, setViewTab] = useState<"Ongoing" | "Completed" | "Closed">("Ongoing");
     const [closeOrderModal, setCloseOrderModal] = useState(false);
@@ -64,7 +65,7 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
     const [updateFiles, setUpdateFiles] = useState<File[]>([]);
 
     function openStageUpdateModal(newStageId: number) {
-        if (!viewOrder) return;
+        if (!viewOrder && !timelineOrder) return;
         setStageUpdateModal({ open: true, stageId: newStageId });
         setUpdateRemarks("");
         setUpdateFiles([]);
@@ -84,7 +85,8 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
     };
 
     async function handleConfirmStatusUpdate() {
-        if (!viewOrder || stageUpdateModal.stageId === null) return;
+        const activeItem = viewOrder || timelineOrder;
+        if (!activeItem || stageUpdateModal.stageId === null) return;
         if (!updateRemarks.trim()) {
             toast.error("Remarks are mandatory for stage updates.");
             return;
@@ -97,7 +99,7 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ 
-                    id: viewOrder.id, 
+                    id: activeItem.id, 
                     currentStageId: newStageId,
                     remarks: updateRemarks,
                     attachments: attachments.length > 0 ? attachments : null
@@ -107,7 +109,12 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
                 const updated = await res.json();
                 toast.success("Stage advanced natively");
                 fetchData();
-                setViewOrder({ ...viewOrder, currentStageId: newStageId, history: updated.history || viewOrder.history });
+                if (viewOrder) {
+                    setViewOrder({ ...viewOrder, currentStageId: newStageId, history: updated.history || viewOrder.history });
+                }
+                if (timelineOrder) {
+                    setTimelineOrder({ ...timelineOrder, currentStageId: newStageId, history: updated.history || timelineOrder.history });
+                }
                 setStageUpdateModal({ open: false, stageId: null });
             } else {
                 const errorData = await res.json().catch(() => ({}));
@@ -183,24 +190,55 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
 
+        let updates = [];
+        const newTargetDate = formData.get("targetDate") || null;
+        const oldTargetDate = viewOrder?.targetDate ? new Date(viewOrder.targetDate).toISOString().split('T')[0] : null;
+        if (newTargetDate !== oldTargetDate) {
+            updates.push(`• Target date changed from ${oldTargetDate ? new Date(oldTargetDate).toLocaleDateString() : 'None'} to ${newTargetDate ? new Date(newTargetDate as string).toLocaleDateString() : 'None'}`);
+        }
+        const newVal = formData.get("orderValue") !== null ? (formData.get("orderValue") as string).replace(/[^0-9.]/g, '') : undefined;
+        const oldVal = viewOrder?.orderValue !== null && viewOrder?.orderValue !== undefined ? viewOrder.orderValue.toString() : '';
+        if (newVal !== undefined && newVal !== oldVal && newVal !== '') {
+            updates.push(`• Order Value updated to ₹ ${new Intl.NumberFormat('en-IN').format(parseFloat(newVal))}`);
+        } else if (newVal === '' && oldVal !== '') {
+            updates.push(`• Order Value override removed`);
+        }
+
+        const newIncharge = formData.get("orderIncharge") === "unassigned" ? null : formData.get("orderIncharge");
+        if (newIncharge !== viewOrder?.orderIncharge) {
+            const userName = users.find(u => u.id === newIncharge)?.name || "Unassigned";
+            updates.push(`• Order Incharge designated to ${userName}`);
+        }
+
         try {
             const res = await fetch("/api/manufacturing/orders", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     id: viewOrder.id,
-                    orderIncharge: formData.get("orderIncharge") === "unassigned" ? null : formData.get("orderIncharge"),
-                    targetDate: formData.get("targetDate") || undefined
+                    orderIncharge: newIncharge,
+                    targetDate: newTargetDate,
+                    orderValue: newVal,
+                    currentStageId: updates.length > 0 ? viewOrder.currentStageId : undefined,
+                    remarks: updates.length > 0 ? "System Auto-Log:\n" + updates.join('\n') : undefined
                 })
             });
             if (res.ok) {
-                toast.success("Order Supervisor Assigned");
+                const updated = await res.json();
+                toast.success("Preferences Saved Successfully");
                 fetchData();
+                setViewOrder({ 
+                    ...viewOrder, 
+                    orderValue: formData.get("orderValue") ? parseFloat((formData.get("orderValue") as string).replace(/,/g, '')) : null,
+                    history: updated.history || viewOrder.history
+                });
             } else {
-                toast.error("Update failed");
+                const errData = await res.json().catch(() => ({}));
+                toast.error(`Update failed: ${errData.error || res.statusText}`);
+                console.error("PUT Failure:", errData);
             }
-        } catch (error) {
-            toast.error("Network error");
+        } catch (error: any) {
+            toast.error(`Network error: ${error.message}`);
         }
     }
 
@@ -225,18 +263,89 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
             cell: ({ row }) => <span className="text-zinc-600">{row.original.opportunity?.opportunityName}</span>
         },
         {
-            accessorKey: "date",
-            header: "Win Date",
-            cell: ({ row }) => formatDate(row.original.date)
+            id: "dates",
+            header: "Win Date To Target Date",
+            cell: ({ row }) => {
+                const target = row.original.targetDate ? new Date(row.original.targetDate) : null;
+                let daysLeft = null;
+                let isLate = false;
+                if (target) {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0); // Normalize to local midnight
+                    const targetNorm = new Date(target);
+                    targetNorm.setHours(0, 0, 0, 0);
+                    daysLeft = Math.ceil((targetNorm.getTime() - today.getTime()) / (1000 * 3600 * 24));
+                    isLate = daysLeft < 0;
+                }
+                
+                return (
+                    <div className="flex flex-col gap-0.5 mt-1">
+                        <span className="font-semibold text-emerald-700">{formatDate(row.original.date)}</span>
+                        {target && (
+                            <div className="text-[10px] font-bold text-zinc-500 uppercase flex flex-col gap-0.5">
+                                <span>To {formatDate(target)}</span>
+                                <span className={cn(
+                                    "font-black tracking-wider",
+                                    isLate ? "text-red-600 animate-pulse" : "text-sky-600"
+                                )}>
+                                    ({Math.abs(daysLeft!)} {isLate ? "days overdue" : "days left"})
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                )
+            }
         },
         {
             id: "stage",
             header: "Current Stage",
-            cell: ({ row }) => (
-                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm">
-                    {row.original.currentStage?.stageName || "Pending Setup"}
-                </span>
-            )
+            cell: ({ row }) => {
+                const order = row.original;
+                let daysLeft = null;
+                let isLate = false;
+                
+                if (order.targetDate && order.currentStage) {
+                    const winDate = new Date(order.date || new Date());
+                    winDate.setHours(0,0,0,0);
+                    const targetDate = new Date(order.targetDate);
+                    targetDate.setHours(0,0,0,0);
+                    const totalProjectDays = Math.max(1, Math.ceil((targetDate.getTime() - winDate.getTime()) / (1000 * 3600 * 24)));
+                    
+                    let pointer = new Date(winDate.getTime());
+                    const sortedStages = [...stages].filter(s => s.isActive).sort((a, b) => a.order - b.order);
+                    
+                    for (const stage of sortedStages) {
+                        const stagePercentage = stage.percentage || 0;
+                        const estDays = Math.round(totalProjectDays * (stagePercentage / 100));
+                        pointer.setDate(pointer.getDate() + estDays);
+                        
+                        if (stage.slno === order.currentStage?.slno) {
+                            const today = new Date();
+                            today.setHours(0,0,0,0);
+                            
+                            daysLeft = Math.ceil((pointer.getTime() - today.getTime()) / (1000 * 3600 * 24));
+                            isLate = daysLeft < 0;
+                            break;
+                        }
+                    }
+                }
+
+                return (
+                    <div className="flex flex-col gap-0.5 items-start mt-0.5">
+                        <span className="inline-flex items-center px-2 py-1 rounded text-[11px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm">
+                            {order.currentStage?.stageName || "Pending Setup"}
+                        </span>
+                        {daysLeft !== null && (
+                            <span className={cn(
+                                "text-[10px] font-black tracking-widest uppercase",
+                                isLate ? "text-red-600 animate-pulse" : "text-indigo-500"
+                            )}>
+                                ({Math.abs(daysLeft)} {isLate ? "days overdue" : "days left"})
+                            </span>
+                        )}
+                    </div>
+                );
+            }
         },
         {
             accessorKey: "orderIncharge",
@@ -249,8 +358,16 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
             )
         },
         {
+            id: "value",
+            header: "Value",
+            cell: ({ row }) => {
+                const val = row.original.orderValue !== null && row.original.orderValue !== undefined ? row.original.orderValue : (row.original.opportunity?.value || 0);
+                return <span className="font-semibold text-zinc-700">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(val)}</span>;
+            }
+        },
+        {
             accessorKey: "elapsedDays",
-            header: "Elapsed Total",
+            header: "No of days old",
             cell: ({ row }) => (
                 <div className="font-bold text-zinc-700">
                     {row.original.elapsedDays} <span className="text-xs font-normal text-zinc-400">days</span>
@@ -266,6 +383,9 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
                     <div className="flex gap-2 items-center">
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" onClick={() => setViewOrder(item)}>
                             <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => setTimelineOrder(item)}>
+                            <MessageSquare className="w-4 h-4" />
                         </Button>
                     </div>
                 )
@@ -325,7 +445,7 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
                         <div className="flex justify-between items-start pr-8">
                             <div>
                                 <DialogTitle className="text-2xl font-bold flex flex-col gap-1">
-                                    <span className="text-sm font-medium text-emerald-600 uppercase tracking-widest leading-none">Order Details</span>
+                                    <span className="text-sm font-medium text-emerald-600 uppercase tracking-widest leading-none">Order Details {viewOrder?.opportunity?.customer?.company?.companyName ? `for ${viewOrder.opportunity.customer.company.companyName}` : ''}</span>
                                     {viewOrder?.orderNo}
                                 </DialogTitle>
                                 <div className="flex flex-wrap items-center gap-2.5 mt-3 text-sm font-medium">
@@ -389,11 +509,16 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
                                     onChange={(e) => openStageUpdateModal(parseInt(e.target.value))}
                                     disabled={updatingStatus}
                                 >
-                                    {stages.filter(s => s.isActive).map(s => (
-                                        <option key={s.slno} value={s.slno}>
-                                            Order {s.order} - {s.stageName}
-                                        </option>
-                                    ))}
+                                    {stages.filter(s => s.isActive).map(s => {
+                                        const currentStageOrder = viewOrder?.currentStageId
+                                            ? stages.find(cs => cs.slno === viewOrder.currentStageId)?.order || 0
+                                            : 0;
+                                        return (
+                                            <option key={s.slno} value={s.slno} disabled={s.order < currentStageOrder}>
+                                                Order {s.order} - {s.stageName}
+                                            </option>
+                                        );
+                                    })}
                                 </select>
                             </div>
                         </div>
@@ -401,7 +526,7 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
 
                     {/* History Timeline Computation Grid */}
                     <div className="flex-1 overflow-auto p-6 grid grid-cols-3 gap-6">
-                        <div className="col-span-1 space-y-4 pr-4 border-r border-zinc-200/50">
+                        <div className="col-span-2 space-y-4 pr-4 border-r border-zinc-200/50">
                             <h3 className="font-bold flex items-center gap-2 text-zinc-800"><History className="w-4 h-4" /> Stage Tracking</h3>
                             <div className="space-y-4 pl-2 border-l-2 border-emerald-100 relative">
                                 {(() => {
@@ -441,7 +566,12 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
                                                         <span className="font-bold text-zinc-900 text-[13px] uppercase tracking-wide">
                                                             Order {stage.order} : {stage.stageName}
                                                         </span>
-                                                        {isCurrent && <span className="text-[9px] uppercase font-bold tracking-widest bg-blue-100 text-blue-700 px-2 flex items-center rounded">Active</span>}
+                                                        {isCurrent && (
+                                                            <div className="flex items-center gap-2">
+                                                                <button onClick={() => openStageUpdateModal(stage.slno)} className="text-[10px] font-bold text-blue-600 bg-white border border-blue-200 rounded px-2 py-0.5 shadow-sm hover:bg-blue-50 transition-colors flex items-center gap-1"><MessageSquare className="w-3 h-3"/> Update Status</button>
+                                                                <span className="text-[9px] uppercase font-bold tracking-widest bg-blue-100 text-blue-700 px-2 flex items-center rounded">Active</span>
+                                                            </div>
+                                                        )}
                                                     </div>
 
                                                     <div className="grid grid-cols-2 gap-4 mt-2">
@@ -471,7 +601,7 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
                                                             {actualHistoryRow.remarks && (
                                                                 <div className="bg-zinc-50 p-2 rounded border border-zinc-100 flex gap-2 items-start">
                                                                     <MessageSquare className="w-3.5 h-3.5 text-zinc-400 mt-0.5" />
-                                                                    <p className="text-xs text-zinc-600">{actualHistoryRow.remarks}</p>
+                                                                    <p className="text-xs text-zinc-600 whitespace-pre-wrap">{actualHistoryRow.remarks}</p>
                                                                 </div>
                                                             )}
                                                             {actualHistoryRow.attachments && Array.isArray(actualHistoryRow.attachments) && actualHistoryRow.attachments.length > 0 && (
@@ -499,7 +629,7 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
                         </div>
 
                         {/* Order Operations */}
-                        <div className="col-span-2 flex flex-col h-full pl-2">
+                        <div className="col-span-1 flex flex-col h-full pl-2">
                             <h3 className="font-bold mb-4 flex items-center gap-2 text-zinc-800"><Pencil className="w-4 h-4" /> Admin Operations</h3>
                             
                             {viewOrder?.isClosed && viewOrder?.closeReason && (
@@ -534,13 +664,21 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
                                                 ))}
                                             </SelectContent>
                                         </Select>
-                                        <p className="text-xs text-zinc-400 font-medium leading-relaxed mt-1">Designating an Order Incharge binds them to this project tracking module globally.</p>
                                     </div>
 
                                     <div className="space-y-2 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-                                        <label className="text-sm font-bold text-indigo-900 uppercase tracking-widest">Target Delivery Date</label>
+                                        <label className="text-sm font-bold text-indigo-900 uppercase tracking-widest">Target Date</label>
                                         <Input type="date" name="targetDate" defaultValue={viewOrder?.targetDate ? new Date(viewOrder.targetDate).toISOString().split('T')[0] : ''} className="h-10 text-indigo-900 border-indigo-200 focus-visible:ring-indigo-500" />
-                                        <p className="text-xs text-indigo-400 font-medium leading-relaxed mt-1">Setting this firm anchor automatically back-calculates and maps the Estimated completion timelines for all structural stages across the Order.</p>
+                                    </div>
+
+                                    <div className="space-y-2 bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
+                                        <label className="text-sm font-bold text-emerald-900 uppercase tracking-widest flex items-center justify-between">
+                                            Order / Contract Value
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-2.5 text-emerald-700 font-bold">₹</span>
+                                            <Input type="text" name="orderValue" defaultValue={viewOrder?.orderValue !== null && viewOrder?.orderValue !== undefined ? new Intl.NumberFormat('en-IN').format(viewOrder.orderValue) : (viewOrder?.opportunity?.value ? new Intl.NumberFormat('en-IN').format(viewOrder.opportunity.value) : '')} className="h-10 pl-7 text-emerald-900 border-emerald-200 focus-visible:ring-emerald-500 font-bold" />
+                                        </div>
                                     </div>
 
                                     <Button type="submit" className="w-[150px] bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg shadow-sm font-bold tracking-wide">Save Preferences</Button>
@@ -656,6 +794,63 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
                                 {updatingStatus ? "Saving..." : "Confirm Close"}
                             </Button>
                         </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Timeline View Modal */}
+            <Dialog open={!!timelineOrder} onOpenChange={(o) => !o && setTimelineOrder(null)}>
+                <DialogContent className="max-w-2xl max-h-[85vh] p-0 overflow-hidden bg-zinc-50 flex flex-col shadow-xl border-zinc-200">
+                    <DialogHeader className="p-6 pb-4 bg-white border-b border-zinc-200 shrink-0 flex flex-row items-center justify-between">
+                        <div>
+                            <DialogTitle className="text-xl font-bold flex flex-col gap-1 text-zinc-800">
+                                <span className="text-sm font-medium text-blue-600 uppercase tracking-widest leading-none">Order Timeline & Comments</span>
+                                {timelineOrder?.orderNo}
+                            </DialogTitle>
+                        </div>
+                        {timelineOrder?.currentStageId && !timelineOrder?.isClosed && (
+                            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 font-bold tracking-wide shadow-sm mr-6" onClick={() => openStageUpdateModal(timelineOrder.currentStageId)}>
+                                <MessageSquare className="w-4 h-4 mr-1.5" /> Add Log
+                            </Button>
+                        )}
+                    </DialogHeader>
+                    <div className="flex-1 overflow-auto p-6">
+                        {timelineOrder?.history?.length > 0 ? (
+                            <div className="space-y-6">
+                                {timelineOrder.history.map((h: any, i: number) => (
+                                    <div key={i} className="flex flex-col bg-white p-4 rounded-xl border border-zinc-200 shadow-sm relative">
+                                        <div className="flex justify-between items-start mb-2 border-b border-zinc-100 pb-2">
+                                            <div>
+                                                <span className="font-bold text-zinc-900 text-sm">{h.stage?.stageName || 'General Update'}</span>
+                                                <p className="text-xs text-zinc-500 font-medium">{formatDate(h.startDate)} to {h.endDate ? formatDate(h.endDate) : 'Present'}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="text-[10px] font-bold uppercase text-zinc-400">By {h.enteredBy || 'System'}</span>
+                                            </div>
+                                        </div>
+                                        {h.remarks && (
+                                            <div className="bg-zinc-50/50 p-3 rounded-lg border border-zinc-100 text-sm text-zinc-700 leading-relaxed whitespace-pre-wrap">
+                                                {h.remarks}
+                                            </div>
+                                        )}
+                                        {h.attachments && Array.isArray(h.attachments) && h.attachments.length > 0 && (
+                                            <div className="flex flex-wrap gap-2 mt-3">
+                                                {h.attachments.map((att: any, idx: number) => (
+                                                    <a key={idx} href={att.data} download={att.name} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-zinc-200 rounded-md text-[11px] font-bold text-blue-600 hover:bg-blue-50 transition-colors shadow-sm cursor-pointer" title="Download Document">
+                                                        <Download className="w-3.5 h-3.5" />
+                                                        <span className="max-w-[150px] truncate">{att.name}</span>
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-zinc-500 font-medium">
+                                No comments or history records found.
+                            </div>
+                        )}
                     </div>
                 </DialogContent>
             </Dialog>

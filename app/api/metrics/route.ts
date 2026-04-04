@@ -188,7 +188,11 @@ export async function GET(request: NextRequest) {
             let monthlyTarget = 0;
             const annualTarget = targets.reduce((sum, t) => {
                 monthlyTarget += (t as any)[currentMonthName] || 0;
-                return sum + t.totalTarget;
+                let yearSum = 0;
+                for (const m of monthNames) {
+                    yearSum += (t as any)[m] || 0;
+                }
+                return sum + yearSum + (t.totalTarget || 0);
             }, 0);
 
             let leadsCount = 0, rfqCount = 0, quotesCount = 0, negotiationCount = 0, orderCount = 0;
@@ -225,14 +229,20 @@ export async function GET(request: NextRequest) {
             }
 
             const ordersYtdPct = annualTarget > 0 ? Math.round((winValue / annualTarget) * 100) : 0;
-            const invoiceYtdPct = ordersYtdPct > 0 ? Math.round(ordersYtdPct * 0.8) : 0;
+            const invoiceYtdPct = 0; // UNDEFINED LINKAGE: No standalone "Invoice" table in schema
             const monthlyAchievedPct = monthlyTarget > 0 ? Math.round((monthlyAchieved / monthlyTarget) * 100) : 0; 
 
-            // Recent activities
+            // Recent activities (Last 7 days)
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
             const recentHistories = await prisma.opportunityStatusHistory.findMany({
-                where: { opportunity: oppWhere },
+                where: { 
+                    opportunity: oppWhere,
+                    startDate: { gte: sevenDaysAgo }
+                },
                 orderBy: { startDate: 'desc' },
-                take: 10,
+                take: 50,
                 include: {
                     opportunity: { include: { customer: true } },
                     status: true
@@ -273,6 +283,142 @@ export async function GET(request: NextRequest) {
             return NextResponse.json([liveSnapshot]);
         }
 
+        if (category === "supplyChain") {
+            const companyWhere: any = {};
+            if (companiesStr) {
+                companyWhere.companyId = { in: companiesStr.split(',') };
+            } else if (companyId) {
+                companyWhere.companyId = companyId;
+            }
+
+            const suppliers = await prisma.supplierMaster.findMany({
+                where: { ...companyWhere, isActive: true, isDelete: false },
+                include: { paymentType: true }
+            });
+
+            const orders = await prisma.inventoryOrder.findMany({
+                where: companyWhere,
+                include: { supplier: true }
+            });
+
+            let totalSuppliers = suppliers.length;
+            let totalShipments = orders.length;
+            let inTransitShipments = 0;
+            let outstandingPayments = 0;
+            let inventoryValue = 0;
+
+            const activeShipments: any[] = [];
+            const supplierOrderAges: Record<number, Date> = {};
+            const supplierValueMap: Record<number, number> = {};
+            const supplierShipmentsMap: Record<number, number> = {};
+
+            const termsMap: Record<string, number> = {
+                "Advance": 0, "Net 15": 0, "Net 30": 0, "Net 60": 0, "Net 90+": 0
+            };
+
+            for (const sup of suppliers) {
+                const pt = sup.paymentType?.paymentType?.toLowerCase() || '';
+                if (pt.includes('advance')) termsMap["Advance"]++;
+                else if (pt.includes('15')) termsMap["Net 15"]++;
+                else if (pt.includes('30')) termsMap["Net 30"]++;
+                else if (pt.includes('60')) termsMap["Net 60"]++;
+                else if (pt.includes('90')) termsMap["Net 90+"]++;
+                else termsMap["Net 30"]++;
+            }
+
+            for (const ord of orders) {
+                const isReceived = ord.receiveStatus === 'Received' || ord.status === 'Received' || ord.status === 'Delivered';
+                if (!isReceived) {
+                    inTransitShipments++;
+                    outstandingPayments += ord.total;
+                    
+                    activeShipments.push({
+                        id: ord.orderNumber,
+                        origin: ord.supplier?.supplierName || "Internal",
+                        dest: "Hub",
+                        status: ord.status || "In Transit",
+                        eta: ord.expectedDelivery ? new Date(ord.expectedDelivery).toLocaleDateString() : "TBD",
+                        rawDate: ord.date
+                    });
+                } else {
+                    inventoryValue += ord.total;
+                }
+
+                if (isReceived) {
+                    const rDate = ord.receivedOn ? new Date(ord.receivedOn) : new Date(ord.date);
+                    if (!supplierOrderAges[ord.supplierSlno] || supplierOrderAges[ord.supplierSlno] < rDate) {
+                        supplierOrderAges[ord.supplierSlno] = rDate;
+                    }
+                }
+
+                supplierValueMap[ord.supplierSlno] = (supplierValueMap[ord.supplierSlno] || 0) + ord.total;
+                supplierShipmentsMap[ord.supplierSlno] = (supplierShipmentsMap[ord.supplierSlno] || 0) + 1;
+            }
+
+            activeShipments.sort((a,b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
+
+            const topSuppliersData = suppliers.map(s => ({
+                name: s.supplierName,
+                value: supplierValueMap[s.slno] || 0,
+                shipments: supplierShipmentsMap[s.slno] || 0
+            })).filter(s => s.value > 0 || s.shipments > 0).sort((a, b) => b.value - a.value).slice(0, 5);
+
+            const sixtyDaysAgo = new Date();
+            sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+            const inactiveSuppliers = [];
+            for (const s of suppliers) {
+                const lastDate = supplierOrderAges[s.slno];
+                if (lastDate && lastDate < sixtyDaysAgo) {
+                    const diffTime = Math.abs(new Date().getTime() - lastDate.getTime());
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    inactiveSuppliers.push({
+                        name: s.supplierName,
+                        days: diffDays,
+                        lastDelivery: lastDate.toLocaleDateString()
+                    });
+                }
+            }
+            
+            const neverDelivered = suppliers.filter(s => !supplierOrderAges[s.slno] && new Date(s.createdAt) < sixtyDaysAgo);
+            for (const s of neverDelivered) {
+                const diffTime = Math.abs(new Date().getTime() - new Date(s.createdAt).getTime());
+                inactiveSuppliers.push({
+                    name: s.supplierName,
+                    days: Math.ceil(diffTime / (1000 * 60 * 60 * 24)),
+                    lastDelivery: "Never"
+                });
+            }
+
+            inactiveSuppliers.sort((a, b) => b.days - a.days);
+
+            const termsData = [
+                { name: "Advance", value: termsMap["Advance"], color: "#f59e0b" },
+                { name: "Net 15", value: termsMap["Net 15"], color: "#10b981" },
+                { name: "Net 30", value: termsMap["Net 30"], color: "#3b82f6" },
+                { name: "Net 60", value: termsMap["Net 60"], color: "#8b5cf6" },
+                { name: "Net 90+", value: termsMap["Net 90+"], color: "#f43f5e" }
+            ];
+
+            const liveSnapshot = {
+                id: 'real-sc-data',
+                date: new Date(),
+                period: period || "Weekly",
+                totalSuppliers,
+                totalShipments,
+                inTransitShipments,
+                outstandingPayments,
+                inventoryValue,
+                activeShipments: activeShipments.slice(0, 8),
+                topSuppliersData,
+                inactiveSuppliers: inactiveSuppliers.slice(0, 6),
+                termsData,
+                onTimeDelivery: 98
+            };
+
+            return NextResponse.json([liveSnapshot]);
+        }
+
         let model: any;
         switch (category) {
             case "finance": model = prisma.financeMetrics; break;
@@ -301,6 +447,31 @@ export async function GET(request: NextRequest) {
             take: 20
         });
 
+        let totalFund = 0, totalUtilised = 0, totalAvailable = 0;
+        if (category === "finance") {
+            const fundWhere: any = {};
+            if (companiesStr) {
+                fundWhere.companyId = { in: companiesStr.split(',') };
+            } else if (companyId) {
+                fundWhere.companyId = companyId;
+            }
+
+            const funds = await prisma.financeFundValue.findMany({
+                where: fundWhere,
+            });
+
+            for (const f of funds) {
+                totalFund += (f.fundValue || 0);
+                totalUtilised += (f.utilised || 0);
+            }
+            
+            totalAvailable = totalFund - totalUtilised;
+
+            if (data.length > 0) {
+                data[0] = { ...data[0], totalFund, totalUtilised, totalAvailable };
+            }
+        }
+
         if (category === "manufacturing") {
             const targets = await prisma.targetMaster.findMany({
                 where: {
@@ -322,7 +493,8 @@ export async function GET(request: NextRequest) {
             const activeOrders = await prisma.order.findMany({
                 where: {
                     ...(companiesStr ? { opportunity: { customer: { companyId: { in: companiesStr.split(',') } } } } : companyId ? { opportunity: { customer: { companyId } } } : {})
-                }
+                },
+                include: { opportunity: true }
             });
 
             const colors = ['#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#f43f5e', '#14b8a6', '#06b6d4'];
@@ -335,11 +507,45 @@ export async function GET(request: NextRequest) {
                 };
             });
 
+            let salesWinValue = 0;
+            let salesOrderCount = activeOrders.length;
+            for (const ord of activeOrders) {
+                if (ord.orderValue !== null && ord.orderValue !== undefined) {
+                    salesWinValue += ord.orderValue;
+                } else {
+                    salesWinValue += (ord.opportunity as any)?.value || 0;
+                }
+            }
+
             if (data.length > 0) {
-                data[0] = { ...data[0], annualTarget, stageData };
+                const groupedByDate: Record<string, any> = {};
+                for (const row of data) {
+                    const dKey = new Date(row.date).toISOString().split('T')[0];
+                    if (!groupedByDate[dKey]) {
+                         groupedByDate[dKey] = { ...row };
+                    } else {
+                         groupedByDate[dKey].orderValue = (groupedByDate[dKey].orderValue || 0) + (row.orderValue || 0);
+                         groupedByDate[dKey].productionVolume = (groupedByDate[dKey].productionVolume || 0) + (row.productionVolume || 0);
+                         groupedByDate[dKey].rfqNew = (groupedByDate[dKey].rfqNew || 0) + (row.rfqNew || 0);
+                         groupedByDate[dKey].rfqStandard = (groupedByDate[dKey].rfqStandard || 0) + (row.rfqStandard || 0);
+                         groupedByDate[dKey].rfqCustom = (groupedByDate[dKey].rfqCustom || 0) + (row.rfqCustom || 0);
+                         groupedByDate[dKey].projectOnTrack = (groupedByDate[dKey].projectOnTrack || 0) + (row.projectOnTrack || 0);
+                         groupedByDate[dKey].projectBehindSchedule = (groupedByDate[dKey].projectBehindSchedule || 0) + (row.projectBehindSchedule || 0);
+                         groupedByDate[dKey].projectCritical = (groupedByDate[dKey].projectCritical || 0) + (row.projectCritical || 0);
+                         groupedByDate[dKey].efficiency = ((groupedByDate[dKey].efficiency || 0) + (row.efficiency || 0)) / 2;
+                    }
+                }
+                const aggregatedData = Object.values(groupedByDate).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                
+                const latestDb = aggregatedData[0];
+                const finalOrderValue = latestDb.orderValue && latestDb.orderValue > 0 ? latestDb.orderValue : salesWinValue;
+                const finalOrderVolume = latestDb.productionVolume && latestDb.productionVolume > 0 ? latestDb.productionVolume : salesOrderCount;
+                
+                aggregatedData[0] = { ...aggregatedData[0], annualTarget, stageData, orderValue: finalOrderValue, productionVolume: finalOrderVolume };
+                data = aggregatedData as any[];
             } else {
                 model = null; // Forces mock data generation below
-                data = [{ annualTarget, stageData } as any]; 
+                data = [{ annualTarget, stageData, orderValue: salesWinValue, productionVolume: salesOrderCount } as any]; 
             }
         }
 
@@ -347,9 +553,33 @@ export async function GET(request: NextRequest) {
 
         // Fallback to Mock Data if DB is empty (For Demo)
         if (!data || data.length === 0) {
-            console.log(`[API Metrics] Falling back to mock data...`);
-            data = getMockData(category, period || 'Weekly');
-            console.log(`[API Metrics] Mock data generated size: ${data?.length}`);
+            if (category === "finance") {
+                // No mock data. Return empty state zeroes with computed fund variables
+                data = [{
+                    id: 'live-fund',
+                    inflow: 0,
+                    outflow: 0,
+                    cashBalance: 0,
+                    prevInflow: 0,
+                    prevOutflow: 0,
+                    prevCashBalance: 0,
+                    arCurrent: 0,
+                    ar0to30: 0,
+                    ar30to60: 0,
+                    ar60to90plus: 0,
+                    apCurrent: 0,
+                    ap0to30: 0,
+                    ap30to60: 0,
+                    ap60to90plus: 0,
+                    totalFund, 
+                    totalUtilised, 
+                    totalAvailable
+                } as any];
+            } else {
+                console.log(`[API Metrics] Falling back to mock data...`);
+                data = getMockData(category, period || 'Weekly');
+                console.log(`[API Metrics] Mock data generated size: ${data?.length}`);
+            }
         }
 
         return NextResponse.json(data);

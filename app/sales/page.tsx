@@ -113,7 +113,8 @@ export default function SalesPage() {
         { name: "Losses", value: latest.lossValue || 0 }
     ]
 
-    const conversionRate = latest.leadsCount ? ((latest.orderCount || 0) / latest.leadsCount) * 100 : 0
+    const totalLeads = (latest.leadsCount || 0) + (latest.rfqCount || 0) + (latest.quotesCount || 0) + (latest.negotiationCount || 0) + (latest.orderCount || 0)
+    const conversionRate = totalLeads ? ((latest.orderCount || 0) / totalLeads) * 100 : 0
 
     const achievedValue = (latest.annualTarget || 0) * ((latest.ordersYtdPct || 0) / 100)
     const getPeriodLabel = (p: string) => {
@@ -161,14 +162,14 @@ export default function SalesPage() {
 
                     {/* Overall Summary Row */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {/* Monthly Target */}
+                        {/* Year Target */}
                         <div className="bg-emerald-50/40 rounded-3xl p-6 border border-emerald-100/50 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-100/50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
                             <div className="relative z-10 flex flex-col h-full justify-between">
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
-                                        <p className="text-sm font-medium text-emerald-800/70">Monthly Target</p>
-                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{formatCurrency(latest.monthlyTarget || 0, currency)}</h3>
+                                        <p className="text-sm font-medium text-emerald-800/70">Year Target</p>
+                                        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{formatCurrency(latest.annualTarget || 0, currency)}</h3>
                                     </div>
                                     <div className="flex flex-col gap-2 items-end">
                                         <button onClick={() => setTargetModalOpen(true)} className="p-1.5 rounded-full hover:bg-emerald-100 text-zinc-400 hover:text-emerald-600 transition-all z-20">
@@ -181,34 +182,29 @@ export default function SalesPage() {
                                 </div>
                                 <div className="mt-auto pt-2">
                                     <span className="inline-block px-2 py-0.5 rounded-full bg-white text-emerald-600 border border-emerald-100/50 shadow-sm text-[10px] font-semibold">
-                                        Achieved so far: {latest.monthlyAchievedPct || 0}% ({formatCurrency(latest.monthlyAchieved || 0, currency)})
+                                        Achieved so far: {latest.ordersYtdPct || 0}% ({formatCurrency(latest.winValue || 0, currency)})
                                     </span>
                                 </div>
                             </div>
                         </div>
 
                         {/* Orders YTD */}
-                        <div className="bg-emerald-50/40 rounded-3xl p-6 border border-emerald-100/50 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-100/50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
+                        <div className="bg-rose-50/40 rounded-3xl p-6 border border-rose-100/50 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-100/50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
                             <div className="relative z-10 flex flex-col h-full justify-between">
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
-                                        <p className="text-sm font-medium text-emerald-800/70">Orders YTD</p>
+                                        <p className="text-sm font-medium text-rose-800/70">Orders YTD</p>
                                         <h3 className="text-2xl font-bold text-zinc-900 mt-1">{latest.ordersYtdPct || 0}%</h3>
                                     </div>
                                     <div className="flex flex-col gap-2 items-end">
-                                        <button onClick={() => setOrdersYtdModalOpen(true)} className="p-1.5 rounded-full hover:bg-emerald-100 text-zinc-400 hover:text-emerald-600 transition-all z-20">
+                                        <button onClick={() => setOrdersYtdModalOpen(true)} className="p-1.5 rounded-full hover:bg-rose-100 text-zinc-400 hover:text-rose-600 transition-all z-20">
                                             <Eye className="w-4 h-4" />
                                         </button>
-                                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center border border-emerald-100 shadow-sm mt-1">
-                                            <ShoppingCart className="w-4 h-4 text-emerald-600" />
+                                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center border border-rose-100 shadow-sm mt-1">
+                                            <ShoppingCart className="w-4 h-4 text-rose-600" />
                                         </div>
                                     </div>
-                                </div>
-                                <div className="mt-auto pt-2">
-                                    <span className="inline-block px-2 py-0.5 rounded-full bg-white text-orange-600 border border-orange-100/50 shadow-sm text-[10px] font-semibold">
-                                        0.0% vs prev {getPeriodLabel(localPeriod)}
-                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -231,11 +227,6 @@ export default function SalesPage() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="mt-auto pt-2">
-                                    <span className="inline-block px-2 py-0.5 rounded-full bg-white text-orange-600 border border-orange-100/50 shadow-sm text-[10px] font-semibold">
-                                        0.0% vs prev {getPeriodLabel(localPeriod)}
-                                    </span>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -257,7 +248,7 @@ export default function SalesPage() {
 
                             <div className="flex items-center gap-3 mb-4 flex-1">
                                 <div className="text-4xl font-extrabold text-zinc-900">
-                                    {(latest.leadsCount || 0) + (latest.rfqCount || 0) + (latest.quotesCount || 0) + (latest.negotiationCount || 0) + (latest.orderCount || 0)} Leads
+                                    {totalLeads} Leads
                                 </div>
                                 <div className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
                                     ~{conversionRate.toFixed(1)}% Conversion
@@ -296,12 +287,14 @@ export default function SalesPage() {
                     {/* Chart Section */}
                     <div className="bg-white rounded-2xl p-6 border border-zinc-200/60 shadow-sm relative overflow-hidden min-h-[350px] flex flex-col justify-between hover:shadow-md transition-shadow">
                         <div className="flex justify-between items-start mb-6">
-                            <div className="flex flex-col">
-                                <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mb-3">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-blue-50 rounded-2xl flex shrink-0 items-center justify-center">
                                     <Users className="w-6 h-6 text-blue-600" />
                                 </div>
-                                <h3 className="font-extrabold text-zinc-900 text-xl tracking-tight">Business Acquisition</h3>
-                                <p className="text-zinc-500 text-sm mt-1">Track leads and conversion rates.</p>
+                                <div className="flex flex-col">
+                                    <h3 className="font-extrabold text-zinc-900 text-xl tracking-tight">Business Acquisition</h3>
+                                    <p className="text-zinc-500 text-sm mt-0.5">Track leads and conversion rates.</p>
+                                </div>
                             </div>
                             <div className="flex items-center gap-3 z-20">
                                 <div className="flex bg-zinc-50 p-1 rounded-md border border-zinc-200/60">

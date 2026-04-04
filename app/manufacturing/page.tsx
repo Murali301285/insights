@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { PremiumCard } from "@/components/design/PremiumCard"
 import { useHeader } from "@/components/providers/HeaderProvider"
 import { useFilter } from "@/components/providers/FilterProvider"
@@ -20,7 +20,7 @@ import { SmartEntrySheet } from "@/components/data-entry/SmartEntrySheet"
 
 export default function ManufacturingPage() {
     const { setHeaderInfo } = useHeader()
-    const { period: globalPeriod, currency } = useFilter()
+    const { period: globalPeriod, currency, selectedCompanyIds } = useFilter()
 
     useEffect(() => {
         setHeaderInfo("Order Fulfilment", "Track RFQ volumes, production efficiency, and win order fulfillment.")
@@ -30,7 +30,8 @@ export default function ManufacturingPage() {
     const [isMetricsLogOpen, setIsMetricsLogOpen] = useState(false)
     const [logData, setLogData] = useState({
         efficiency: "", rfqNew: "", rfqStandard: "", rfqCustom: "",
-        projectOnTrack: "", projectBehindSchedule: "", projectCritical: ""
+        projectOnTrack: "", projectBehindSchedule: "", projectCritical: "",
+        orderValue: "", productionVolume: ""
     })
     const handleLogSave = async () => {
         const processed = Object.fromEntries(Object.entries(logData).map(([k, v]) => [k, Number(v) || 0]));
@@ -43,7 +44,7 @@ export default function ManufacturingPage() {
             if (res.ok) {
                 // toast.success("Metrics saved");
                 fetchData();
-                setLogData({ efficiency: "", rfqNew: "", rfqStandard: "", rfqCustom: "", projectOnTrack: "", projectBehindSchedule: "", projectCritical: "" })
+                setLogData({ efficiency: "", rfqNew: "", rfqStandard: "", rfqCustom: "", projectOnTrack: "", projectBehindSchedule: "", projectCritical: "", orderValue: "", productionVolume: "" })
                 setIsMetricsLogOpen(false)
             }
         } catch (e) { }
@@ -58,12 +59,27 @@ export default function ManufacturingPage() {
     const [rfqStandardModalOpen, setRfqStandardModalOpen] = useState(false)
     const [rfqCustomModalOpen, setRfqCustomModalOpen] = useState(false)
 
+    const [orders, setOrders] = useState<any[]>([])
+
     const fetchData = async () => {
         setLoading(true)
         try {
-            const res = await fetch(`/api/metrics?category=manufacturing&period=${localPeriod}`)
-            const data = await res.json()
-            setMetrics(Array.isArray(data) ? data : [])
+            const companyQuery = selectedCompanyIds?.length > 0 ? `companies=${selectedCompanyIds.join(',')}` : '';
+            const metricsUrl = `/api/metrics?category=manufacturing&period=${localPeriod}${companyQuery ? `&${companyQuery}` : ''}`;
+            const ordersUrl = `/api/manufacturing/orders${companyQuery ? `?${companyQuery}` : ''}`;
+
+            const [metricsRes, ordersRes] = await Promise.all([
+                fetch(metricsUrl),
+                fetch(ordersUrl)
+            ]);
+
+            const [metricsData, ordersData] = await Promise.all([
+                metricsRes.json(),
+                ordersRes.json()
+            ]);
+
+            setMetrics(Array.isArray(metricsData) ? metricsData : [])
+            setOrders(Array.isArray(ordersData) ? ordersData : [])
         } catch (error) {
             console.error(error)
         } finally {
@@ -73,7 +89,7 @@ export default function ManufacturingPage() {
 
     useEffect(() => {
         fetchData()
-    }, [localPeriod])
+    }, [localPeriod, selectedCompanyIds])
 
     const latest = metrics[0] || {}
 
@@ -110,22 +126,22 @@ export default function ManufacturingPage() {
 
     const totalProjects = (latest.projectOnTrack || 0) + (latest.projectBehindSchedule || 0) + (latest.projectCritical || 0)
 
-    const activeWorkOrders = [
-        { id: "WO-2024-089", client: "TechCorp", status: "On Track", progress: 85 },
-        { id: "WO-2024-090", client: "Acme Ind", status: "Critical", progress: 30 },
-        { id: "WO-2024-091", client: "Globex", status: "Behind", progress: 65 },
-        { id: "WO-2024-092", client: "Soylent", status: "On Track", progress: 95 },
-    ]
+    const activeWorkOrders: any[] = []
 
     const [customerChartMode, setCustomerChartMode] = useState<"values" | "orders">("values")
 
-    const topCustomers = [
-        { name: "TechNova Corp", value: 450000, orders: 85 },
-        { name: "Global Logistics", value: 380000, orders: 110 },
-        { name: "Apex Supply Co", value: 320000, orders: 60 },
-        { name: "Nexus Industries", value: 290000, orders: 40 },
-        { name: "Prime Resources", value: 210000, orders: 75 }
-    ]
+    const topCustomers: any[] = useMemo(() => {
+        const aggs: Record<string, { name: string, value: number, orders: number }> = {};
+        orders.forEach(o => {
+            const cName = o.opportunity?.customer?.customerName || "Unknown Customer";
+            if (!aggs[cName]) aggs[cName] = { name: cName, value: 0, orders: 0 };
+            
+            const val = o.orderValue !== null && o.orderValue !== undefined ? o.orderValue : (o.opportunity?.value || 0);
+            aggs[cName].value += val;
+            aggs[cName].orders += 1;
+        });
+        return Object.values(aggs).sort((a,b) => b.value - a.value).slice(0, 5); // top 5 customers
+    }, [orders]);
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
@@ -181,18 +197,18 @@ export default function ManufacturingPage() {
                         </div>
 
                         {/* Total Value */}
-                        <div className="bg-emerald-50/50 rounded-2xl p-5 border border-emerald-100/50 shadow-sm flex flex-col justify-between hover:shadow-md transition-all duration-300 relative">
+                        <div className="bg-rose-50/50 rounded-2xl p-5 border border-rose-100/50 shadow-sm flex flex-col justify-between hover:shadow-md transition-all duration-300 relative">
                             <div className="flex justify-between items-start mb-3">
                                 <div>
-                                    <h3 className="font-semibold text-emerald-800 text-sm mb-1">Total Value</h3>
-                                    <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{formatCurrency(latest.annualTarget || 0, currency)}</h2>
+                                    <h3 className="font-semibold text-rose-800 text-sm mb-1">Total Value</h3>
+                                    <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{formatCurrency(latest.orderValue || 0, currency)}</h2>
                                 </div>
                                 <div className="flex flex-col items-center gap-3">
-                                    <button onClick={() => setRfqStandardModalOpen(true)} className="text-zinc-400 hover:text-emerald-600 transition-colors">
+                                    <button onClick={() => setRfqStandardModalOpen(true)} className="text-zinc-400 hover:text-rose-600 transition-colors">
                                         <Eye className="w-4 h-4" />
                                     </button>
-                                    <div className="bg-white p-2 rounded-full shadow-sm border border-emerald-100">
-                                        <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                                    <div className="bg-white p-2 rounded-full shadow-sm border border-rose-100">
+                                        <CheckCircle2 className="w-5 h-5 text-rose-600" />
                                     </div>
                                 </div>
                             </div>
@@ -209,7 +225,6 @@ export default function ManufacturingPage() {
                                     <h3 className="font-semibold text-blue-800 text-sm mb-1">New Order (this week)</h3>
                                     <div className="flex items-baseline gap-2">
                                         <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{latest.rfqCustom || 0}</h2>
-                                        <span className="text-sm font-bold text-zinc-400">{formatCurrency(latest.rfqCustom * 125000 || 0, currency)}</span>
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-center gap-3">
@@ -331,11 +346,16 @@ export default function ManufacturingPage() {
                             </div>
                         </div>
 
-                        <ResponsiveContainer width="100%" height="80%">
-                            {(() => {
-                                const activeDataKey = customerChartMode === "values" ? "value" : "orders";
-                                const sortedData = [...topCustomers].sort((a, b) => a[activeDataKey] - b[activeDataKey]);
-                                return (
+                        {(() => {
+                            const activeDataKey = customerChartMode === "values" ? "value" : "orders";
+                            const sortedData = [...topCustomers].sort((a, b) => a[activeDataKey] - b[activeDataKey]);
+                            
+                            if (sortedData.length === 0) {
+                                return <div className="flex h-[80%] items-center justify-center text-zinc-400">No data available.</div>
+                            }
+
+                            return (
+                                <ResponsiveContainer width="100%" height="80%">
                                     <BarChart data={sortedData} layout="vertical" margin={{ top: 0, right: 60, left: 10, bottom: 0 }}>
                                         <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f4f4f5" />
                                         <XAxis type="number" hide />
@@ -352,9 +372,9 @@ export default function ManufacturingPage() {
                                             ))}
                                         </Bar>
                                     </BarChart>
-                                );
-                            })()}
-                        </ResponsiveContainer>
+                                </ResponsiveContainer>
+                            );
+                        })()}
                     </div>
                 </div>
 
@@ -521,6 +541,16 @@ export default function ManufacturingPage() {
                             <div>
                                 <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Critical Pj</label>
                                 <input type="number" className="w-full text-sm p-2 border rounded-lg focus:ring-1 focus:ring-emerald-500" value={logData.projectCritical} onChange={e => setLogData({ ...logData, projectCritical: e.target.value })} />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Order Value Ovrd</label>
+                                <input type="number" placeholder="Optional" className="w-full text-sm p-2 border rounded-lg focus:ring-1 focus:ring-emerald-500" value={logData.orderValue} onChange={e => setLogData({ ...logData, orderValue: e.target.value })} />
+                            </div>
+                            <div>
+                                <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Order Count Ovrd</label>
+                                <input type="number" placeholder="Optional" className="w-full text-sm p-2 border rounded-lg focus:ring-1 focus:ring-emerald-500" value={logData.productionVolume} onChange={e => setLogData({ ...logData, productionVolume: e.target.value })} />
                             </div>
                         </div>
                         <Button onClick={handleLogSave} className="w-full bg-zinc-900 hover:bg-zinc-800 text-white mt-4 py-6 font-bold shadow-sm">Save Metrics</Button>

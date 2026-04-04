@@ -299,7 +299,7 @@ export function FundValueManager({ activeCompanyId }: FundValueManagerProps) {
 
             {/* Total Funds Management Modal */}
             <Dialog open={isHeaderModalOpen} onOpenChange={setIsHeaderModalOpen}>
-                <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden" disableInteractOutside>
+                <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden" onInteractOutside={(e) => e.preventDefault()}>
                     <div className="p-6 border-b border-zinc-200 bg-zinc-50">
                         <DialogTitle className="text-xl font-bold text-indigo-900 flex items-center gap-2">
                             Manage Total Funds

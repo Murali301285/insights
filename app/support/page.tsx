@@ -134,10 +134,10 @@ export default function SupportPage() {
                     {/* KPIs */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* Total Tickets */}
-                        <div className="bg-white rounded-2xl p-5 border border-zinc-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative overflow-hidden">
+                        <div className="bg-emerald-50/50 rounded-2xl p-5 border border-emerald-100/50 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative overflow-hidden">
                             <div className="flex justify-between items-start mb-3">
                                 <div>
-                                    <h3 className="font-semibold text-zinc-500 text-sm mb-1">Total Tickets</h3>
+                                    <h3 className="font-semibold text-emerald-800 text-sm mb-1">Total Tickets</h3>
                                     <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{latest.totalTickets || 0}</h2>
                                     <div className="flex gap-2 mt-1 text-[11px] font-bold text-zinc-400">
                                         <span>Internal: <span className="text-zinc-600">{Math.round((latest.totalTickets || 350) * 0.32)}</span></span>
@@ -161,10 +161,10 @@ export default function SupportPage() {
                         </div>
 
                         {/* Open Tickets */}
-                        <div className="bg-white rounded-2xl p-5 border border-zinc-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative overflow-hidden">
+                        <div className="bg-rose-50/50 rounded-2xl p-5 border border-rose-100/50 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative overflow-hidden">
                             <div className="flex justify-between items-start mb-3">
                                 <div>
-                                    <h3 className="font-semibold text-zinc-500 text-sm mb-1">Open Tickets</h3>
+                                    <h3 className="font-semibold text-rose-800 text-sm mb-1">Open Tickets</h3>
                                     <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{latest.openTickets || 0}</h2>
                                     <div className="flex gap-2 mt-1 text-[11px] font-bold text-zinc-400">
                                         <span>Internal: <span className="text-zinc-600">{Math.round((latest.openTickets || 45) * 0.42)}</span></span>
@@ -188,10 +188,10 @@ export default function SupportPage() {
                         </div>
 
                         {/* Avg Time taken to complete */}
-                        <div className="bg-white rounded-2xl p-5 border border-zinc-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative overflow-hidden">
+                        <div className="bg-blue-50/50 rounded-2xl p-5 border border-blue-100/50 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative overflow-hidden">
                             <div className="flex justify-between items-start mb-3">
                                 <div>
-                                    <h3 className="font-semibold text-zinc-500 text-sm mb-1">Avg Time taken to complete</h3>
+                                    <h3 className="font-semibold text-blue-800 text-sm mb-1">Avg Time taken to complete</h3>
                                     <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{latest.resolutionTime || 2.4} Days</h2>
                                     <div className="flex gap-2 mt-1 text-[11px] font-bold text-zinc-400">
                                         <span>Internal: <span className="text-zinc-600">1.2 Days</span></span>

@@ -26,15 +26,26 @@ import { useHeader } from "@/components/providers/HeaderProvider"
 import { useDetailView } from "@/components/providers/DetailViewProvider"
 import { FunnelChart, Funnel, Tooltip, ResponsiveContainer, LabelList } from "recharts"
 
+export interface DashboardData {
+  finance: { orders: string, target: string, revenue: string, revenueTrend: string };
+  salesFunnel: { quotation: number, negotiation: number, orderWin: number, orderLoss: number };
+  manufacturing: { onTrack: number, critical: number };
+  supplyChain: { suppliers: number, credit: number };
+  support: { internal: number, external: number };
+  hr: { open: number, hires: number };
+  alerts: { id: number, title: string, desc: string, type: string }[];
+}
+
 interface DashboardContentProps {
     user?: {
         name: string;
         email: string;
         role: string;
     } | null;
+    data?: DashboardData;
 }
 
-export function DashboardContent({ user }: DashboardContentProps) {
+export function DashboardContent({ user, data }: DashboardContentProps) {
     // Global Header Integration
     const { setHeaderInfo } = useHeader()
     const { openDetailView } = useDetailView()
@@ -94,7 +105,7 @@ export function DashboardContent({ user }: DashboardContentProps) {
         }
     }, [isInsightPaused, insights.length])
 
-    const alerts = [
+    const alerts = data?.alerts || [
         { id: 1, title: "Cash Flow Warning", desc: "Outflow exceeds inflow (3rd week).", type: "critical" },
         { id: 2, title: "Hiring Target Missed", desc: "Sales Engineer open 45+ days.", type: "warning" },
         { id: 3, title: "Inventory Low", desc: "Steel raw material < 20% stock.", type: "warning" },
@@ -107,10 +118,10 @@ export function DashboardContent({ user }: DashboardContentProps) {
 
     // Vertical Funnel Data
     const funnelData = [
-        { "value": 120, "label": "Leads", "fill": "#dbeafe" },
-        { "value": 85, "label": "Quotation", "fill": "#60a5fa" },
-        { "value": 45, "label": "Negotiation", "fill": "#2563eb" },
-        { "value": 28, "label": "Converted", "fill": "#1e3a8a" }
+        { "value": data?.salesFunnel.quotation || 100, "label": "Quotation", "fill": "#60a5fa" },
+        { "value": data?.salesFunnel.negotiation || 75, "label": "Negotiation", "fill": "#2563eb" },
+        { "value": data?.salesFunnel.orderWin || 50, "label": "Order Win", "fill": "#10b981" },
+        { "value": data?.salesFunnel.orderLoss || 25, "label": "Order Loss", "fill": "#ef4444" }
     ]
 
     return (
@@ -125,8 +136,8 @@ export function DashboardContent({ user }: DashboardContentProps) {
                 {/* Left Column: Bento Grid (Nav) - Spans 9 cols */}
                 <div className="col-span-12 lg:col-span-9 grid grid-cols-12 gap-3 auto-rows-[145px]">
 
-                    {/* Finance (Large - 4x2) */}
-                    <div className="col-span-12 md:col-span-8 row-span-2 group relative">
+                    {/* Finance (Large - 6x2) */}
+                    <div className="col-span-12 md:col-span-6 row-span-2 group relative">
                         <Link href="/finance" className="block h-full w-full">
                             <div className="relative h-full w-full bg-gradient-to-br from-zinc-900 to-zinc-800 rounded-3xl p-8 overflow-hidden transition-all duration-300 hover:scale-[1.01] hover:shadow-2xl ring-1 ring-zinc-900/5">
                                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
@@ -147,19 +158,19 @@ export function DashboardContent({ user }: DashboardContentProps) {
                                         <div className="mt-6 grid grid-cols-3 gap-4">
                                             <div>
                                                 <p className="text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">Annual Target</p>
-                                                <div className="text-2xl font-bold text-white">₹24.0Cr</div>
+                                                <div className="text-2xl font-bold text-white">{data?.finance.target || "₹24.0Cr"}</div>
                                             </div>
                                             <div>
                                                 <p className="text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">Orders</p>
-                                                <div className="text-2xl font-bold text-white">₹16.5Cr</div>
+                                                <div className="text-2xl font-bold text-white">{data?.finance.orders || "₹16.5Cr"}</div>
                                             </div>
                                             <div>
                                                 <p className="text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">Revenue</p>
                                                 <div className="text-2xl font-bold text-white flex items-center gap-2">
-                                                    ₹12.2Cr
+                                                    {data?.finance.revenue || "₹12.2Cr"}
                                                     <span className="text-[10px] font-medium text-emerald-400 flex items-center bg-emerald-500/20 px-1.5 py-0.5 rounded-full">
                                                         <TrendingUp className="w-3 h-3 mr-0.5" />
-                                                        +12%
+                                                        {data?.finance.revenueTrend || "+12%"}
                                                     </span>
                                                 </div>
                                             </div>
@@ -178,21 +189,23 @@ export function DashboardContent({ user }: DashboardContentProps) {
                         </button>
                     </div>
 
-                    {/* Sales (Medium - 4x2) vertical on mobile, or square on desktop */}
-                    <div className="col-span-12 md:col-span-4 row-span-2 group relative">
+                    {/* Sales (Medium - 6x2) */}
+                    <div className="col-span-12 md:col-span-6 row-span-2 group relative">
                         <Link href="/sales" className="block h-full w-full">
                             <div className="h-full w-full bg-white rounded-3xl p-6 border border-zinc-200 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:border-blue-200 relative overflow-hidden flex flex-col justify-between">
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full blur-2xl -mr-8 -mt-8 pointer-events-none" />
 
-                                <div className="p-3 bg-blue-50 rounded-2xl w-fit">
-                                    <Users className="w-6 h-6 text-blue-600" />
+                                <div className="flex items-center gap-4 relative z-10 mb-4">
+                                    <div className="p-3 bg-blue-50 rounded-2xl w-fit">
+                                        <Users className="w-6 h-6 text-blue-600" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-bold text-zinc-900 leading-tight">Business Acquisition</h3>
+                                        <p className="text-sm text-zinc-500 mt-0.5">Track leads and conversion rates.</p>
+                                    </div>
                                 </div>
 
-                                <div className="space-y-4 flex-1 flex flex-col justify-end">
-                                    <div className="space-y-1 mb-2">
-                                        <h3 className="text-xl font-bold text-zinc-900">Business Acquisition</h3>
-                                        <p className="text-sm text-zinc-500">Track leads and conversion rates.</p>
-                                    </div>
+                                <div className="space-y-4 flex-1 flex flex-col justify-end relative z-10">
 
                                     {/* Recharts Funnel Viz */}
                                     <div className="h-56 w-full mt-2">
@@ -227,27 +240,24 @@ export function DashboardContent({ user }: DashboardContentProps) {
                         </button>
                     </div>
 
-                    {/* Manufacturing (Medium - 4x1) */}
-                    <div className="col-span-12 md:col-span-4 row-span-1 group relative">
+                    {/* Manufacturing (Small - 3) */}
+                    <div className="col-span-6 md:col-span-3 row-span-1 group relative">
                         <Link href="/manufacturing" className="block h-full w-full">
-                            <div className="h-full w-full bg-white rounded-3xl p-4 sm:p-5 border border-zinc-200 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-amber-200 flex items-center justify-center">
-                                <div className="w-full flex flex-col items-center justify-center">
-                                    <div className="flex items-center gap-2 mb-4 justify-center">
-                                        <Factory className="w-5 h-5 text-amber-600" />
-                                        <span className="font-bold text-zinc-700 text-lg">Order Fulfillment</span>
+                            <div className="h-full w-full bg-amber-50 rounded-3xl p-4 sm:p-5 border border-amber-100 transition-all duration-300 hover:scale-[1.03] hover:shadow-md flex flex-col justify-center items-center text-center relative overflow-hidden">
+                                <div className="absolute inset-0 bg-amber-100/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                                <div className="w-full flex flex-col items-center z-10">
+                                    <div className="flex items-center gap-2 mb-3 justify-center">
+                                        <Factory className="w-4 h-4 text-amber-600" />
+                                        <span className="font-bold text-zinc-700 text-sm">Order Fulfillment</span>
                                     </div>
-                                    <div className="flex gap-6 items-center justify-center text-center">
+                                    <div className="flex gap-5 md:gap-8 justify-center text-center">
                                         <div className="flex flex-col items-center">
-                                            <div className="text-3xl font-black text-zinc-900">124</div>
-                                            <div className="text-[11px] uppercase font-bold text-zinc-500 tracking-widest mt-1">Orders</div>
+                                            <div className="text-2xl font-black text-emerald-600">{data?.manufacturing.onTrack || 98}</div>
+                                            <div className="text-[9px] uppercase font-bold text-emerald-600/90 tracking-widest mt-0.5">On Track</div>
                                         </div>
                                         <div className="flex flex-col items-center">
-                                            <div className="text-3xl font-black text-emerald-600">98</div>
-                                            <div className="text-[11px] uppercase font-bold text-emerald-600/90 tracking-widest mt-1">On Track</div>
-                                        </div>
-                                        <div className="flex flex-col items-center">
-                                            <div className="text-3xl font-black text-rose-600">5</div>
-                                            <div className="text-[11px] uppercase font-bold text-rose-600/90 tracking-widest mt-1">Critical</div>
+                                            <div className="text-2xl font-black text-rose-600">{data?.manufacturing.critical || 5}</div>
+                                            <div className="text-[9px] uppercase font-bold text-rose-600/90 tracking-widest mt-0.5">Critical</div>
                                         </div>
                                     </div>
                                 </div>
@@ -262,28 +272,25 @@ export function DashboardContent({ user }: DashboardContentProps) {
                         </button>
                     </div>
 
-                    {/* Supply Chain (Small - 4x1) */}
-                    <div className="col-span-12 md:col-span-4 row-span-1 group relative">
+                    {/* Supply Chain (Small - 3) */}
+                    <div className="col-span-6 md:col-span-3 row-span-1 group relative">
                         <Link href="/supply-chain" className="block h-full w-full">
-                            <div className="h-full w-full bg-white rounded-3xl p-4 sm:p-5 border border-zinc-200 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-indigo-200 flex flex-col justify-center items-center relative overflow-hidden text-center">
-                                <div className="absolute inset-0 bg-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            <div className="h-full w-full bg-indigo-50 rounded-3xl p-4 sm:p-5 border border-indigo-100 transition-all duration-300 hover:scale-[1.03] hover:shadow-md flex flex-col justify-center items-center text-center relative overflow-hidden">
+                                <div className="absolute inset-0 bg-indigo-100/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                                 <div className="w-full flex flex-col items-center z-10">
-                                    <div className="flex items-center gap-2 mb-4 justify-center">
-                                        <Package className="w-5 h-5 text-indigo-600" />
-                                        <span className="font-bold text-zinc-700 text-lg">Supply Chain</span>
+                                    <div className="flex items-center gap-2 mb-3 justify-center">
+                                        <Package className="w-4 h-4 text-indigo-600" />
+                                        <span className="font-bold text-zinc-700 text-sm">Supply Chain</span>
                                     </div>
-                                    <div className="flex gap-8 mb-3 justify-center text-center">
+                                    <div className="flex gap-5 md:gap-8 justify-center text-center">
                                         <div className="flex flex-col items-center">
-                                            <div className="text-3xl font-black text-zinc-900">45</div>
-                                            <div className="text-[11px] uppercase font-bold text-zinc-500 tracking-widest mt-1">Suppliers</div>
+                                            <div className="text-2xl font-black text-zinc-900">{data?.supplyChain.suppliers || 45}</div>
+                                            <div className="text-[9px] uppercase font-bold text-zinc-500 tracking-widest mt-0.5">Suppliers</div>
                                         </div>
                                         <div className="flex flex-col items-center">
-                                            <div className="text-3xl font-black text-indigo-600">32</div>
-                                            <div className="text-[11px] uppercase font-bold text-indigo-600/90 tracking-widest mt-1">Credit</div>
+                                            <div className="text-2xl font-black text-indigo-600">{data?.supplyChain.credit || 32}</div>
+                                            <div className="text-[9px] uppercase font-bold text-indigo-600/90 tracking-widest mt-0.5">Credit</div>
                                         </div>
-                                    </div>
-                                    <div className="text-xs font-bold text-emerald-600 flex items-center justify-center gap-1.5 bg-emerald-50 px-3 py-1 rounded-full">
-                                        +3 <span className="text-[10px] uppercase font-bold text-emerald-600/80 tracking-wider">New This Month</span>
                                     </div>
                                 </div>
                             </div>
@@ -297,20 +304,25 @@ export function DashboardContent({ user }: DashboardContentProps) {
                         </button>
                     </div>
 
-                    {/* Support (Small - 4x1) */}
-                    <div className="col-span-6 md:col-span-2 row-span-1 group relative">
+                    {/* Support (Small - 3) */}
+                    <div className="col-span-6 md:col-span-3 row-span-1 group relative">
                         <Link href="/support" className="block h-full w-full">
-                            <div className="h-full w-full bg-rose-50 rounded-3xl p-4 transition-all duration-300 hover:scale-[1.03] hover:shadow-md flex flex-col items-center justify-center text-center">
-                                <Search className="w-5 h-5 text-rose-600 mb-1" />
-                                <span className="text-sm font-bold text-rose-900 mb-2">Support</span>
-                                <div className="flex gap-2 w-full justify-center">
-                                    <div className="flex flex-col items-center bg-rose-100/80 px-3 py-1.5 rounded-xl">
-                                        <span className="text-lg font-black text-rose-700 leading-none mb-1">12</span>
-                                        <span className="text-[8px] font-bold text-rose-600/70 uppercase tracking-wider">Internal</span>
+                            <div className="h-full w-full bg-rose-50 rounded-3xl p-4 sm:p-5 border border-rose-100 transition-all duration-300 hover:scale-[1.03] hover:shadow-md flex flex-col justify-center items-center text-center relative overflow-hidden">
+                                <div className="absolute inset-0 bg-rose-100/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                                <div className="w-full flex flex-col items-center z-10">
+                                    <div className="flex items-center gap-2 mb-3 justify-center">
+                                        <Search className="w-4 h-4 text-rose-600" />
+                                        <span className="font-bold text-zinc-700 text-sm">Support</span>
                                     </div>
-                                    <div className="flex flex-col items-center bg-rose-100/80 px-3 py-1.5 rounded-xl">
-                                        <span className="text-lg font-black text-rose-700 leading-none mb-1">30</span>
-                                        <span className="text-[8px] font-bold text-rose-600/70 uppercase tracking-wider">External</span>
+                                    <div className="flex gap-5 md:gap-8 justify-center text-center">
+                                        <div className="flex flex-col items-center">
+                                            <div className="text-2xl font-black text-rose-700">{data?.support.internal || 12}</div>
+                                            <div className="text-[9px] uppercase font-bold text-rose-600/90 tracking-widest mt-0.5">Internal</div>
+                                        </div>
+                                        <div className="flex flex-col items-center">
+                                            <div className="text-2xl font-black text-rose-700">{data?.support.external || 30}</div>
+                                            <div className="text-[9px] uppercase font-bold text-rose-600/90 tracking-widest mt-0.5">External</div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -318,27 +330,41 @@ export function DashboardContent({ user }: DashboardContentProps) {
                         <button
                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); openDetailView("Support Tickets", "Support"); }}
                             title="View Data Details"
-                            className="absolute top-2 right-2 p-1 rounded-full bg-white/50 text-rose-400 hover:text-rose-900 hover:bg-white transition-all z-20 opacity-0 group-hover:opacity-100"
+                            className="absolute top-4 right-4 p-1.5 rounded-full bg-white/50 text-rose-400 hover:text-rose-900 hover:bg-white transition-all z-20 opacity-0 group-hover:opacity-100"
                         >
-                            <Eye className="w-3 h-3" />
+                            <Eye className="w-4 h-4" />
                         </button>
                     </div>
 
-                    {/* HR (Small - 4x1) */}
-                    <div className="col-span-6 md:col-span-2 row-span-1 group relative">
+                    {/* HR (Small - 3) */}
+                    <div className="col-span-6 md:col-span-3 row-span-1 group relative">
                         <Link href="/hr" className="block h-full w-full">
-                            <div className="h-full w-full bg-purple-50 rounded-3xl p-4 transition-all duration-300 hover:scale-[1.03] hover:shadow-md flex flex-col items-center justify-center text-center">
-                                <Megaphone className="w-6 h-6 text-purple-600 mb-2" />
-                                <span className="text-sm font-bold text-purple-900">HR Portal</span>
-                                <div className="text-xs font-medium text-purple-700 mt-1 bg-purple-100 px-2 py-0.5 rounded-full">12 Hires</div>
+                            <div className="h-full w-full bg-purple-50 rounded-3xl p-4 sm:p-5 border border-purple-100 transition-all duration-300 hover:scale-[1.03] hover:shadow-md flex flex-col justify-center items-center text-center relative overflow-hidden">
+                                <div className="absolute inset-0 bg-purple-100/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                                <div className="w-full flex flex-col items-center z-10">
+                                    <div className="flex items-center gap-2 mb-3 justify-center">
+                                        <Megaphone className="w-4 h-4 text-purple-600" />
+                                        <span className="font-bold text-zinc-700 text-sm">HR Portal</span>
+                                    </div>
+                                    <div className="flex gap-5 md:gap-8 justify-center text-center">
+                                        <div className="flex flex-col items-center">
+                                            <div className="text-2xl font-black text-purple-700">{data?.hr.open || 6}</div>
+                                            <div className="text-[9px] uppercase font-bold text-purple-600/90 tracking-widest mt-0.5">Open</div>
+                                        </div>
+                                        <div className="flex flex-col items-center">
+                                            <div className="text-2xl font-black text-purple-700">{data?.hr.hires || 12}</div>
+                                            <div className="text-[9px] uppercase font-bold text-purple-600/90 tracking-widest mt-0.5">Hires</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </Link>
                         <button
                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); openDetailView("HR Recruitment", "HR"); }}
                             title="View Data Details"
-                            className="absolute top-2 right-2 p-1 rounded-full bg-white/50 text-purple-400 hover:text-purple-900 hover:bg-white transition-all z-20 opacity-0 group-hover:opacity-100"
+                            className="absolute top-4 right-4 p-1.5 rounded-full bg-white/50 text-purple-400 hover:text-purple-900 hover:bg-white transition-all z-20 opacity-0 group-hover:opacity-100"
                         >
-                            <Eye className="w-3 h-3" />
+                            <Eye className="w-4 h-4" />
                         </button>
                     </div>
 
@@ -404,7 +430,7 @@ export function DashboardContent({ user }: DashboardContentProps) {
                                 <Activity className="w-5 h-5 text-emerald-400 animate-pulse" />
                                 <h3 className="font-bold text-white tracking-wide">Smart Alerts</h3>
                             </div>
-                            <span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-1 rounded">Live</span>
+                            <span className="text-xs text-zinc-400 bg-zinc-800 px-2 py-1 rounded">Last 7 Days</span>
                         </div>
 
                         {/* Gradient Masks for scrolling effect */}

@@ -51,6 +51,7 @@ const parseNav: NavItem[] = [
             { title: "Zone", href: "/config/zone" },
             { title: "Status", href: "/config/status" },
             { title: "Stage", href: "/config/stage" },
+            { title: "Request Stages", href: "/config/request-stages" },
         ]
     },
 ]
