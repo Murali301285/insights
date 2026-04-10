@@ -13,7 +13,7 @@ export async function GET(req: Request) {
             },
             include: {
                 opportunity: {
-                    include: { customer: true, category: true }
+                    include: { customer: { include: { company: true } }, category: true }
                 },
                 currentStage: true,
                 history: {

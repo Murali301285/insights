@@ -15,11 +15,12 @@ import {
 } from 'recharts'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { TicketManager } from "@/components/data-entry/TicketManager"
+import { KpiInsightModal } from "@/components/modals/KpiInsightModal"
 import { cn } from "@/lib/utils"
 
 export default function SupportPage() {
     const { setHeaderInfo } = useHeader()
-    const { period: globalPeriod } = useFilter()
+    const { period: globalPeriod, selectedCompanyIds } = useFilter()
 
     useEffect(() => {
         setHeaderInfo("Field Support & Service", "Monitor ticket volumes, resolution rates, and critical issues.")
@@ -31,14 +32,14 @@ export default function SupportPage() {
     const [localPeriod, setLocalPeriod] = useState("Weekly")
 
     const [criticalModalOpen, setCriticalModalOpen] = useState(false)
-    const [totalTicketsModalOpen, setTotalTicketsModalOpen] = useState(false)
-    const [openTicketsModalOpen, setOpenTicketsModalOpen] = useState(false)
-    const [resolvedTicketsModalOpen, setResolvedTicketsModalOpen] = useState(false)
+    const [insightModalOpen, setInsightModalOpen] = useState(false)
+    const [insightData, setInsightData] = useState<{ title: string, metricKey: string, formulaDesc: string, formatType: "number" | "currency" | "percent" } | null>(null)
 
     const fetchData = async () => {
         setLoading(true)
         try {
-            const res = await fetch(`/api/metrics?category=support&period=${localPeriod}`)
+            const companiesQuery = selectedCompanyIds?.length > 0 ? `&companies=${selectedCompanyIds.join(',')}` : '';
+            const res = await fetch(`/api/metrics?category=support&period=${localPeriod}${companiesQuery}`)
             const data = await res.json()
             setMetrics(Array.isArray(data) ? data : [])
         } catch (error) {
@@ -50,7 +51,7 @@ export default function SupportPage() {
 
     useEffect(() => {
         fetchData()
-    }, [localPeriod])
+    }, [localPeriod, selectedCompanyIds])
 
     const latest = metrics[0] || {}
 
@@ -72,33 +73,9 @@ export default function SupportPage() {
     const openDiff = getDiff(latest.openTickets || 0, latest.prevOpenTickets || 0)
     const resolvedDiff = getDiff(latest.resolvedTickets || 0, latest.prevResolvedTickets || 0)
 
-    const issuePriorityData = [
-        { name: "Critical", value: latest.criticalIssues || 0, color: "#f43f5e" },
-        { name: "Open Normal", value: (latest.openTickets || 0) - (latest.criticalIssues || 0), color: "#f59e0b" },
-        { name: "Resolved", value: latest.resolvedTickets || 0, color: "#10b981" }
-    ]
-
-    const baseDate = new Date();
-    const trendData = Array.from({ length: 7 }).map((_, i) => {
-        const d = new Date(baseDate);
-        d.setDate(d.getDate() - (6 - i));
-        
-        const multipliers = [0.9, 1.2, 0.8, 1.1, 1.4, 0.7, 1.0];
-        const baseOpen = Math.round((latest.openTickets || 45) / 3);
-        const baseResolved = Math.round((latest.resolvedTickets || 305) / 5);
-        
-        return {
-            name: d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
-            resolved: Math.round(baseResolved * multipliers[i]),
-            open: Math.round(baseOpen * multipliers[i])
-        };
-    });
-
-    const activeTickets = [
-        { id: "T-8902", title: "System Outage", priority: "Critical", time: "10m ago" },
-        { id: "T-8903", title: "Login Error", priority: "High", time: "1h ago" },
-        { id: "T-8904", title: "Billing Question", priority: "Normal", time: "2h ago" },
-    ]
+    const issuePriorityData = latest.trendData || [];
+    const trendData = latest.trendData || [];
+    const activeTickets = latest.activeTickets || [];
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
@@ -140,13 +117,13 @@ export default function SupportPage() {
                                     <h3 className="font-semibold text-emerald-800 text-sm mb-1">Total Tickets</h3>
                                     <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{latest.totalTickets || 0}</h2>
                                     <div className="flex gap-2 mt-1 text-[11px] font-bold text-zinc-400">
-                                        <span>Internal: <span className="text-zinc-600">{Math.round((latest.totalTickets || 350) * 0.32)}</span></span>
+                                        <span>Internal: <span className="text-zinc-600">{latest.internalTotal || 0}</span></span>
                                         <span className="text-zinc-300">|</span>
-                                        <span>External: <span className="text-zinc-600">{Math.round((latest.totalTickets || 350) * 0.68)}</span></span>
+                                        <span>External: <span className="text-zinc-600">{latest.externalTotal || 0}</span></span>
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-center gap-3 relative z-20">
-                                    <button onClick={() => setTotalTicketsModalOpen(true)} className="text-zinc-400 hover:text-blue-600 transition-colors">
+                                    <button onClick={() => { setInsightData({ title: "Total Tickets", metricKey: "totalTickets", formulaDesc: "Total support volume representing all logged items for the period.", formatType: "number" }); setInsightModalOpen(true); }} className="text-zinc-400 hover:text-blue-600 transition-colors">
                                         <Eye className="w-4 h-4" />
                                     </button>
                                     <div className="bg-blue-50 p-2 rounded-full shadow-sm border border-blue-100/50">
@@ -167,13 +144,13 @@ export default function SupportPage() {
                                     <h3 className="font-semibold text-rose-800 text-sm mb-1">Open Tickets</h3>
                                     <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{latest.openTickets || 0}</h2>
                                     <div className="flex gap-2 mt-1 text-[11px] font-bold text-zinc-400">
-                                        <span>Internal: <span className="text-zinc-600">{Math.round((latest.openTickets || 45) * 0.42)}</span></span>
+                                        <span>Internal: <span className="text-zinc-600">{latest.internalOpen || 0}</span></span>
                                         <span className="text-zinc-300">|</span>
-                                        <span>External: <span className="text-zinc-600">{Math.round((latest.openTickets || 45) * 0.58)}</span></span>
+                                        <span>External: <span className="text-zinc-600">{latest.externalOpen || 0}</span></span>
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-center gap-3 relative z-20">
-                                    <button onClick={() => setOpenTicketsModalOpen(true)} className="text-zinc-400 hover:text-amber-600 transition-colors">
+                                    <button onClick={() => { setInsightData({ title: "Open Tickets", metricKey: "openTickets", formulaDesc: "Total number of unresolved support items indicating current backlog.", formatType: "number" }); setInsightModalOpen(true); }} className="text-zinc-400 hover:text-amber-600 transition-colors">
                                         <Eye className="w-4 h-4" />
                                     </button>
                                     <div className="bg-amber-50 p-2 rounded-full shadow-sm border border-amber-100/50">
@@ -192,15 +169,13 @@ export default function SupportPage() {
                             <div className="flex justify-between items-start mb-3">
                                 <div>
                                     <h3 className="font-semibold text-blue-800 text-sm mb-1">Avg Time taken to complete</h3>
-                                    <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{latest.resolutionTime || 2.4} Days</h2>
+                                    <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{latest.resolutionTime || 0} Days</h2>
                                     <div className="flex gap-2 mt-1 text-[11px] font-bold text-zinc-400">
-                                        <span>Internal: <span className="text-zinc-600">1.2 Days</span></span>
-                                        <span className="text-zinc-300">|</span>
-                                        <span>External: <span className="text-zinc-600">3.1 Days</span></span>
+                                        <span>Computed across {latest.resolvedTickets || 0} resolved items</span>
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-center gap-3 relative z-20">
-                                    <button onClick={() => setResolvedTicketsModalOpen(true)} className="text-zinc-400 hover:text-emerald-600 transition-colors">
+                                    <button onClick={() => { setInsightData({ title: "Resolution Time", metricKey: "resolvedTickets", formulaDesc: "Total number of tickets successfully closed within the period.", formatType: "number" }); setInsightModalOpen(true); }} className="text-zinc-400 hover:text-emerald-600 transition-colors">
                                         <Eye className="w-4 h-4" />
                                     </button>
                                     <div className="bg-emerald-50 p-2 rounded-full shadow-sm border border-emerald-100/50">
@@ -217,72 +192,86 @@ export default function SupportPage() {
 
                     {/* Deep Dives */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Critical Issues */}
+                        {/* Active Volume */}
                         <div
                             className="bg-zinc-900 rounded-3xl p-6 shadow-xl relative overflow-hidden cursor-pointer group transition-all hover:scale-[1.01]"
-                            onClick={() => setCriticalModalOpen(true)}
+                            onClick={() => setOpenTicketsModalOpen(true)}
                         >
-                            <div className="absolute top-0 right-0 w-48 h-48 bg-rose-500/10 rounded-full blur-3xl -mr-12 -mt-12 pointer-events-none" />
+                            <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl -mr-12 -mt-12 pointer-events-none" />
                             <button
                                 title="Deep Dive"
-                                className="absolute top-6 right-6 p-1.5 rounded-full bg-white/10 text-zinc-400 group-hover:text-rose-400 group-hover:bg-rose-400/20 transition-all z-20"
+                                onClick={() => { setInsightData({ title: "Open Tickets", metricKey: "openTickets", formulaDesc: "Total unresolved support items indicating current backlog.", formatType: "number" }); setInsightModalOpen(true); }}
+                                className="absolute top-6 right-6 p-1.5 rounded-full bg-white/10 text-zinc-400 group-hover:text-amber-400 group-hover:bg-amber-400/20 transition-all z-20"
                             >
                                 <Eye className="w-4 h-4" />
                             </button>
                             <div className="relative z-10">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <h3 className="font-bold text-white text-lg">Critical Issues</h3>
+                                    <h3 className="font-bold text-white text-lg">Active Volume</h3>
                                 </div>
-                                <p className="text-zinc-400 text-sm mb-4">High priority escalations</p>
+                                <p className="text-zinc-400 text-sm mb-4">Total unresolved tickets</p>
 
-                                <div className="flex justify-between items-center bg-rose-500/10 p-4 rounded-xl border border-rose-500/20 border-l-4 border-l-rose-500">
+                                <div className="flex justify-between items-center bg-amber-500/10 p-4 rounded-xl border border-amber-500/20 border-l-4 border-l-amber-500">
                                     <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-rose-500/20 rounded-full">
-                                            <AlertCircle className="w-6 h-6 text-rose-400" />
+                                        <div className="p-2 bg-amber-500/20 rounded-full">
+                                            <AlertCircle className="w-6 h-6 text-amber-400" />
                                         </div>
                                         <div>
-                                            <div className="text-xs text-rose-200">Needs Immediate Action</div>
-                                            <div className="text-2xl font-bold text-white">{latest.criticalIssues || 0}</div>
+                                            <div className="text-xs text-amber-200">Pending Resolution</div>
+                                            <div className="text-2xl font-bold text-white">{latest.openTickets || 0}</div>
                                         </div>
                                     </div>
-                                    <div className="bg-rose-500 text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse">
-                                        ACT NOW
+                                    <div className="bg-amber-500 text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse">
+                                        PRIORITY
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Avg Response Time */}
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm relative overflow-hidden">
+                        {/* Avg Pending Ticket Age */}
+                        <div className="bg-white rounded-3xl p-6 border border-zinc-100 shadow-sm relative overflow-hidden group">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
-                            <div className="flex justify-between items-start mb-4">
+                            <button
+                                title="Open Ticket Manager"
+                                onClick={() => { setInsightData({ title: "Total Tickets", metricKey: "totalTickets", formulaDesc: "Detailed breakdown of ticket activity log.", formatType: "number" }); setInsightModalOpen(true); }}
+                                className="absolute top-6 right-6 p-1.5 rounded-full bg-zinc-50 text-zinc-400 group-hover:text-blue-600 group-hover:bg-blue-50 transition-all z-20"
+                            >
+                                <Eye className="w-4 h-4" />
+                            </button>
+                            <div className="flex justify-between items-start mb-4 relative z-10">
                                 <div>
-                                    <h3 className="font-bold text-zinc-900 text-lg">Avg Response Time</h3>
-                                    <p className="text-zinc-500 text-sm">Time to first reply</p>
+                                    <h3 className="font-bold text-zinc-900 text-lg">Avg Ticket Age</h3>
+                                    <p className="text-zinc-500 text-sm">Age of open tickets</p>
                                 </div>
-                                <div className="p-2 bg-blue-50 rounded-xl">
+                                <div className="p-2 bg-blue-50 rounded-xl mr-10 z-10">
                                     <Clock className="w-5 h-5 text-blue-600" />
                                 </div>
                             </div>
                             <div className="flex items-baseline gap-2 mb-4">
-                                <span className="text-4xl font-bold text-zinc-900">{latest.avgResponseTime || 0}h</span>
+                                <span className="text-4xl font-bold text-zinc-900">{latest.avgResponseTime || 0}d</span>
                             </div>
                             <div className="flex gap-2">
-                                <div className="h-2 flex-1 bg-emerald-500 rounded-l-full" />
-                                <div className="h-2 flex-1 bg-emerald-500" />
+                                <div className="h-2 flex-1 bg-amber-500 rounded-l-full" />
+                                <div className="h-2 flex-1 bg-zinc-100" />
                                 <div className="h-2 flex-1 bg-zinc-100 rounded-r-full" />
                             </div>
-                            <div className="flex justify-between mt-2 text-xs font-semibold text-emerald-600 w-2/3 pr-2">
-                                <span>Fast</span>
-                                <span>Normal</span>
+                            <div className="flex justify-between mt-2 text-xs font-semibold text-amber-600 w-2/3 pr-2">
+                                <span>Pending Time Tracker</span>
                             </div>
                         </div>
                     </div>
 
                     {/* Chart Section */}
                     {/* Chart Section */}
-                    <div className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden h-[300px]">
-                        <h3 className="font-bold text-zinc-900 mb-6 flex items-center gap-2">
+                    <div className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden h-[300px] group">
+                        <button
+                            title="Open Ticket Manager"
+                            onClick={() => { setInsightData({ title: "Total Tickets", metricKey: "totalTickets", formulaDesc: "Detailed breakdown of ticket activity log.", formatType: "number" }); setInsightModalOpen(true); }}
+                            className="absolute top-6 right-6 p-1.5 rounded-full bg-zinc-50 text-zinc-400 group-hover:text-indigo-600 group-hover:bg-indigo-50 transition-all z-20"
+                        >
+                            <Eye className="w-4 h-4" />
+                        </button>
+                        <h3 className="font-bold text-zinc-900 mb-6 flex items-center gap-2 relative z-10">
                             <Activity className="w-4 h-4 text-zinc-400" />
                             Ticket Resolution Trend
                         </h3>
@@ -306,51 +295,29 @@ export default function SupportPage() {
                         )}
                     </div>
 
-                    {/* Most Frequent Tickets */}
-                    <div className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden mt-6">
-                        <h3 className="font-bold text-zinc-900 flex items-center gap-2 mb-4">
-                            <AlertCircle className="w-4 h-4 text-rose-400" />
-                            Most Frequent Tickets
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {[
-                                { name: "Password Reset Requests", days: 12, category: "IT Support" },
-                                { name: "System Outage Reports", days: 8, category: "Infrastructure" },
-                                { name: "Access Denial Errors", days: 15, category: "Security" },
-                                { name: "Software Install Request", days: 5, category: "Provisioning" }
-                            ].map((ticket, i) => (
-                                <div key={i} className="flex justify-between items-center p-4 bg-zinc-50 border border-zinc-100 rounded-xl hover:bg-zinc-100 transition-colors">
-                                    <div>
-                                        <p className="font-bold text-sm text-zinc-900">{ticket.name}</p>
-                                        <p className="text-xs font-semibold text-zinc-500 mt-1">{ticket.category}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="font-black text-rose-500 text-lg leading-none">{ticket.days}</p>
-                                        <p className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Days avg</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    {/* Most Frequent Tickets - REMOVED (No ticket categorization schema exists) */}
                 </div>
 
                 {/* Right Column */}
                 <div className="col-span-12 lg:col-span-3 h-full min-h-[500px]">
                     <div className="h-full w-full bg-white rounded-3xl p-6 flex flex-col border border-zinc-200 shadow-sm align-start relative overflow-hidden">
                         <div className="flex items-center justify-between mb-6">
-                            <h3 className="font-bold text-zinc-900">Active High Priority</h3>
+                            <h3 className="font-bold text-zinc-900">Longest Pending Tickets</h3>
                         </div>
-                        <div className="flex-1 space-y-4 overflow-hidden relative">
-                            {activeTickets.map((ticket, i) => (
-                                <div key={i} className="flex flex-col gap-2 p-4 rounded-xl bg-zinc-50 border border-zinc-100 border-l-4 border-l-rose-400">
-                                    <div className="flex justify-between items-center">
-                                        <h4 className="text-sm font-bold text-zinc-900">{ticket.title}</h4>
+                        <div className="flex-1 space-y-4 overflow-hidden relative overflow-y-auto pr-2">
+                            {activeTickets.length === 0 ? <p className="text-zinc-400 text-sm">No pending tickets.</p> : null}
+                            {activeTickets.map((ticket: any, i: number) => (
+                                <div key={i} className="flex flex-col gap-2 p-4 rounded-xl bg-zinc-50 border border-zinc-100 border-l-4 border-l-amber-400">
+                                    <div className="flex justify-between items-start gap-2">
+                                        <h4 className="text-sm font-bold text-zinc-900 line-clamp-2">{ticket.title}</h4>
                                     </div>
                                     <div className="flex items-center justify-between text-xs text-zinc-500">
-                                        <span>{ticket.id}</span>
-                                        <span className={`px-2 py-0.5 rounded-full font-semibold ${ticket.priority === 'Critical' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
-                                            {ticket.priority}
-                                        </span>
+                                         <span className="font-mono text-[10px]">{ticket.id}</span>
+                                         {ticket.age > 0 ? (
+                                            <span className="text-rose-600 font-semibold">{ticket.age} days old</span>
+                                         ) : (
+                                            <span className="text-emerald-600 font-semibold">New today</span>
+                                         )}
                                     </div>
                                     <div className="text-[10px] text-zinc-400 font-medium tracking-wide">
                                         Opened {ticket.time}
@@ -362,114 +329,23 @@ export default function SupportPage() {
                 </div>
             </div>
 
-            {/* Critical Issues Modal */}
-            <Dialog open={criticalModalOpen} onOpenChange={setCriticalModalOpen}>
-                <DialogContent className="sm:max-w-xl">
-                    <DialogHeader>
-                        <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-                            Critical Issues Breakdown <span className="text-xs bg-rose-100 text-rose-800 px-2 py-1 rounded-full uppercase tracking-wider">Deep Dive</span>
-                        </DialogTitle>
-                    </DialogHeader>
-                    <div className="py-6 flex flex-col items-center">
-                        <div className="h-[250px] w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={issuePriorityData}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={60}
-                                        outerRadius={100}
-                                        paddingAngle={5}
-                                        dataKey="value"
-                                    >
-                                        {issuePriorityData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip
-                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                                    />
-                                    <Legend verticalAlign="bottom" height={36} />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        </div>
+            {/* Removed Critical Issues Modal Schema Constraints */}
 
-                        <div className="w-full mt-6 space-y-3">
-                            {issuePriorityData.map((d, i) => (
-                                <div key={i} className="flex justify-between items-center bg-zinc-50 p-3 rounded-lg border border-zinc-100">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
-                                        <span className="font-semibold text-zinc-700">{d.name}</span>
-                                    </div>
-                                    <span className="font-bold text-zinc-900 text-lg">{d.value}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* Total Tickets Modal */}
-            <Dialog open={totalTicketsModalOpen} onOpenChange={setTotalTicketsModalOpen}>
-                <DialogContent className="sm:max-w-xl">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-bold">Total Support Volume</DialogTitle>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                            <div>
-                                <p className="text-sm text-blue-600 font-medium">Recorded Volume</p>
-                                <p className="text-2xl font-bold text-blue-700">{latest.totalTickets || 0}</p>
-                            </div>
-                            <LifeBuoy className="w-8 h-8 text-blue-500 opacity-50" />
-                        </div>
-                        <p className="text-sm text-zinc-500">This metric represents the total number of support cases and field service requests logged into the system during the selected period.</p>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* Open Tickets Modal */}
-            <Dialog open={openTicketsModalOpen} onOpenChange={setOpenTicketsModalOpen}>
-                <DialogContent className="sm:max-w-xl">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-bold">Open Tickets Status</DialogTitle>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-amber-50 border border-amber-100 rounded-xl">
-                            <div>
-                                <p className="text-sm text-amber-600 font-medium">Pending Resolution</p>
-                                <p className="text-2xl font-bold text-amber-700">{latest.openTickets || 0}</p>
-                            </div>
-                            <AlertCircle className="w-8 h-8 text-amber-500 opacity-50" />
-                        </div>
-                        <p className="text-sm text-zinc-500">This metric shows the current backlog of unresolved support tickets, indicating the volume of ongoing field service demands.</p>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* Resolved Tickets Modal */}
-            <Dialog open={resolvedTicketsModalOpen} onOpenChange={setResolvedTicketsModalOpen}>
-                <DialogContent className="sm:max-w-xl">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-bold">Resolved Tickets Details</DialogTitle>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
-                            <div>
-                                <p className="text-sm text-emerald-600 font-medium">Completed Service</p>
-                                <p className="text-2xl font-bold text-emerald-700">{latest.resolvedTickets || 0}</p>
-                            </div>
-                            <CheckCircle2 className="w-8 h-8 text-emerald-500 opacity-50" />
-                        </div>
-                        <p className="text-sm text-zinc-500">This metric represents the number of support requests successfully closed and resolved, reflecting your team's throughput.</p>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            {/* Unified KPI Insight Modal takes place of static ones */}
 
             <TicketManager
                 isOpen={isEntryOpen}
                 onClose={() => { setIsEntryOpen(false); fetchData(); }}
+            />
+            
+            <KpiInsightModal
+                open={insightModalOpen}
+                onOpenChange={setInsightModalOpen}
+                title={insightData?.title || null}
+                metricKey={insightData?.metricKey || null}
+                category="support"
+                formulaDesc={insightData?.formulaDesc || null}
+                formatType={insightData?.formatType}
             />
         </div>
     )

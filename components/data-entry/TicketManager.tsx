@@ -12,8 +12,9 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Plus, Table as TableIcon, Pencil, Trash, Building2, Ticket, Search, Upload, Download, CheckCircle2, MessageSquare, Lock } from "lucide-react"
+import { Loader2, Plus, Table as TableIcon, Pencil, Trash, Building2, Ticket, Search, Upload, Download, CheckCircle2, MessageSquare, Lock, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Eye, FileSpreadsheet } from "lucide-react"
 import { cn } from "@/lib/utils"
+import * as xlsx from 'xlsx'
 
 interface TicketManagerProps {
     isOpen: boolean
@@ -24,11 +25,19 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
     const [loading, setLoading] = useState(false)
     const [tickets, setTickets] = useState<any[]>([])
     const [viewTab, setViewTab] = useState<'INTERNAL' | 'EXTERNAL'>('INTERNAL')
+    const [statusTab, setStatusTab] = useState<'OPEN' | 'CLOSED'>('OPEN')
+    const [searchQuery, setSearchQuery] = useState('')
+
+    // Table mechanics
+    const [currentPage, setCurrentPage] = useState(1)
+    const [itemsPerPage, setItemsPerPage] = useState<number>(10)
+    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null)
     
     // Scoped Company States
     const [companies, setCompanies] = useState<any[]>([])
     const [activeCompanyId, setActiveCompanyId] = useState<string>('')
     const [companiesLoading, setCompaniesLoading] = useState(true)
+    const [activeFY, setActiveFY] = useState<string>('All')
 
     // Dependencies
     const [users, setUsers] = useState<any[]>([])
@@ -45,6 +54,7 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
     const [saving, setSaving] = useState(false)
     const [newComment, setNewComment] = useState('')
     const [closeModalOpen, setCloseModalOpen] = useState(false)
+    const [viewDetailModalOpen, setViewDetailModalOpen] = useState(false)
 
     // Auto-compute overdue days based on Target Complete against today's clock
     useEffect(() => {
@@ -254,6 +264,7 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
             if (res.ok) {
                 toast.success(`Ticket formally closed!`)
                 setEditModalOpen(false)
+                setCloseModalOpen(false)
                 fetchTickets()
             } else {
                 toast.error("Failed to close ticket")
@@ -317,6 +328,83 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
         setFormData({ ...formData, comments: updated })
     }
 
+    const ticketsInFY = tickets.filter(t => {
+        if (activeFY === 'All') return true;
+        if (!t.date) return false;
+        const dateObj = new Date(t.date);
+        const year = dateObj.getFullYear();
+        const month = dateObj.getMonth() + 1; // 1-12
+        const fy = month >= 4 ? `${String(year).slice(-2)}-${String(year + 1).slice(-2)}` : `${String(year - 1).slice(-2)}-${String(year).slice(-2)}`;
+        return fy === activeFY;
+    });
+
+    const filteredTickets = ticketsInFY.filter(t => {
+        const matchesSearch = !searchQuery || 
+            t.ticketNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            t.details?.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesStatus = statusTab === 'OPEN' ? !t.isClosed : t.isClosed;
+        return matchesSearch && matchesStatus;
+    });
+
+    const openCount = ticketsInFY.filter(t => !t.isClosed).length;
+    const closedCount = ticketsInFY.filter(t => t.isClosed).length;
+
+    const sortedTickets = [...filteredTickets].sort((a, b) => {
+        if (!sortConfig) return 0;
+        const { key, direction } = sortConfig;
+        let valA = a[key] || '';
+        let valB = b[key] || '';
+        
+        if (key === 'date' || key === 'targetDate') {
+            valA = new Date(valA || 0).getTime();
+            valB = new Date(valB || 0).getTime();
+        }
+        if (key === 'orderNo') {
+            valA = a.order?.orderNo || '';
+            valB = b.order?.orderNo || '';
+        }
+        if (key === 'inchargeName') {
+            valA = a.incharge?.name || '';
+            valB = b.incharge?.name || '';
+        }
+
+        if (valA < valB) return direction === 'asc' ? -1 : 1;
+        if (valA > valB) return direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    const totalPages = itemsPerPage === -1 ? 1 : Math.ceil(sortedTickets.length / itemsPerPage);
+    const paginatedTickets = itemsPerPage === -1 ? sortedTickets : sortedTickets.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+    const handleSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
+        setSortConfig({ key, direction });
+    };
+
+    const handleExport = () => {
+        const exportData = sortedTickets.map(t => ({
+            "Ticket No.": t.ticketNo,
+            "Date": formatDate(t.date),
+            "Order No.": t.order?.orderNo || '-',
+            "Ticket Details": t.details,
+            "Target Complete": formatDate(t.targetDate),
+            "Days Taken": t.actualDays || '-',
+            "Incharge": t.incharge?.name || 'Unassigned',
+            "Status": t.isClosed ? 'CLOSED' : t.status
+        }));
+        
+        if (exportData.length === 0) {
+            toast.error("No data to export");
+            return;
+        }
+
+        const ws = xlsx.utils.json_to_sheet(exportData);
+        const wb = xlsx.utils.book_new();
+        xlsx.utils.book_append_sheet(wb, ws, "Tickets");
+        xlsx.writeFile(wb, `Tickets_${viewTab}_${statusTab}_Export.xlsx`);
+    };
+
     return (
         <>
             <Dialog open={isOpen} onOpenChange={(o) => { if (!o) onClose() }}>
@@ -347,6 +435,23 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
                                     ))}
                                 </div>
 
+                                {/* FY Dropdown */}
+                                <div className="flex items-center bg-white border border-zinc-200 px-3 py-1.5 rounded-lg shadow-sm w-36">
+                                    <span className="text-zinc-500 font-bold text-xs mr-2 border-r border-zinc-200 pr-2">FY</span>
+                                    <Select value={activeFY} onValueChange={setActiveFY}>
+                                        <SelectTrigger className="h-7 border-0 bg-transparent text-zinc-900 font-bold focus:ring-0 p-0 shadow-none text-xs">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="All" className="font-medium text-xs">All Time</SelectItem>
+                                            <SelectItem value="23-24" className="font-medium text-xs">23-24</SelectItem>
+                                            <SelectItem value="24-25" className="font-medium text-xs">24-25</SelectItem>
+                                            <SelectItem value="25-26" className="font-medium text-xs">25-26</SelectItem>
+                                            <SelectItem value="26-27" className="font-medium text-xs">26-27</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
                                 {!companiesLoading && companies.length > 0 && (
                                     <div className="flex items-center gap-2 bg-blue-50/50 border border-blue-100 px-3 py-1.5 rounded-lg shadow-sm w-64">
                                         <Building2 className="w-4 h-4 text-blue-600 shrink-0" />
@@ -370,27 +475,73 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
 
                     <div className="flex-1 overflow-auto p-6">
                         <div className="bg-white rounded-xl shadow-sm border border-zinc-200 overflow-hidden flex flex-col h-full">
-                            <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/50">
-                                <div className="relative">
-                                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-                                    <Input placeholder="Search records..." className="pl-9 h-9 w-[300px] border-zinc-200 text-sm focus-visible:ring-emerald-500 shadow-sm" />
+                            <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/50 flex-wrap gap-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="relative">
+                                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                                        <Input 
+                                            placeholder="Search records..." 
+                                            value={searchQuery}
+                                            onChange={e => setSearchQuery(e.target.value)}
+                                            className="pl-9 h-9 w-[300px] border-zinc-200 text-sm focus-visible:ring-emerald-500 shadow-sm" 
+                                        />
+                                    </div>
+                                    <div className="flex bg-white border border-zinc-200 rounded-lg shadow-sm p-0.5">
+                                        <button
+                                            onClick={() => { setStatusTab('OPEN'); setCurrentPage(1); }}
+                                            className={cn(
+                                                "px-4 py-1.5 text-xs font-bold rounded-md transition-all flex items-center gap-2",
+                                                statusTab === 'OPEN' ? "bg-emerald-50 text-emerald-700" : "text-zinc-500 hover:bg-zinc-100"
+                                            )}
+                                        >
+                                            OPEN <span className="text-[10px] bg-zinc-200/50 px-1.5 py-0.5 rounded-full">{openCount}</span>
+                                        </button>
+                                        <button
+                                            onClick={() => { setStatusTab('CLOSED'); setCurrentPage(1); }}
+                                            className={cn(
+                                                "px-4 py-1.5 text-xs font-bold rounded-md transition-all flex items-center gap-2",
+                                                statusTab === 'CLOSED' ? "bg-zinc-800 text-white" : "text-zinc-500 hover:bg-zinc-100"
+                                            )}
+                                        >
+                                            CLOSED <span className="text-[10px] bg-zinc-200/20 px-1.5 py-0.5 rounded-full">{closedCount}</span>
+                                        </button>
+                                    </div>
                                 </div>
-                                <Button onClick={openNewTicket} className="h-9 gap-2 shadow-sm font-bold bg-emerald-600 hover:bg-emerald-700 px-5 transition-all">
-                                    <Plus className="w-4 h-4" /> New Ticket
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    <Button onClick={handleExport} variant="outline" className="h-9 gap-2 shadow-sm font-bold border-zinc-200 text-emerald-700 hover:bg-emerald-50">
+                                        <FileSpreadsheet className="w-4 h-4" /> Export
+                                    </Button>
+                                    <Button onClick={openNewTicket} className="h-9 gap-2 shadow-sm font-bold bg-emerald-600 hover:bg-emerald-700 px-5 transition-all">
+                                        <Plus className="w-4 h-4" /> New Ticket
+                                    </Button>
+                                </div>
                             </div>
                             
                             <div className="flex-1 overflow-auto">
                                 <table className="w-full text-sm text-left border-collapse whitespace-nowrap">
                                     <thead className="bg-zinc-100/80 text-zinc-600 sticky top-0 z-30 shadow-sm backdrop-blur-sm">
                                         <tr>
-                                            <th className="p-3 font-semibold border-b border-zinc-200 min-w-[120px]">Ticket No.</th>
-                                            <th className="p-3 font-semibold border-b border-zinc-200 min-w-[100px]">Date</th>
-                                            {viewTab === 'EXTERNAL' && <th className="p-3 font-semibold border-b border-zinc-200 min-w-[120px]">Order No.</th>}
-                                            <th className="p-3 font-semibold border-b border-zinc-200 w-full overflow-hidden">Ticket Details</th>
-                                            <th className="p-3 font-semibold border-b border-zinc-200 min-w-[120px]">Target</th>
-                                            <th className="p-3 font-semibold border-b border-zinc-200 min-w-[100px]">Days Taken</th>
-                                            {viewTab === 'INTERNAL' && <th className="p-3 font-semibold border-b border-zinc-200 min-w-[120px]">Incharge</th>}
+                                            <th onClick={() => handleSort('ticketNo')} className="p-3 font-semibold border-b border-zinc-200 min-w-[120px] cursor-pointer hover:bg-zinc-200/50">
+                                                <div className="flex items-center gap-1">Ticket No. {sortConfig?.key === 'ticketNo' ? (sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />) : null}</div>
+                                            </th>
+                                            <th onClick={() => handleSort('date')} className="p-3 font-semibold border-b border-zinc-200 min-w-[100px] cursor-pointer hover:bg-zinc-200/50">
+                                                <div className="flex items-center gap-1">Date {sortConfig?.key === 'date' ? (sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />) : null}</div>
+                                            </th>
+                                            {viewTab === 'EXTERNAL' && <th onClick={() => handleSort('orderNo')} className="p-3 font-semibold border-b border-zinc-200 min-w-[120px] cursor-pointer hover:bg-zinc-200/50">
+                                                <div className="flex items-center gap-1">Order No. {sortConfig?.key === 'orderNo' ? (sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />) : null}</div>
+                                            </th>}
+                                            <th onClick={() => handleSort('details')} className="p-3 font-semibold border-b border-zinc-200 w-full overflow-hidden cursor-pointer hover:bg-zinc-200/50">
+                                                <div className="flex items-center gap-1">Ticket Details {sortConfig?.key === 'details' ? (sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />) : null}</div>
+                                            </th>
+                                            <th onClick={() => handleSort('targetDate')} className="p-3 font-semibold border-b border-zinc-200 min-w-[120px] cursor-pointer hover:bg-zinc-200/50">
+                                                <div className="flex items-center gap-1">Target {sortConfig?.key === 'targetDate' ? (sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />) : null}</div>
+                                            </th>
+                                            <th onClick={() => handleSort('actualDays')} className="p-3 font-semibold border-b border-zinc-200 min-w-[100px] cursor-pointer hover:bg-zinc-200/50">
+                                                <div className="flex items-center gap-1">Days Taken {sortConfig?.key === 'actualDays' ? (sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />) : null}</div>
+                                            </th>
+                                            {viewTab === 'INTERNAL' && <th onClick={() => handleSort('inchargeName')} className="p-3 font-semibold border-b border-zinc-200 min-w-[120px] cursor-pointer hover:bg-zinc-200/50">
+                                                <div className="flex items-center gap-1">Incharge {sortConfig?.key === 'inchargeName' ? (sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />) : null}</div>
+                                            </th>}
                                             <th className="p-3 font-semibold border-b border-zinc-200 min-w-[100px]">Status</th>
                                             <th className="p-3 font-semibold border-b border-zinc-200 min-w-[100px] text-right">Action</th>
                                         </tr>
@@ -403,11 +554,11 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
                                                     Consulting registry...
                                                 </td>
                                             </tr>
-                                        ) : tickets.length === 0 ? (
+                                        ) : paginatedTickets.length === 0 ? (
                                             <tr>
                                                 <td colSpan={10} className="p-12 text-center text-zinc-400 font-medium">No tickets found for this registry.</td>
                                             </tr>
-                                        ) : tickets.map((t) => (
+                                        ) : paginatedTickets.map((t) => (
                                             <tr key={t.id} className="hover:bg-zinc-50/50 transition-colors group">
                                                 <td className="p-3 font-bold text-emerald-700">{t.ticketNo}</td>
                                                 <td className="p-3 text-zinc-600">{formatDate(t.date)}</td>
@@ -422,19 +573,64 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
                                                     </span>
                                                 </td>
                                                 <td className="p-3 text-right">
-                                                    <div className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <Button variant="ghost" size="sm" onClick={() => openEditTicket(t)} className="h-7 px-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border border-emerald-200">
-                                                            <Pencil className="w-3 h-3 mr-1" /> Edit
+                                                    <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <Button variant="ghost" size="sm" onClick={() => { setActiveTicket(t); setViewDetailModalOpen(true); }} className="h-7 w-7 p-0 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border border-indigo-200" title="View details">
+                                                            <Eye className="w-3.5 h-3.5" />
                                                         </Button>
-                                                        <Button variant="ghost" size="sm" onClick={() => handleDelete(t.id)} className="h-7 px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200">
-                                                            <Trash className="w-3 h-3" />
-                                                        </Button>
+                                                        {!t.isClosed && (
+                                                            <>
+                                                                <Button variant="ghost" size="sm" onClick={() => openEditTicket(t)} className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border border-emerald-200" title="Edit ticket">
+                                                                    <Pencil className="w-3.5 h-3.5" />
+                                                                </Button>
+                                                                <Button variant="ghost" size="sm" onClick={() => handleDelete(t.id)} className="h-7 w-7 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200" title="Delete ticket">
+                                                                    <Trash className="w-3.5 h-3.5" />
+                                                                </Button>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
+                            </div>
+                            
+                            <div className="p-3 border-t border-zinc-100 bg-zinc-50 flex justify-between items-center text-sm sticky bottom-0">
+                                <div className="text-zinc-500 font-medium">
+                                    Displaying {paginatedTickets.length} of {sortedTickets.length} items
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-zinc-500 font-medium">Items per page</span>
+                                        <Select value={itemsPerPage.toString()} onValueChange={v => { setItemsPerPage(parseInt(v)); setCurrentPage(1); }}>
+                                            <SelectTrigger className="w-[70px] h-8 bg-white border-zinc-200">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="10">10</SelectItem>
+                                                <SelectItem value="20">20</SelectItem>
+                                                <SelectItem value="-1">All</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => setCurrentPage(1)} disabled={currentPage === 1 || itemsPerPage === -1}>
+                                            <ChevronsLeft className="h-4 w-4" />
+                                        </Button>
+                                        <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || itemsPerPage === -1}>
+                                            <ChevronLeft className="h-4 w-4" />
+                                        </Button>
+                                        <div className="px-2 text-zinc-600 font-medium whitespace-nowrap">
+                                            {itemsPerPage === -1 ? '1 / 1' : `${currentPage} / ${totalPages}`}
+                                        </div>
+                                        <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || itemsPerPage === -1}>
+                                            <ChevronRight className="h-4 w-4" />
+                                        </Button>
+                                        <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages || itemsPerPage === -1}>
+                                            <ChevronsRight className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -761,6 +957,110 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
                                 {saving ? "Processing..." : "Complete & Close Formal Ticket"}
                             </Button>
                         </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+            {/* View Only Detail Modal */}
+            <Dialog open={viewDetailModalOpen} onOpenChange={setViewDetailModalOpen}>
+                <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0 overflow-hidden bg-white">
+                    <DialogHeader className="p-6 border-b border-zinc-100 shrink-0 bg-zinc-50">
+                        <DialogTitle className="text-xl font-bold flex items-center justify-between text-zinc-800">
+                            <div className="flex items-center gap-2">
+                                <Eye className="w-5 h-5 text-indigo-600" />
+                                Ticket Details View
+                                <span className="text-xs bg-white px-2 py-1 rounded font-mono border border-zinc-200 ml-2 shadow-sm">{activeTicket?.ticketNo}</span>
+                            </div>
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    <div className="flex-1 overflow-auto bg-zinc-50/50 p-6">
+                        {activeTicket && (
+                            <div className="grid grid-cols-2 gap-6 bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
+                                <div className="col-span-2 md:col-span-1 space-y-4">
+                                    <div>
+                                        <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Target Date</label>
+                                        <div className="text-sm font-medium text-zinc-900 mt-1">{formatDate(activeTicket.targetDate)}</div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Assigned Incharge</label>
+                                        <div className="text-sm font-medium text-zinc-900 mt-1">{activeTicket.incharge?.name || 'Unassigned'}</div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Status</label>
+                                        <div className="mt-1">
+                                            <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider ${activeTicket.isClosed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                {activeTicket.isClosed ? 'CLOSED' : activeTicket.status}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    {activeTicket.order && (
+                                        <div>
+                                            <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Associated Order</label>
+                                            <div className="text-sm font-medium text-indigo-700 mt-1 cursor-pointer hover:underline">{activeTicket.order.orderNo}</div>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="col-span-2 md:col-span-1 space-y-4">
+                                    <div className="h-full">
+                                        <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Full Details Description</label>
+                                        <div className="text-sm font-medium text-zinc-800 mt-1 bg-zinc-50 p-4 rounded-lg border border-zinc-100 whitespace-pre-wrap leading-relaxed h-[calc(100%-24px)] overflow-y-auto">
+                                            {activeTicket.details || 'No extended description provided.'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {activeTicket.attachments?.length > 0 && (
+                                    <div className="col-span-2 pt-4 border-t border-zinc-100">
+                                        <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-2 block">Attached Documents</label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {activeTicket.attachments.map((att: any, i: number) => (
+                                                <a key={i} href={att.data} download={att.name} className="flex items-center gap-2 px-3 py-1.5 bg-zinc-50 border border-zinc-200 rounded-md text-xs font-bold text-zinc-600 shadow-sm hover:bg-white hover:text-indigo-600 transition-colors">
+                                                    <Download className="w-3.5 h-3.5" />
+                                                    <span className="max-w-[200px] truncate">{att.name}</span>
+                                                </a>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTicket?.isClosed && (
+                            <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-xl p-5 shadow-sm">
+                                <h4 className="text-[12px] font-bold uppercase tracking-wider text-emerald-800 mb-3 flex items-center gap-2"><CheckCircle2 className="w-4 h-4"/> Formal Closure Report</h4>
+                                <p className="text-sm text-emerald-900 leading-relaxed font-medium mb-4">{activeTicket.closeReason}</p>
+                                {activeTicket.closeAttachments && Array.isArray(activeTicket.closeAttachments) && activeTicket.closeAttachments.length > 0 && (
+                                    <div className="flex flex-wrap gap-2.5 pt-4 border-t border-emerald-200/50">
+                                        {activeTicket.closeAttachments.map((att: any, i: number) => (
+                                            <a key={i} href={att.data} download={att.name} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-emerald-200 rounded-md text-xs font-bold text-emerald-700 shadow-sm hover:border-emerald-400">
+                                                <Download className="w-3.5 h-3.5" />
+                                                <span className="max-w-[150px] truncate">{att.name}</span>
+                                            </a>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTicket?.comments?.length > 0 && (
+                            <div className="mt-6 space-y-3 pb-6">
+                                <h4 className="text-[12px] font-bold uppercase tracking-wider text-zinc-500 mb-3 flex items-center gap-2">
+                                    <MessageSquare className="w-4 h-4 text-indigo-400" /> Discussion History
+                                </h4>
+                                {activeTicket.comments.map((c: any, i: number) => (
+                                    <div key={i} className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
+                                        <div className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider mb-2 border-b border-zinc-100 pb-2">
+                                            {new Date(c.date).toLocaleString()}
+                                        </div>
+                                        <div className="text-zinc-800 text-sm whitespace-pre-wrap">{c.text}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="p-4 border-t border-zinc-200 shrink-0 flex justify-end bg-white">
+                         <Button onClick={() => setViewDetailModalOpen(false)} variant="outline" className="font-bold text-zinc-700">Close Viewer</Button>
                     </div>
                 </DialogContent>
             </Dialog>

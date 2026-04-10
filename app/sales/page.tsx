@@ -17,6 +17,7 @@ import {
 } from 'recharts'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { SmartEntrySheet } from "@/components/data-entry/SmartEntrySheet"
+import { KpiInsightModal } from "@/components/modals/KpiInsightModal"
 
 export default function SalesPage() {
     const { setHeaderInfo } = useHeader()
@@ -34,10 +35,12 @@ export default function SalesPage() {
 
     const [funnelDetailsModalOpen, setFunnelDetailsModalOpen] = useState(false)
     const [targetModalOpen, setTargetModalOpen] = useState(false)
-    const [ordersYtdModalOpen, setOrdersYtdModalOpen] = useState(false)
-    const [invoiceYtdModalOpen, setInvoiceYtdModalOpen] = useState(false)
     const [ordersNosModalOpen, setOrdersNosModalOpen] = useState(false)
     const [ordersValueModalOpen, setOrdersValueModalOpen] = useState(false)
+    
+    // Unified Insight Modal
+    const [insightModalOpen, setInsightModalOpen] = useState(false)
+    const [insightData, setInsightData] = useState<{ title: string, metricKey: string, formulaDesc: string, formatType: "number" | "currency" | "percent" } | null>(null)
 
     const fetchData = async () => {
         setLoading(true)
@@ -127,6 +130,12 @@ export default function SalesPage() {
         }
     }
 
+    const formatDate = (dateInput: any) => {
+        const d = new Date(dateInput);
+        if (isNaN(d.getTime())) return "";
+        return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
 
@@ -198,7 +207,7 @@ export default function SalesPage() {
                                         <h3 className="text-2xl font-bold text-zinc-900 mt-1">{latest.ordersYtdPct || 0}%</h3>
                                     </div>
                                     <div className="flex flex-col gap-2 items-end">
-                                        <button onClick={() => setOrdersYtdModalOpen(true)} className="p-1.5 rounded-full hover:bg-rose-100 text-zinc-400 hover:text-rose-600 transition-all z-20">
+                                        <button onClick={() => { setInsightData({ title: "Orders YTD", metricKey: "ordersYtdPct", formulaDesc: "Percentage of the total annual sales target achieved through confirmed orders year-to-date.", formatType: "percent" }); setInsightModalOpen(true); }} className="p-1.5 rounded-full hover:bg-rose-100 text-zinc-400 hover:text-rose-600 transition-all z-20">
                                             <Eye className="w-4 h-4" />
                                         </button>
                                         <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center border border-rose-100 shadow-sm mt-1">
@@ -219,7 +228,7 @@ export default function SalesPage() {
                                         <h3 className="text-2xl font-bold text-zinc-900 mt-1">{latest.invoiceYtdPct || 0}%</h3>
                                     </div>
                                     <div className="flex flex-col gap-2 items-end">
-                                        <button onClick={() => setInvoiceYtdModalOpen(true)} className="p-1.5 rounded-full hover:bg-blue-100 text-zinc-400 hover:text-blue-600 transition-all z-20">
+                                        <button onClick={() => { setInsightData({ title: "Invoice YTD", metricKey: "invoiceYtdPct", formulaDesc: "Percentage of booked orders that have been successfully invoiced to the customer year-to-date.", formatType: "percent" }); setInsightModalOpen(true); }} className="p-1.5 rounded-full hover:bg-blue-100 text-zinc-400 hover:text-blue-600 transition-all z-20">
                                             <Eye className="w-4 h-4" />
                                         </button>
                                         <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center border border-blue-100 shadow-sm mt-1">
@@ -381,7 +390,7 @@ export default function SalesPage() {
                                         <div className="flex justify-between items-center gap-2">
                                             <h4 className="text-sm font-semibold text-zinc-900 truncate">{activity.oppName}</h4>
                                             <span className="text-[10px] text-zinc-400 whitespace-nowrap shrink-0">
-                                                {new Date(activity.date || new Date()).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                                                {formatDate(activity.date || new Date())}
                                             </span>
                                         </div>
                                         <p className="text-[11px] text-zinc-500 font-medium truncate mt-0.5">{activity.customerName}</p>
@@ -420,26 +429,47 @@ export default function SalesPage() {
                         <div className="overflow-hidden rounded-xl border border-zinc-200 shadow-sm bg-white">
                             <table className="w-full text-sm text-left whitespace-nowrap">
                                 <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/80 border-b border-zinc-200">
-                                    <tr>
-                                        <th className="px-6 py-4 font-semibold border-r border-zinc-200 w-32">Date</th>
-                                        <th className="px-6 py-4 font-semibold text-right border-r border-zinc-200">Leads</th>
-                                        <th className="px-6 py-4 font-semibold text-right border-r border-zinc-200">RFQs</th>
-                                        <th className="px-6 py-4 font-semibold text-right border-r border-zinc-200">Quotes</th>
-                                        <th className="px-6 py-4 font-semibold text-right border-r border-zinc-200">Negotiations</th>
-                                        <th className="px-6 py-4 font-semibold text-right">Orders</th>
-                                    </tr>
+                                    {funnelMode === "Nos" ? (
+                                        <tr>
+                                            <th className="px-6 py-4 font-semibold border-r border-zinc-200 w-32">Date</th>
+                                            <th className="px-6 py-4 font-semibold text-right border-r border-zinc-200">Leads</th>
+                                            <th className="px-6 py-4 font-semibold text-right border-r border-zinc-200">RFQs</th>
+                                            <th className="px-6 py-4 font-semibold text-right border-r border-zinc-200">Quotes</th>
+                                            <th className="px-6 py-4 font-semibold text-right border-r border-zinc-200">Negotiations</th>
+                                            <th className="px-6 py-4 font-semibold text-right">Orders</th>
+                                        </tr>
+                                    ) : (
+                                        <tr>
+                                            <th className="px-6 py-4 font-semibold border-r border-zinc-200 w-32">Date</th>
+                                            <th className="px-6 py-4 font-semibold text-right border-r border-zinc-200">Quotes Value</th>
+                                            <th className="px-6 py-4 font-semibold text-right border-r border-zinc-200">Negotiations Value</th>
+                                            <th className="px-6 py-4 font-semibold text-right border-r border-zinc-200">Wins Value</th>
+                                            <th className="px-6 py-4 font-semibold text-right">Losses Value</th>
+                                        </tr>
+                                    )}
                                 </thead>
                                 <tbody className="divide-y divide-zinc-100">
                                     {metrics.map((m: any, i: number) => (
                                         <tr key={i} className="hover:bg-zinc-50 transition-colors">
                                             <td className="px-6 py-4 font-medium text-zinc-900 border-r border-zinc-100">
-                                                {new Date(m.date).toLocaleDateString()}
+                                                {formatDate(m.date)}
                                             </td>
-                                            <td className="px-6 py-4 text-right border-r border-dashed border-zinc-200 font-medium">{m.leadsCount || 0}</td>
-                                            <td className="px-6 py-4 text-right border-r border-dashed border-zinc-200 font-medium">{m.rfqCount || 0}</td>
-                                            <td className="px-6 py-4 text-right border-r border-dashed border-zinc-200 font-medium">{m.quotesCount || 0}</td>
-                                            <td className="px-6 py-4 text-right border-r border-dashed border-zinc-200 font-medium">{m.negotiationCount || 0}</td>
-                                            <td className="px-6 py-4 text-right font-medium">{m.orderCount || 0}</td>
+                                            {funnelMode === "Nos" ? (
+                                                <>
+                                                    <td className="px-6 py-4 text-right border-r border-dashed border-zinc-200 font-medium">{m.leadsCount || 0}</td>
+                                                    <td className="px-6 py-4 text-right border-r border-dashed border-zinc-200 font-medium">{m.rfqCount || 0}</td>
+                                                    <td className="px-6 py-4 text-right border-r border-dashed border-zinc-200 font-medium">{m.quotesCount || 0}</td>
+                                                    <td className="px-6 py-4 text-right border-r border-dashed border-zinc-200 font-medium">{m.negotiationCount || 0}</td>
+                                                    <td className="px-6 py-4 text-right font-medium">{m.orderCount || 0}</td>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <td className="px-6 py-4 text-right border-r border-dashed border-zinc-200 font-medium">{formatCurrency(m.quotesValue || 0, currency)}</td>
+                                                    <td className="px-6 py-4 text-right border-r border-dashed border-zinc-200 font-medium">{formatCurrency(m.negotiationValue || 0, currency)}</td>
+                                                    <td className="px-6 py-4 text-right border-r border-dashed border-zinc-200 font-medium">{formatCurrency(m.winValue || 0, currency)}</td>
+                                                    <td className="px-6 py-4 text-right font-medium">{formatCurrency(m.lossValue || 0, currency)}</td>
+                                                </>
+                                            )}
                                         </tr>
                                     ))}
                                     {metrics.length === 0 && (
@@ -491,43 +521,7 @@ export default function SalesPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Orders YTD Modal */}
-            <Dialog open={ordersYtdModalOpen} onOpenChange={setOrdersYtdModalOpen}>
-                <DialogContent className="sm:max-w-xl">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-bold">Orders YTD Progress</DialogTitle>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
-                            <div>
-                                <p className="text-sm text-emerald-600 font-medium">Orders YTD Percentage</p>
-                                <p className="text-2xl font-bold text-emerald-700">{latest.ordersYtdPct || 0}%</p>
-                            </div>
-                            <TrendingUp className="w-8 h-8 text-emerald-500 opacity-50" />
-                        </div>
-                        <p className="text-sm text-zinc-500">This metric represents the percentage of total sales target booked through confirmed orders in the current period.</p>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* Invoice YTD Modal */}
-            <Dialog open={invoiceYtdModalOpen} onOpenChange={setInvoiceYtdModalOpen}>
-                <DialogContent className="sm:max-w-xl">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-bold">Invoice YTD Progress</DialogTitle>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                            <div>
-                                <p className="text-sm text-blue-600 font-medium">Invoice YTD Percentage</p>
-                                <p className="text-2xl font-bold text-blue-700">{latest.invoiceYtdPct || 0}%</p>
-                            </div>
-                            <TrendingUp className="w-8 h-8 text-blue-500 opacity-50" />
-                        </div>
-                        <p className="text-sm text-zinc-500">This metric represents the percentage of booked orders that have been successfully invoiced to the customer.</p>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            {/* Orders YTD / Invoice YTD replaced by Unified Modal */}
 
             {/* Orders Nos Modal */}
             <Dialog open={ordersNosModalOpen} onOpenChange={setOrdersNosModalOpen}>
@@ -616,6 +610,16 @@ export default function SalesPage() {
                 isOpen={isEntryOpen}
                 onClose={() => { setIsEntryOpen(false); fetchData(); }}
                 category="sales"
+            />
+            
+            <KpiInsightModal
+                open={insightModalOpen}
+                onOpenChange={setInsightModalOpen}
+                title={insightData?.title || null}
+                metricKey={insightData?.metricKey || null}
+                category="sales"
+                formulaDesc={insightData?.formulaDesc || null}
+                formatType={insightData?.formatType}
             />
         </div>
     )

@@ -69,10 +69,10 @@ const SCHEMA_DEFINITIONS: Record<string, FieldDef[]> = {
         { label: "CSAT Score", key: "csatScore", type: "number", width: "min-w-[120px]" },
     ],
     hr: [
-        { label: "Headcount", key: "totalEmployees", type: "number", width: "min-w-[120px]" },
-        { label: "Open Roles", key: "openPositions", type: "number", width: "min-w-[120px]" },
+        { label: "Headcount", key: "orgStrength", type: "number", width: "min-w-[120px]" },
+        { label: "Roles (On Track)", key: "openPosOnTrack", type: "number", width: "min-w-[140px]" },
+        { label: "Roles (Lagging)", key: "openPosLagging", type: "number", width: "min-w-[140px]" },
         { label: "Hired", key: "recruitedHired", type: "number", width: "min-w-[100px]" },
-        { label: "Attrition %", key: "attritionRate", type: "number", width: "min-w-[120px]" },
     ]
 }
 
@@ -238,7 +238,7 @@ export function SmartEntrySheet({ isOpen, onClose, category }: SmartEntrySheetPr
                     category,
                     data: processedData,
                     date: activeTab === "Targets" ? activeFy : newEntryDate,
-                    period: activeTab === "Targets" ? "Annual" : newEntryPeriod,
+                    period: activeTab === "Targets" ? "Annual" : (category === 'hr' ? 'Weekly' : newEntryPeriod),
                     companyId: activeCompanyId,
                     isTarget: activeTab === "Targets"
                 })
@@ -486,9 +486,10 @@ export function SmartEntrySheet({ isOpen, onClose, category }: SmartEntrySheetPr
                                             </td>
                                             <td className="p-2 sticky left-[150px] z-10 bg-emerald-50 shadow-[1px_0_0_0_#e4e4e7]">
                                                 <select
-                                                    className="h-8 w-full rounded-md border border-emerald-200 bg-white px-2 py-1 text-xs"
-                                                    value={newEntryPeriod}
+                                                    className="h-8 w-full rounded-md border border-emerald-200 bg-white px-2 py-1 text-xs disabled:opacity-50"
+                                                    value={category === 'hr' ? 'Weekly' : newEntryPeriod}
                                                     onChange={(e) => setNewEntryPeriod(e.target.value)}
+                                                    disabled={category === 'hr'}
                                                 >
                                                     <option>Weekly</option>
                                                     <option>Monthly</option>
@@ -525,7 +526,8 @@ export function SmartEntrySheet({ isOpen, onClose, category }: SmartEntrySheetPr
                                                 <td className="p-3 text-zinc-600 font-medium sticky left-0 z-10 bg-white group-hover:bg-zinc-50 shadow-[1px_0_0_0_#e4e4e7]">
                                                     {(() => {
                                                         const d = new Date(log.date)
-                                                        return isNaN(d.getTime()) ? '-' : d.toLocaleDateString()
+                                                        if (isNaN(d.getTime())) return '-';
+                                                        return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
                                                     })()}
                                                 </td>
                                                 <td className="p-3 text-zinc-500 sticky left-[150px] z-10 bg-white group-hover:bg-zinc-50 shadow-[1px_0_0_0_#e4e4e7]">

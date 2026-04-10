@@ -17,6 +17,7 @@ import {
 } from 'recharts'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { SmartEntrySheet } from "@/components/data-entry/SmartEntrySheet"
+import { KpiInsightModal } from "@/components/modals/KpiInsightModal"
 
 export default function ManufacturingPage() {
     const { setHeaderInfo } = useHeader()
@@ -55,9 +56,10 @@ export default function ManufacturingPage() {
     const [localPeriod, setLocalPeriod] = useState("Weekly")
 
     const [projectModalOpen, setProjectModalOpen] = useState(false)
-    const [rfqNewModalOpen, setRfqNewModalOpen] = useState(false)
-    const [rfqStandardModalOpen, setRfqStandardModalOpen] = useState(false)
-    const [rfqCustomModalOpen, setRfqCustomModalOpen] = useState(false)
+    const [projectStagesModalOpen, setProjectStagesModalOpen] = useState(false)
+    const [topCustomerModalOpen, setTopCustomerModalOpen] = useState(false)
+    const [insightModalOpen, setInsightModalOpen] = useState(false)
+    const [insightData, setInsightData] = useState<{ title: string, metricKey: string, formulaDesc: string, formatType: "number" | "currency" | "percent" } | null>(null)
 
     const [orders, setOrders] = useState<any[]>([])
 
@@ -117,31 +119,104 @@ export default function ManufacturingPage() {
         efficiency: m.efficiency || 0
     })).reverse()
 
+    const activeProjects = useMemo(() => {
+        const today = new Date();
+        today.setHours(0,0,0,0);
+
+        return orders.filter(o => !o.isClosed).map(o => {
+            let status = "On Track";
+            if (o.targetDate) {
+                const target = new Date(o.targetDate);
+                target.setHours(0,0,0,0);
+                const diffTime = today.getTime() - target.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays <= 0) {
+                    status = "On Track";
+                } else if (diffDays <= 5) {
+                    status = "Behind Schedule";
+                } else {
+                    status = "Critical";
+                }
+            }
+            return { ...o, calculatedStatus: status };
+        });
+    }, [orders]);
+
+    const projectStats = useMemo(() => {
+        let projectOnTrack = 0, projectBehindSchedule = 0, projectCritical = 0;
+        activeProjects.forEach(p => {
+            if (p.calculatedStatus === "On Track") projectOnTrack++;
+            else if (p.calculatedStatus === "Behind Schedule") projectBehindSchedule++;
+            else projectCritical++;
+        });
+        return { projectOnTrack, projectBehindSchedule, projectCritical, total: activeProjects.length };
+    }, [activeProjects]);
+
+    const otifPct = projectStats.total > 0 ? Math.round((projectStats.projectOnTrack / projectStats.total) * 100) : 100;
+
     // Project Status Pie Data
     const projectStatusData = [
-        { name: "On Track", value: latest.projectOnTrack || 0, color: "#10b981" },
-        { name: "Behind Schedule", value: latest.projectBehindSchedule || 0, color: "#f59e0b" },
-        { name: "Critical", value: latest.projectCritical || 0, color: "#f43f5e" }
+        { name: "On Track", value: projectStats.projectOnTrack, color: "#10b981" },
+        { name: "Behind Schedule", value: projectStats.projectBehindSchedule, color: "#f59e0b" },
+        { name: "Critical", value: projectStats.projectCritical, color: "#f43f5e" }
     ]
 
-    const totalProjects = (latest.projectOnTrack || 0) + (latest.projectBehindSchedule || 0) + (latest.projectCritical || 0)
+    const totalProjects = projectStats.total;
 
-    const activeWorkOrders: any[] = []
+    const activeWorkOrders = activeProjects;
 
     const [customerChartMode, setCustomerChartMode] = useState<"values" | "orders">("values")
 
-    const topCustomers: any[] = useMemo(() => {
-        const aggs: Record<string, { name: string, value: number, orders: number }> = {};
+    const allCustomerStats: any[] = useMemo(() => {
+        const aggs: Record<string, any> = {};
         orders.forEach(o => {
             const cName = o.opportunity?.customer?.customerName || "Unknown Customer";
-            if (!aggs[cName]) aggs[cName] = { name: cName, value: 0, orders: 0 };
+            const compName = o.opportunity?.customer?.company?.name || "Unknown Company";
+            const uniqueKey = `${compName}_${cName}`;
+            
+            if (!aggs[uniqueKey]) {
+                aggs[uniqueKey] = { 
+                    name: cName, 
+                    companyName: compName,
+                    value: 0, 
+                    orders: 0, 
+                    lastOrderDate: null, 
+                    lastOrderStatus: "",
+                    completionDaysSum: 0,
+                    completedOrders: 0
+                };
+            }
             
             const val = o.orderValue !== null && o.orderValue !== undefined ? o.orderValue : (o.opportunity?.value || 0);
-            aggs[cName].value += val;
-            aggs[cName].orders += 1;
+            aggs[uniqueKey].value += val;
+            aggs[uniqueKey].orders += 1;
+            
+            const oDate = o.date ? new Date(o.date) : null;
+            if (oDate && (!aggs[uniqueKey].lastOrderDate || oDate > aggs[uniqueKey].lastOrderDate)) {
+                aggs[uniqueKey].lastOrderDate = oDate;
+                aggs[uniqueKey].lastOrderStatus = o.isClosed ? "Closed" : (o.currentStage?.name || o.currentStage?.stageName || "In Progress");
+            }
+
+            if (o.isClosed) {
+                const closedDate = new Date(o.updatedAt);
+                if (oDate && closedDate) {
+                    const days = Math.ceil((closedDate.getTime() - oDate.getTime()) / (1000 * 3600 * 24));
+                    aggs[uniqueKey].completionDaysSum += Math.max(0, days);
+                    aggs[uniqueKey].completedOrders += 1;
+                }
+            }
         });
-        return Object.values(aggs).sort((a,b) => b.value - a.value).slice(0, 5); // top 5 customers
+        
+        return Object.values(aggs).map(c => ({
+            ...c,
+            avgCompletionDays: c.completedOrders > 0 ? Math.round(c.completionDaysSum / c.completedOrders) : '-'
+        }));
     }, [orders]);
+
+    const topCustomers: any[] = useMemo(() => {
+        return [...allCustomerStats].sort((a,b) => b.value - a.value).slice(0, 5); 
+    }, [allCustomerStats]);
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
@@ -183,7 +258,7 @@ export default function ManufacturingPage() {
                                     <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{latest.productionVolume || 0}</h2>
                                 </div>
                                 <div className="flex flex-col items-center gap-3">
-                                    <button className="text-zinc-400 hover:text-emerald-600 transition-colors">
+                                    <button onClick={() => { setInsightData({ title: "Total No of Orders", metricKey: "productionVolume", formulaDesc: "Aggregated count of all manufacturing orders registered in the system during the selected period.", formatType: "number" }); setInsightModalOpen(true); }} className="text-zinc-400 hover:text-emerald-600 transition-colors">
                                         <Eye className="w-4 h-4" />
                                     </button>
                                     <div className="bg-white p-2 rounded-full shadow-sm border border-emerald-100">
@@ -204,7 +279,7 @@ export default function ManufacturingPage() {
                                     <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{formatCurrency(latest.orderValue || 0, currency)}</h2>
                                 </div>
                                 <div className="flex flex-col items-center gap-3">
-                                    <button onClick={() => setRfqStandardModalOpen(true)} className="text-zinc-400 hover:text-rose-600 transition-colors">
+                                    <button onClick={() => { setInsightData({ title: "Total Value", metricKey: "orderValue", formulaDesc: "Total financial gross value of all manufacturing orders mapped and recorded in the system.", formatType: "currency" }); setInsightModalOpen(true); }} className="text-zinc-400 hover:text-rose-600 transition-colors">
                                         <Eye className="w-4 h-4" />
                                     </button>
                                     <div className="bg-white p-2 rounded-full shadow-sm border border-rose-100">
@@ -228,7 +303,7 @@ export default function ManufacturingPage() {
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-center gap-3">
-                                    <button onClick={() => setRfqCustomModalOpen(true)} className="text-zinc-400 hover:text-blue-600 transition-colors">
+                                    <button onClick={() => { setInsightData({ title: "New Orders", metricKey: "rfqCustom", formulaDesc: "Count of new custom or incoming orders arriving for manufacturing evaluation during this period.", formatType: "number" }); setInsightModalOpen(true); }} className="text-zinc-400 hover:text-blue-600 transition-colors">
                                         <Eye className="w-4 h-4" />
                                     </button>
                                     <div className="bg-white p-2 rounded-full shadow-sm border border-blue-100">
@@ -265,11 +340,11 @@ export default function ManufacturingPage() {
                                 <div className="space-y-3">
                                     <div className="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5">
                                         <span className="text-xs text-zinc-400">On Track</span>
-                                        <span className="text-sm font-bold text-emerald-400">{latest.projectOnTrack || 0}</span>
+                                        <span className="text-sm font-bold text-emerald-400">{projectStats.projectOnTrack}</span>
                                     </div>
                                     <div className="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5">
                                         <span className="text-xs text-zinc-400">At Risk (Behind/Critical)</span>
-                                        <span className="text-sm font-bold text-rose-400">{(latest.projectBehindSchedule || 0) + (latest.projectCritical || 0)}</span>
+                                        <span className="text-sm font-bold text-rose-400">{projectStats.projectBehindSchedule + projectStats.projectCritical}</span>
                                     </div>
                                 </div>
                             </div>
@@ -291,10 +366,10 @@ export default function ManufacturingPage() {
                             </div>
                             <div>
                                 <div className="flex items-baseline gap-2 mb-4">
-                                    <span className="text-4xl font-black text-zinc-900 tracking-tight">70%</span>
+                                    <span className="text-4xl font-black text-zinc-900 tracking-tight">{otifPct}%</span>
                                 </div>
                                 <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `70%` }} />
+                                    <div className="h-full bg-emerald-500 rounded-full transition-all duration-1000" style={{ width: `${otifPct}%` }} />
                                 </div>
                             </div>
                         </div>
@@ -302,10 +377,19 @@ export default function ManufacturingPage() {
 
                     {/* Chart Section */}
                     <div className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden h-[300px]">
-                        <h3 className="font-bold text-zinc-900 mb-6 flex items-center gap-2">
-                            <Activity className="w-4 h-4 text-zinc-400" />
-                            Project Stages
-                        </h3>
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="font-bold text-zinc-900 flex items-center gap-2">
+                                <Activity className="w-4 h-4 text-zinc-400" />
+                                Project Stages
+                            </h3>
+                            <button
+                                title="Deep Dive"
+                                onClick={() => setProjectStagesModalOpen(true)}
+                                className="p-1.5 rounded-full bg-zinc-100 text-zinc-500 hover:text-blue-600 hover:bg-blue-50 transition-all z-20"
+                            >
+                                <Eye className="w-4 h-4" />
+                            </button>
+                        </div>
                         {(latest.stageData || projectStatusData).length > 0 ? (
                             <ResponsiveContainer width="100%" height="80%">
                                 <BarChart data={latest.stageData || projectStatusData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
@@ -336,6 +420,15 @@ export default function ManufacturingPage() {
                                 <LayoutList className="w-4 h-4 text-zinc-400" />
                                 Top Performing Customer
                             </h3>
+                            <button
+                                title="Deep Dive"
+                                onClick={() => setTopCustomerModalOpen(true)}
+                                className="p-1.5 ml-2 rounded-full bg-zinc-100 text-zinc-500 hover:text-blue-600 hover:bg-blue-50 transition-all z-20"
+                            >
+                                <Eye className="w-4 h-4" />
+                            </button>
+                            <div className="flex-1"></div>
+
                             <div className="flex bg-zinc-50 border border-zinc-200 rounded-lg p-0.5 shadow-sm">
                                 <button onClick={() => setCustomerChartMode("values")} className={cn("px-3 py-1.5 text-xs font-semibold rounded-md transition-all", customerChartMode === "values" ? "bg-white text-zinc-900 shadow-sm border border-zinc-200" : "text-zinc-500 hover:text-zinc-700")}>
                                     Values
@@ -389,19 +482,19 @@ export default function ManufacturingPage() {
                                 <div key={i} className="flex flex-col gap-2 p-4 rounded-xl bg-zinc-50 border border-zinc-100">
                                     <div className="flex justify-between items-center">
                                         <h4 className="text-xs font-bold text-zinc-900">{order.id}</h4>
-                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${order.status === 'On Track' ? 'bg-emerald-100 text-emerald-700' :
-                                            order.status === 'Critical' ? 'bg-rose-100 text-rose-700' :
+                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${order.calculatedStatus === 'On Track' ? 'bg-emerald-100 text-emerald-700' :
+                                            order.calculatedStatus === 'Critical' ? 'bg-rose-100 text-rose-700' :
                                                 'bg-amber-100 text-amber-700'
                                             }`}>
-                                            {order.status}
+                                            {order.calculatedStatus}
                                         </span>
                                     </div>
-                                    <p className="text-xs text-zinc-500">{order.client}</p>
+                                    <p className="text-xs text-zinc-500">{order.opportunity?.customer?.customerName || "Project"}</p>
                                     <div className="h-1.5 w-full bg-zinc-200 rounded-full overflow-hidden mt-1">
-                                        <div className={`h-full ${order.status === 'On Track' ? 'bg-emerald-500' :
-                                            order.status === 'Critical' ? 'bg-rose-500' :
+                                        <div className={`h-full ${order.calculatedStatus === 'On Track' ? 'bg-emerald-500' :
+                                            order.calculatedStatus === 'Critical' ? 'bg-rose-500' :
                                                 'bg-amber-500'
-                                            }`} style={{ width: `${order.progress}%` }} />
+                                            }`} style={{ width: `${order.currentStage?.progress || 0}%` }} />
                                     </div>
                                 </div>
                             ))}
@@ -444,76 +537,214 @@ export default function ManufacturingPage() {
                         </div>
 
                         <div className="w-full mt-6 space-y-3">
-                            {projectStatusData.map((d, i) => (
-                                <div key={i} className="flex justify-between items-center bg-zinc-50 p-3 rounded-lg border border-zinc-100">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
-                                        <span className="font-semibold text-zinc-700">{d.name}</span>
+                            <div className="flex justify-between gap-4 mb-4">
+                                {projectStatusData.map((d, i) => (
+                                    <div key={i} className="flex-1 flex justify-between items-center bg-zinc-50 p-3 rounded-lg border border-zinc-100">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
+                                            <span className="font-semibold text-xs text-zinc-700">{d.name}</span>
+                                        </div>
+                                        <span className="font-bold text-zinc-900">{d.value}</span>
                                     </div>
-                                    <span className="font-bold text-zinc-900">{d.value}</span>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
+
+                            <div className="w-full overflow-auto max-h-[300px] rounded-xl border border-zinc-200 custom-scrollbar">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-zinc-50 border-b border-zinc-200 text-zinc-500 uppercase text-xs sticky top-0 z-10">
+                                        <tr>
+                                            <th className="px-4 py-3 font-semibold">Order ID</th>
+                                            <th className="px-4 py-3 font-semibold">Customer</th>
+                                            <th className="px-4 py-3 font-semibold">Stage</th>
+                                            <th className="px-4 py-3 font-semibold">Expected</th>
+                                            <th className="px-4 py-3 font-semibold text-right">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-zinc-100">
+                                        {activeProjects.map((p, i) => (
+                                            <tr key={i} className="bg-white hover:bg-zinc-50 transition-colors">
+                                                <td className="px-4 py-3 font-bold text-[11px] text-zinc-900">{p.id}</td>
+                                                <td className="px-4 py-3 text-zinc-700 font-medium">{p.opportunity?.customer?.customerName || "Unknown"}</td>
+                                                <td className="px-4 py-3 text-zinc-600 text-[11px]">{p.currentStage?.name || "Not Started"}</td>
+                                                <td className="px-4 py-3 text-zinc-700">{p.targetDate ? new Date(p.targetDate).toLocaleDateString('en-GB') : "Not Set"}</td>
+                                                <td className="px-4 py-3 text-right">
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold whitespace-nowrap ${
+                                                        p.calculatedStatus === 'On Track' ? 'bg-emerald-100 text-emerald-700' :
+                                                        p.calculatedStatus === 'Critical' ? 'bg-rose-100 text-rose-700' :
+                                                        'bg-amber-100 text-amber-700'
+                                                    }`}>
+                                                        {p.calculatedStatus}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {activeProjects.length === 0 && (
+                                            <tr>
+                                                <td colSpan={5} className="px-4 py-8 text-center text-zinc-500">No active projects found.</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </DialogContent>
             </Dialog>
 
-            {/* New RFQs Modal */}
-            <Dialog open={rfqNewModalOpen} onOpenChange={setRfqNewModalOpen}>
-                <DialogContent className="sm:max-w-xl">
+            {/* Project Stages Deep Dive Modal */}
+            <Dialog open={projectStagesModalOpen} onOpenChange={setProjectStagesModalOpen}>
+                <DialogContent className="sm:max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
                     <DialogHeader>
-                        <DialogTitle className="text-xl font-bold">New RFQs Breakdown</DialogTitle>
+                        <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+                            Project Stages
+                        </DialogTitle>
                     </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                            <div>
-                                <p className="text-sm text-blue-600 font-medium">Unhandled Requests</p>
-                                <p className="text-2xl font-bold text-blue-700">{latest.rfqNew || 0}</p>
-                            </div>
-                            <LayoutList className="w-8 h-8 text-blue-500 opacity-50" />
+                    <div className="py-4 flex-1 overflow-y-auto custom-scrollbar">
+                        <div className="w-full rounded-xl border border-zinc-200 shadow-sm bg-white overflow-x-auto custom-scrollbar">
+                            <table className="w-full text-sm text-left whitespace-nowrap">
+                                <thead className="bg-zinc-50 border-b border-zinc-200 text-zinc-500 uppercase text-[10px] sticky top-0 z-10">
+                                    <tr>
+                                        <th className="px-4 py-3 font-semibold">Sl No</th>
+                                        <th className="px-4 py-3 font-semibold">Order No</th>
+                                        <th className="px-4 py-3 font-semibold">Order Description</th>
+                                        <th className="px-4 py-3 font-semibold">Value</th>
+                                        <th className="px-4 py-3 font-semibold">Customer</th>
+                                        <th className="px-4 py-3 font-semibold">Company</th>
+                                        <th className="px-4 py-3 font-semibold">Expected</th>
+                                        <th className="px-4 py-3 font-semibold text-right">Complete Within</th>
+                                        <th className="px-4 py-3 font-semibold text-right">Running Days</th>
+                                        <th className="px-4 py-3 font-semibold">Current Stage</th>
+                                        <th className="px-4 py-3 font-semibold text-right">Days Left/Elapsed</th>
+                                        <th className="px-4 py-3 font-semibold">Incharge</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-zinc-100">
+                                    {activeProjects.map((p, i) => {
+                                        const now = new Date();
+                                        now.setHours(0,0,0,0);
+                                        const orderDate = p.date ? new Date(p.date) : now;
+                                        orderDate.setHours(0,0,0,0);
+                                        const targetDate = p.targetDate ? new Date(p.targetDate) : null;
+                                        if (targetDate) targetDate.setHours(0,0,0,0);
+
+                                        const completeWithin = targetDate ? Math.ceil((targetDate.getTime() - orderDate.getTime()) / (1000 * 3600 * 24)) : 0;
+                                        const targetDiffDays = targetDate ? Math.ceil((targetDate.getTime() - now.getTime()) / (1000 * 3600 * 24)) : 0;
+
+                                        return (
+                                            <tr key={i} className="hover:bg-zinc-50 transition-colors">
+                                                <td className="px-4 py-3 font-medium text-zinc-900">{i + 1}</td>
+                                                <td className="px-4 py-3 font-bold text-zinc-900">{p.orderNo || p.id}</td>
+                                                <td className="px-4 py-3 text-zinc-700 truncate max-w-[200px]" title={p.opportunity?.opportunityName}>{p.opportunity?.opportunityName || "N/A"}</td>
+                                                <td className="px-4 py-3 text-right font-medium text-emerald-600">{formatCurrency(p.orderValue !== null && p.orderValue !== undefined ? p.orderValue : (p.opportunity?.value || 0), currency)}</td>
+                                                <td className="px-4 py-3 text-zinc-700 truncate max-w-[150px]">{p.opportunity?.customer?.customerName || "N/A"}</td>
+                                                <td className="px-4 py-3 text-zinc-700 truncate max-w-[150px]">{p.opportunity?.customer?.company?.name || "N/A"}</td>
+                                                <td className="px-4 py-3 text-zinc-700">{p.targetDate ? new Date(p.targetDate).toLocaleDateString('en-GB') : "Not Set"}</td>
+                                                <td className="px-4 py-3 text-right font-medium">{completeWithin > 0 ? completeWithin : '-'}</td>
+                                                <td className="px-4 py-3 text-right font-medium text-blue-600">{p.elapsedDays || 0}</td>
+                                                <td className="px-4 py-3 text-zinc-600 text-[11px] font-semibold">
+                                                    <span className="bg-zinc-100 text-zinc-700 px-2 py-1 rounded-md">{p.currentStage?.stageName || p.currentStage?.name || "Not Started"}</span>
+                                                </td>
+                                                <td className="px-4 py-3 text-right font-bold">
+                                                    {!targetDate ? '-' : targetDiffDays < 0 ? (
+                                                        <span className="text-rose-500">{Math.abs(targetDiffDays)} overdue</span>
+                                                    ) : (
+                                                        <span className={targetDiffDays === 0 ? "text-amber-500" : "text-emerald-500"}>{targetDiffDays} left</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3 text-zinc-600 truncate max-w-[120px]">{p.orderIncharge || "Unassigned"}</td>
+                                            </tr>
+                                        )
+                                    })}
+                                    {activeProjects.length === 0 && (
+                                        <tr>
+                                            <td colSpan={11} className="px-4 py-8 text-center text-zinc-500">No active orders found.</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
-                        <p className="text-sm text-zinc-500">This metric represents the number of incoming Requests for Quotation (RFQs) that have not yet been processed or categorized into Standard or Custom tiers.</p>
                     </div>
                 </DialogContent>
             </Dialog>
 
-            {/* Standard RFQs Modal */}
-            <Dialog open={rfqStandardModalOpen} onOpenChange={setRfqStandardModalOpen}>
-                <DialogContent className="sm:max-w-xl">
+            {/* Top Performing Customer Deep Dive Modal */}
+            <Dialog open={topCustomerModalOpen} onOpenChange={setTopCustomerModalOpen}>
+                <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
                     <DialogHeader>
-                        <DialogTitle className="text-xl font-bold">Standard RFQs Breakdown</DialogTitle>
+                        <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+                            Top Performing Customers <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full uppercase tracking-wider">{customerChartMode === 'values' ? 'Values View' : 'Orders View'}</span>
+                        </DialogTitle>
                     </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
-                            <div>
-                                <p className="text-sm text-emerald-600 font-medium">Standard Processing</p>
-                                <p className="text-2xl font-bold text-emerald-700">{latest.rfqStandard || 0}</p>
-                            </div>
-                            <CheckCircle2 className="w-8 h-8 text-emerald-500 opacity-50" />
+                    <div className="py-4 flex-1 overflow-auto custom-scrollbar">
+                        <div className="w-full rounded-xl border border-zinc-200 shadow-sm bg-white overflow-hidden">
+                            <table className="w-full text-sm text-left">
+                                <thead className="bg-zinc-50 border-b border-zinc-200 text-zinc-500 uppercase text-xs sticky top-0 z-10">
+                                    {customerChartMode === "values" ? (
+                                        <tr>
+                                            <th className="px-4 py-3 font-semibold">Sl no</th>
+                                            <th className="px-4 py-3 font-semibold">Customer Name</th>
+                                            <th className="px-4 py-3 font-semibold">Company</th>
+                                            <th className="px-4 py-3 font-semibold text-right">Total Values</th>
+                                            <th className="px-4 py-3 font-semibold">Last Order Date</th>
+                                            <th className="px-4 py-3 font-semibold">Last Order Status</th>
+                                            <th className="px-4 py-3 font-semibold text-right">Avg Completion Days</th>
+                                        </tr>
+                                    ) : (
+                                        <tr>
+                                            <th className="px-4 py-3 font-semibold">Sl no</th>
+                                            <th className="px-4 py-3 font-semibold">Customer Name</th>
+                                            <th className="px-4 py-3 font-semibold">Company</th>
+                                            <th className="px-4 py-3 font-semibold text-right">No of Orders</th>
+                                            <th className="px-4 py-3 font-semibold">Last Order Status</th>
+                                            <th className="px-4 py-3 font-semibold text-right">Avg Completion Days</th>
+                                        </tr>
+                                    )}
+                                </thead>
+                                <tbody className="divide-y divide-zinc-100">
+                                    {[...allCustomerStats].sort((a, b) => b[customerChartMode === "values" ? "value" : "orders"] - a[customerChartMode === "values" ? "value" : "orders"]).map((c, i) => (
+                                        <tr key={i} className="hover:bg-zinc-50 transition-colors">
+                                            {customerChartMode === "values" ? (
+                                                <>
+                                                    <td className="px-4 py-3 font-medium text-zinc-900">{i + 1}</td>
+                                                    <td className="px-4 py-3 text-zinc-700 font-semibold">{c.name}</td>
+                                                    <td className="px-4 py-3 text-zinc-700">{c.companyName}</td>
+                                                    <td className="px-4 py-3 text-right font-bold text-emerald-600">{formatCurrency(c.value, currency)}</td>
+                                                    <td className="px-4 py-3 text-zinc-500">{c.lastOrderDate ? new Date(c.lastOrderDate).toLocaleDateString('en-GB') : '-'}</td>
+                                                    <td className="px-4 py-3">
+                                                        <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${c.lastOrderStatus === 'Closed' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                            {c.lastOrderStatus || 'Unknown'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right font-medium text-zinc-600">{c.avgCompletionDays}</td>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <td className="px-4 py-3 font-medium text-zinc-900">{i + 1}</td>
+                                                    <td className="px-4 py-3 text-zinc-700 font-semibold">{c.name}</td>
+                                                    <td className="px-4 py-3 text-zinc-700">{c.companyName}</td>
+                                                    <td className="px-4 py-3 text-right font-bold text-blue-600">{c.orders}</td>
+                                                    <td className="px-4 py-3">
+                                                        <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${c.lastOrderStatus === 'Closed' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                            {c.lastOrderStatus || 'Unknown'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right font-medium text-zinc-600">{c.avgCompletionDays}</td>
+                                                </>
+                                            )}
+                                        </tr>
+                                    ))}
+                                    {allCustomerStats.length === 0 && (
+                                        <tr>
+                                            <td colSpan={7} className="px-4 py-8 text-center text-zinc-500">No customer records found.</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
-                        <p className="text-sm text-zinc-500">This metric shows the volume of RFQs categorized as 'Standard' (typically off-the-shelf components or recurring simple orders) during the selected period.</p>
                     </div>
                 </DialogContent>
             </Dialog>
 
-            {/* Custom RFQs Modal */}
-            <Dialog open={rfqCustomModalOpen} onOpenChange={setRfqCustomModalOpen}>
-                <DialogContent className="sm:max-w-xl">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-bold">Custom RFQs Breakdown</DialogTitle>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-purple-50 border border-purple-100 rounded-xl">
-                            <div>
-                                <p className="text-sm text-purple-600 font-medium">Custom Engineering</p>
-                                <p className="text-2xl font-bold text-purple-700">{latest.rfqCustom || 0}</p>
-                            </div>
-                            <Settings className="w-8 h-8 text-purple-500 opacity-50" />
-                        </div>
-                        <p className="text-sm text-zinc-500">This metric represents RFQs that require specialized engineering, bespoke manufacturing routes, or non-standard parts, driving custom quoting cycles.</p>
-                    </div>
-                </DialogContent>
-            </Dialog>
 
             <Dialog open={isMetricsLogOpen} onOpenChange={setIsMetricsLogOpen}>
                 <DialogContent className="sm:max-w-md bg-white border border-zinc-200">
@@ -562,6 +793,16 @@ export default function ManufacturingPage() {
                 isOpen={isEntryOpen}
                 onClose={() => { setIsEntryOpen(false); fetchData(); }}
                 category="manufacturing"
+            />
+            
+            <KpiInsightModal
+                open={insightModalOpen}
+                onOpenChange={setInsightModalOpen}
+                title={insightData?.title || null}
+                metricKey={insightData?.metricKey || null}
+                category="manufacturing"
+                formulaDesc={insightData?.formulaDesc || null}
+                formatType={insightData?.formatType}
             />
         </div>
     )

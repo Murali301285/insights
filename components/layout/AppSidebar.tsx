@@ -15,7 +15,8 @@ import {
     Search,
     Building,
     ChevronDown,
-    Network
+    Network,
+    MessageSquareText
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { usePathname, useRouter } from "next/navigation"
@@ -190,6 +191,38 @@ export function AppSidebar({ user }: AppSidebarProps) {
                         </button>
                     )
                 })}
+            </div>
+
+            {/* Fixed Chat Menu at Bottom */}
+            <div className="p-3 border-t border-zinc-100 bg-white">
+                <button
+                    className={cn(
+                        "relative flex items-center w-full p-2.5 rounded-xl transition-all duration-200 group text-sm font-semibold justify-center",
+                        pathname === "/chat" 
+                            ? "bg-violet-600 text-white shadow-md shadow-violet-200" 
+                            : "bg-violet-50 text-violet-700 hover:bg-violet-100 hover:text-violet-900 border border-violet-200"
+                    )}
+                    onClick={() => router.push('/chat')}
+                >
+                    <div className="relative flex items-center justify-center">
+                        <MessageSquareText className={cn("w-5 h-5 shrink-0 transition-colors", pathname === "/chat" ? "text-white" : "text-violet-600")} />
+                        {pathname !== "/chat" && !collapsed && (
+                            <span className="absolute top-0 right-0 -mt-1 -mr-1 flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-500"></span>
+                            </span>
+                        )}
+                    </div>
+                    <span className={cn("ml-3 whitespace-nowrap transition-all duration-300", collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100")}>
+                        Chat with System
+                    </span>
+                    {pathname !== "/chat" && collapsed && (
+                        <span className="absolute top-1 right-2 flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500"></span>
+                        </span>
+                    )}
+                </button>
             </div>
         </div>
     )

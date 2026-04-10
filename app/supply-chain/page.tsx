@@ -17,6 +17,7 @@ import {
 } from 'recharts'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { RequestManager } from "@/components/data-entry/RequestManager"
+import { KpiInsightModal } from "@/components/modals/KpiInsightModal"
 import { cn } from "@/lib/utils"
 
 export default function SupplyChainPage() {
@@ -33,10 +34,10 @@ export default function SupplyChainPage() {
     const [localPeriod, setLocalPeriod] = useState("Weekly")
 
     const [termsModalOpen, setTermsModalOpen] = useState(false)
-    const [suppliersModalOpen, setSuppliersModalOpen] = useState(false)
-    const [paymentModalOpen, setPaymentModalOpen] = useState(false)
-    const [deliveryModalOpen, setDeliveryModalOpen] = useState(false)
     const [supplierMetricMode, setSupplierMetricMode] = useState<"Values" | "Shipments">("Values")
+    
+    const [insightModalOpen, setInsightModalOpen] = useState(false)
+    const [insightData, setInsightData] = useState<{ title: string, metricKey: string, formulaDesc: string, formatType: "number" | "currency" | "percent" } | null>(null)
 
     const fetchData = async () => {
         setLoading(true)
@@ -129,7 +130,7 @@ export default function SupplyChainPage() {
                                     <p className="text-sm font-bold text-zinc-400 mt-1">Active suppliers: {latest.totalSuppliers || 0}</p>
                                 </div>
                                 <div className="flex flex-col items-center gap-3 relative z-20">
-                                    <button onClick={() => setSuppliersModalOpen(true)} className="text-zinc-400 hover:text-emerald-600 transition-colors">
+                                    <button onClick={() => { setInsightData({ title: "Total Suppliers", metricKey: "totalSuppliers", formulaDesc: "Total number of active vendors in the supply chain network for the period.", formatType: "number" }); setInsightModalOpen(true); }} className="text-zinc-400 hover:text-emerald-600 transition-colors">
                                         <Eye className="w-4 h-4" />
                                     </button>
                                     <div className="bg-emerald-50 p-2 rounded-full shadow-sm border border-emerald-100/50">
@@ -154,7 +155,7 @@ export default function SupplyChainPage() {
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-center gap-3 relative z-20">
-                                    <button onClick={() => setPaymentModalOpen(true)} className="text-zinc-400 hover:text-rose-600 transition-colors">
+                                    <button onClick={() => { setInsightData({ title: "Total No of Shipments", metricKey: "totalShipments", formulaDesc: "Total number of shipments processed and recorded.", formatType: "number" }); setInsightModalOpen(true); }} className="text-zinc-400 hover:text-rose-600 transition-colors">
                                         <Eye className="w-4 h-4" />
                                     </button>
                                     <div className="bg-rose-50 p-2 rounded-full shadow-sm border border-rose-100/50">
@@ -180,7 +181,7 @@ export default function SupplyChainPage() {
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-center gap-3 relative z-20">
-                                    <button onClick={() => setDeliveryModalOpen(true)} className="text-zinc-400 hover:text-blue-600 transition-colors">
+                                    <button onClick={() => { setInsightData({ title: "Payment Status", metricKey: "outstandingPayments", formulaDesc: "Total value of outstanding supplier invoices awaiting payment.", formatType: "currency" }); setInsightModalOpen(true); }} className="text-zinc-400 hover:text-blue-600 transition-colors">
                                         <Eye className="w-4 h-4" />
                                     </button>
                                     <div className="bg-blue-50 p-2 rounded-full shadow-sm border border-blue-100/50">
@@ -203,16 +204,9 @@ export default function SupplyChainPage() {
                             onClick={() => setTermsModalOpen(true)}
                         >
                             <div className="absolute top-0 right-0 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl -mr-12 -mt-12 pointer-events-none" />
-                            <button
-                                title="Deep Dive"
-                                className="absolute top-6 right-6 p-1.5 rounded-full bg-white/10 text-zinc-400 group-hover:text-blue-400 group-hover:bg-blue-400/20 transition-all z-20"
-                            >
-                                <Eye className="w-4 h-4" />
-                            </button>
                             <div className="relative z-10">
                                 <div className="flex items-center gap-2 mb-2">
                                     <h3 className="font-bold text-white text-lg">Supplier Terms</h3>
-                                    <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full font-semibold uppercase">Deep Dive</span>
                                 </div>
                                 <p className="text-zinc-400 text-sm mb-4">Payment term distribution</p>
                                 <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
@@ -418,66 +412,21 @@ export default function SupplyChainPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Total Suppliers Modal */}
-            <Dialog open={suppliersModalOpen} onOpenChange={setSuppliersModalOpen}>
-                <DialogContent className="sm:max-w-xl">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-bold">Supplier Network Details</DialogTitle>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
-                            <div>
-                                <p className="text-sm text-emerald-600 font-medium">Active Vendors</p>
-                                <p className="text-2xl font-bold text-emerald-700">{latest.totalSuppliers || 0}</p>
-                            </div>
-                            <Building2 className="w-8 h-8 text-emerald-500 opacity-50" />
-                        </div>
-                        <p className="text-sm text-zinc-500">This metric represents the total number of active vendors and suppliers integrated into your supply chain network for the selected period.</p>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* Payment Status Modal */}
-            <Dialog open={paymentModalOpen} onOpenChange={setPaymentModalOpen}>
-                <DialogContent className="sm:max-w-xl">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-bold">Outstanding Payments Details</DialogTitle>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-rose-50 border border-rose-100 rounded-xl">
-                            <div>
-                                <p className="text-sm text-rose-600 font-medium">Pending Approvals</p>
-                                <p className="text-2xl font-bold text-rose-700">{formatCurrency(latest.outstandingPayments || 0, currency)}</p>
-                            </div>
-                            <FileText className="w-8 h-8 text-rose-500 opacity-50" />
-                        </div>
-                        <p className="text-sm text-zinc-500">This metric indicates the total value of outstanding supplier invoices that have been received but are awaiting payment or final authorization.</p>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* On-Time Delivery Modal */}
-            <Dialog open={deliveryModalOpen} onOpenChange={setDeliveryModalOpen}>
-                <DialogContent className="sm:max-w-xl">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-bold">On-Time Delivery Performance</DialogTitle>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                            <div>
-                                <p className="text-sm text-blue-600 font-medium">SLA Completion</p>
-                                <p className="text-2xl font-bold text-blue-700">{latest.onTimeDelivery || 0}%</p>
-                            </div>
-                            <Truck className="w-8 h-8 text-blue-500 opacity-50" />
-                        </div>
-                        <p className="text-sm text-zinc-500">This percentage indicates how many supply shipments arrived within the designated contractual delivery window, measuring vendor reliability.</p>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            {/* Rest of the static modals were replaced with KPI Insight Modal */}
 
             <RequestManager
                 isOpen={isEntryOpen}
                 onClose={() => { setIsEntryOpen(false); fetchData(); }}
+            />
+            
+            <KpiInsightModal
+                open={insightModalOpen}
+                onOpenChange={setInsightModalOpen}
+                title={insightData?.title || null}
+                metricKey={insightData?.metricKey || null}
+                category="supplyChain"
+                formulaDesc={insightData?.formulaDesc || null}
+                formatType={insightData?.formatType}
             />
         </div>
     )

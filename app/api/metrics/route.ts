@@ -418,6 +418,115 @@ export async function GET(request: NextRequest) {
 
             return NextResponse.json([liveSnapshot]);
         }
+        
+        if (category === "support") {
+            const supportWhere: any = {};
+            if (companiesStr) {
+                supportWhere.companyId = { in: companiesStr.split(',') };
+            } else if (companyId) {
+                supportWhere.companyId = companyId;
+            }
+
+            const allTickets = await prisma.supportTicket.findMany({
+                where: supportWhere,
+                orderBy: { createdAt: 'desc' }
+            });
+
+            // Calculate metrics
+            let totalTickets = allTickets.length;
+            let openTickets = 0;
+            let resolvedTickets = 0;
+            
+            let internalOpen = 0, externalOpen = 0;
+            let internalTotal = 0, externalTotal = 0;
+
+            let totalResolutionDays = 0;
+            let resolvedCount = 0;
+            let totalOpenDays = 0;
+
+            const now = new Date();
+            const activeTicketsList = [];
+
+            for (const ticket of allTickets) {
+                if (ticket.type === "INTERNAL") internalTotal++;
+                else externalTotal++;
+
+                if (ticket.status === "OPEN") {
+                    openTickets++;
+                    if (ticket.type === "INTERNAL") internalOpen++;
+                    else externalOpen++;
+
+                    // Calculate age of open tickets
+                    const ageDays = Math.max(0, Math.ceil((now.getTime() - new Date(ticket.createdAt).getTime()) / (1000 * 60 * 60 * 24)));
+                    totalOpenDays += ageDays;
+
+                    activeTicketsList.push({
+                        id: ticket.ticketNo,
+                        title: ticket.details || 'Untitled Ticket',
+                        priority: "Pending", // Priority missing in schema
+                        time: new Date(ticket.createdAt).toLocaleDateString(),
+                        rawDate: ticket.createdAt,
+                        age: ageDays
+                    });
+                } else {
+                    resolvedTickets++;
+                    if (ticket.actualDays) {
+                        totalResolutionDays += ticket.actualDays;
+                        resolvedCount++;
+                    } else {
+                         const age = Math.max(0, Math.ceil((new Date(ticket.updatedAt).getTime() - new Date(ticket.createdAt).getTime()) / (1000 * 60 * 60 * 24)));
+                         totalResolutionDays += age;
+                         resolvedCount++;
+                    }
+                }
+            }
+
+            const resolutionTime = resolvedCount > 0 ? (totalResolutionDays / resolvedCount).toFixed(1) : "0";
+            const avgTicketAge = openTickets > 0 ? (totalOpenDays / openTickets).toFixed(1) : "0";
+            
+            // Sort activeTickets by age descending (longest pending tickets)
+            activeTicketsList.sort((a,b) => b.age - a.age);
+
+            // Ticket Resolution Trend (Chart Data)
+            const trendData = [];
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const dateStr = d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+                
+                const dayStart = new Date(d);
+                dayStart.setHours(0,0,0,0);
+                const dayEnd = new Date(d);
+                dayEnd.setHours(23,59,59,999);
+
+                const openedThatDay = allTickets.filter(t => new Date(t.createdAt) >= dayStart && new Date(t.createdAt) <= dayEnd).length;
+                const resolvedThatDay = allTickets.filter(t => t.status !== "OPEN" && new Date(t.updatedAt) >= dayStart && new Date(t.updatedAt) <= dayEnd).length;
+
+                trendData.push({
+                    name: dateStr,
+                    resolved: resolvedThatDay,
+                    open: openedThatDay
+                });
+            }
+
+            const liveSnapshot = {
+                id: 'real-support-data',
+                period: period || "Weekly",
+                totalTickets,
+                internalTotal,
+                externalTotal,
+                openTickets,
+                internalOpen,
+                externalOpen,
+                resolvedTickets,
+                resolutionTime,
+                avgResponseTime: avgTicketAge,
+                trendData,
+                activeTickets: activeTicketsList.slice(0, 10)
+            };
+
+            return NextResponse.json([liveSnapshot]);
+        }
 
         let model: any;
         switch (category) {
@@ -468,7 +577,7 @@ export async function GET(request: NextRequest) {
             totalAvailable = totalFund - totalUtilised;
 
             if (data.length > 0) {
-                data[0] = { ...data[0], totalFund, totalUtilised, totalAvailable };
+                data = data.map((item: any) => ({ ...item, totalFund, totalUtilised, totalAvailable }));
             }
         }
 
@@ -547,6 +656,32 @@ export async function GET(request: NextRequest) {
                 model = null; // Forces mock data generation below
                 data = [{ annualTarget, stageData, orderValue: salesWinValue, productionVolume: salesOrderCount } as any]; 
             }
+        } else if (category === "hr") {
+            if (data.length > 0) {
+                const groupedByDate: Record<string, any> = {};
+                for (const row of data) {
+                    const dKey = new Date(row.date).toISOString().split('T')[0];
+                    if (!groupedByDate[dKey]) {
+                         groupedByDate[dKey] = { ...row };
+                    } else {
+                         groupedByDate[dKey].orgStrength = (groupedByDate[dKey].orgStrength || 0) + (row.orgStrength || 0);
+                         groupedByDate[dKey].openPosOnTrack = (groupedByDate[dKey].openPosOnTrack || 0) + (row.openPosOnTrack || 0);
+                         groupedByDate[dKey].openPosLagging = (groupedByDate[dKey].openPosLagging || 0) + (row.openPosLagging || 0);
+                         groupedByDate[dKey].recruitedApplied = (groupedByDate[dKey].recruitedApplied || 0) + (row.recruitedApplied || 0);
+                         groupedByDate[dKey].recruitedScreening = (groupedByDate[dKey].recruitedScreening || 0) + (row.recruitedScreening || 0);
+                         groupedByDate[dKey].recruitedInterview = (groupedByDate[dKey].recruitedInterview || 0) + (row.recruitedInterview || 0);
+                         groupedByDate[dKey].recruitedOffer = (groupedByDate[dKey].recruitedOffer || 0) + (row.recruitedOffer || 0);
+                         groupedByDate[dKey].recruitedHired = (groupedByDate[dKey].recruitedHired || 0) + (row.recruitedHired || 0);
+                    }
+                }
+                const aggregatedData = Object.values(groupedByDate).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                
+                if (aggregatedData.length > 1) {
+                    aggregatedData[0].prevOrgStrength = aggregatedData[1].orgStrength;
+                }
+                
+                data = aggregatedData as any[];
+            }
         }
 
         console.log(`[API Metrics] Fetched DB size: ${data?.length}`);
@@ -557,6 +692,8 @@ export async function GET(request: NextRequest) {
                 // No mock data. Return empty state zeroes with computed fund variables
                 data = [{
                     id: 'live-fund',
+                    period: period || "Weekly",
+                    date: new Date(),
                     inflow: 0,
                     outflow: 0,
                     cashBalance: 0,
@@ -574,6 +711,20 @@ export async function GET(request: NextRequest) {
                     totalFund, 
                     totalUtilised, 
                     totalAvailable
+                } as any];
+            } else if (category === "hr") {
+                data = [{
+                    id: 'live-hr',
+                    period: period || "Weekly",
+                    date: new Date(),
+                    orgStrength: 0,
+                    openPosOnTrack: 0,
+                    openPosLagging: 0,
+                    recruitedApplied: 0,
+                    recruitedScreening: 0,
+                    recruitedInterview: 0,
+                    recruitedOffer: 0,
+                    recruitedHired: 0
                 } as any];
             } else {
                 console.log(`[API Metrics] Falling back to mock data...`);

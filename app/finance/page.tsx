@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, Cell, CartesianAxis } from 'recharts'
 import { SmartEntrySheet } from "@/components/data-entry/SmartEntrySheet"
-import { CashInsightsModal } from "@/components/finance/CashInsightsModal"
+import { KpiInsightModal } from "@/components/modals/KpiInsightModal"
 
 export default function FinancePage() {
     const { setHeaderInfo } = useHeader()
@@ -27,7 +27,7 @@ export default function FinancePage() {
     const [arModalOpen, setArModalOpen] = useState(false)
     const [apModalOpen, setApModalOpen] = useState(false)
     const [insightModalOpen, setInsightModalOpen] = useState(false)
-    const [insightModalType, setInsightModalType] = useState<"Inflow" | "Outflow" | "Balance" | null>(null)
+    const [insightData, setInsightData] = useState<{ title: string, metricKey: string, formulaDesc: string } | null>(null)
 
     const fetchData = async () => {
         setLoading(true)
@@ -77,9 +77,15 @@ export default function FinancePage() {
     }
     const periodText = getPeriodText()
 
+    const formatDate = (dateInput: any) => {
+        const d = new Date(dateInput);
+        if (isNaN(d.getTime())) return "";
+        return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    };
+
     // Chart Data
     const chartData = metrics.map((m: any) => ({
-        name: new Date(m.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
+        name: formatDate(m.date),
         inflow: m.inflow,
         outflow: m.outflow
     })).reverse() // Left-to-right
@@ -139,7 +145,7 @@ export default function FinancePage() {
                                         <h3 className="text-2xl font-bold text-zinc-900 mt-1">{formatCurrency(latest.inflow || 0, currency)}</h3>
                                     </div>
                                     <div className="flex flex-col gap-2 items-end">
-                                        <button onClick={() => { setInsightModalType("Inflow"); setInsightModalOpen(true); }} className="p-1.5 rounded-full hover:bg-emerald-100 text-zinc-400 hover:text-emerald-600 transition-all z-20">
+                                        <button onClick={() => { setInsightData({ title: "Cash Inflow", metricKey: "inflow", formulaDesc: "Aggregated sum of all cash receipts (revenue, loans, or investments) received by the selected companies during the specified period." }); setInsightModalOpen(true); }} className="p-1.5 rounded-full hover:bg-emerald-100 text-zinc-400 hover:text-emerald-600 transition-all z-20">
                                             <Eye className="w-4 h-4" />
                                         </button>
                                         <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center border border-emerald-100 shadow-sm mt-1">
@@ -166,7 +172,7 @@ export default function FinancePage() {
                                         <h3 className="text-2xl font-bold text-zinc-900 mt-1">{formatCurrency(latest.outflow || 0, currency)}</h3>
                                     </div>
                                     <div className="flex flex-col gap-2 items-end">
-                                        <button onClick={() => { setInsightModalType("Outflow"); setInsightModalOpen(true); }} className="p-1.5 rounded-full hover:bg-rose-100 text-zinc-400 hover:text-rose-600 transition-all z-20">
+                                        <button onClick={() => { setInsightData({ title: "Cash Outflow", metricKey: "outflow", formulaDesc: "Total sum of all cash disbursements (expenses, supplier payments, tax) processed by the selected companies during the specified period." }); setInsightModalOpen(true); }} className="p-1.5 rounded-full hover:bg-rose-100 text-zinc-400 hover:text-rose-600 transition-all z-20">
                                             <Eye className="w-4 h-4" />
                                         </button>
                                         <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center border border-rose-100 shadow-sm mt-1">
@@ -193,7 +199,7 @@ export default function FinancePage() {
                                         <h3 className="text-2xl font-bold text-zinc-900 mt-1">{formatCurrency(latest.cashBalance || 0, currency)}</h3>
                                     </div>
                                     <div className="flex flex-col gap-2 items-end">
-                                        <button onClick={() => { setInsightModalType("Balance"); setInsightModalOpen(true); }} className="p-1.5 rounded-full hover:bg-blue-100 text-zinc-400 hover:text-blue-600 transition-all z-20">
+                                        <button onClick={() => { setInsightData({ title: "Cash Balance", metricKey: "cashBalance", formulaDesc: "The net cash position strictly recorded by the SmartEntry inputs for the selected companies across the defined period." }); setInsightModalOpen(true); }} className="p-1.5 rounded-full hover:bg-blue-100 text-zinc-400 hover:text-blue-600 transition-all z-20">
                                             <Eye className="w-4 h-4" />
                                         </button>
                                         <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center border border-blue-100 shadow-sm mt-1">
@@ -327,10 +333,19 @@ export default function FinancePage() {
                     {/* Fund Metrics Area */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* Total Fund */}
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
-                            <div className="flex items-center justify-between mb-4">
+                        <div className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden transition-all hover:shadow-md group cursor-pointer" onClick={() => {
+                                setInsightData({ title: "Total Fund", metricKey: "totalFund", formulaDesc: "View the historical aggregates of the Total Fund derived from the system." });
+                                setInsightModalOpen(true);
+                            }}>
+                            <button
+                                title="View Details"
+                                className="absolute top-5 right-5 p-1.5 rounded-full bg-zinc-100 text-zinc-400 group-hover:text-emerald-600 transition-all z-20 opacity-0 group-hover:opacity-100"
+                            >
+                                <Eye className="w-4 h-4" />
+                            </button>
+                            <div className="flex items-center justify-between mb-4 mt-1">
                                 <h3 className="font-bold text-zinc-500 text-sm uppercase tracking-wider">Total Fund</h3>
-                                <div className="p-2 bg-emerald-50 rounded-full">
+                                <div className="p-2 bg-emerald-50 rounded-full mr-8">
                                     <DollarSign className="w-4 h-4 text-emerald-600" />
                                 </div>
                             </div>
@@ -340,10 +355,19 @@ export default function FinancePage() {
                         </div>
 
                         {/* Utilised Fund */}
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
-                            <div className="flex items-center justify-between mb-4">
+                        <div className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden transition-all hover:shadow-md group cursor-pointer" onClick={() => {
+                                setInsightData({ title: "Utilised Fund", metricKey: "totalUtilised", formulaDesc: "View the historical aggregates of the Utilised Fund derived from the system." });
+                                setInsightModalOpen(true);
+                            }}>
+                            <button
+                                title="View Details"
+                                className="absolute top-5 right-5 p-1.5 rounded-full bg-zinc-100 text-zinc-400 group-hover:text-rose-600 transition-all z-20 opacity-0 group-hover:opacity-100"
+                            >
+                                <Eye className="w-4 h-4" />
+                            </button>
+                            <div className="flex items-center justify-between mb-4 mt-1">
                                 <h3 className="font-bold text-zinc-500 text-sm uppercase tracking-wider">Utilised</h3>
-                                <div className="p-2 bg-rose-50 rounded-full">
+                                <div className="p-2 bg-rose-50 rounded-full mr-8">
                                     <TrendingUp className="w-4 h-4 text-rose-600" />
                                 </div>
                             </div>
@@ -358,10 +382,19 @@ export default function FinancePage() {
                         </div>
 
                         {/* Available Fund */}
-                        <div className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
-                            <div className="flex items-center justify-between mb-4">
+                        <div className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden transition-all hover:shadow-md group cursor-pointer" onClick={() => {
+                                setInsightData({ title: "Available Fund", metricKey: "totalAvailable", formulaDesc: "View the historical aggregates of the Available Fund derived from the system." });
+                                setInsightModalOpen(true);
+                            }}>
+                            <button
+                                title="View Details"
+                                className="absolute top-5 right-5 p-1.5 rounded-full bg-zinc-100 text-zinc-400 group-hover:text-blue-600 transition-all z-20 opacity-0 group-hover:opacity-100"
+                            >
+                                <Eye className="w-4 h-4" />
+                            </button>
+                            <div className="flex items-center justify-between mb-4 mt-1">
                                 <h3 className="font-bold text-zinc-500 text-sm uppercase tracking-wider">Available Fund</h3>
-                                <div className="p-2 bg-blue-50 rounded-full">
+                                <div className="p-2 bg-blue-50 rounded-full mr-8">
                                     <Wallet className="w-4 h-4 text-blue-600" />
                                 </div>
                             </div>
@@ -386,7 +419,7 @@ export default function FinancePage() {
                             <button
                                 title="View All Transactions"
                                 onClick={() => {
-                                    setInsightModalType('Inflow');
+                                    setInsightData({ title: "Transaction Flow", metricKey: "inflow", formulaDesc: "View the exact transactional inflow aggregates derived from the system." });
                                     setInsightModalOpen(true);
                                 }}
                                 className="p-2 rounded-full bg-white border border-zinc-200 text-zinc-400 hover:text-zinc-600 transition-colors shadow-sm"
@@ -417,38 +450,40 @@ export default function FinancePage() {
 
             {/* AR Deep Dive Modal */}
             <Dialog open={arModalOpen} onOpenChange={setArModalOpen}>
-                <DialogContent className="sm:max-w-2xl">
+                <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-                            Accounts Receivable <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full uppercase tracking-wider">Deep Dive</span>
+                            Accounts Receivable
                         </DialogTitle>
                     </DialogHeader>
-                    <div className="py-6">
-                        <div className="h-[300px] w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={arChartData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f4f4f5" />
-                                    <XAxis type="number" axisLine={false} tickLine={false} tickFormatter={(val) => formatCurrency(val, currency)} />
-                                    <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} />
-                                    <Tooltip
-                                        formatter={(val: any) => formatCurrency(val, currency)}
-                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                                    />
-                                    <Bar dataKey="value" name="Amount" radius={[0, 4, 4, 0]}>
-                                        {arChartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={index === 0 ? "#10b981" : index === 3 ? "#f43f5e" : "#f59e0b"} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                        <div className="grid grid-cols-4 gap-4 mt-6 text-center">
-                            {arChartData.map((d, i) => (
-                                <div key={i} className="bg-zinc-50 p-3 rounded-xl border border-zinc-100">
-                                    <p className="text-xs font-semibold text-zinc-500 mb-1">{d.name}</p>
-                                    <p className={`text-lg font-bold ${i === 0 ? 'text-emerald-600' : i === 3 ? 'text-rose-600' : 'text-amber-500'}`}>{formatCurrency(d.value, currency)}</p>
-                                </div>
-                            ))}
+                    <div className="py-2">
+                        {/* Table */}
+                        <div className="mt-8 border border-zinc-200 rounded-xl overflow-hidden">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-zinc-50 border-b border-zinc-200">
+                                    <tr>
+                                        <th className="px-4 py-3 font-semibold text-zinc-500 w-16">Sl No</th>
+                                        <th className="px-4 py-3 font-semibold text-zinc-500">Recorded Date</th>
+                                        <th className="px-4 py-3 font-semibold text-zinc-500 text-right">Aggregated Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {metrics.map((row, i) => (
+                                        <tr key={i} className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50/50 transition-colors">
+                                            <td className="px-4 py-3 text-zinc-500">{i + 1}</td>
+                                            <td className="px-4 py-3 font-medium text-zinc-700">{formatDate(row.date)}</td>
+                                            <td className="px-4 py-3 text-zinc-900 font-bold text-right">{formatCurrency(row.arTotal || 0, currency)}</td>
+                                        </tr>
+                                    ))}
+                                    {metrics.length === 0 && (
+                                        <tr>
+                                            <td colSpan={3} className="px-4 py-12 text-center text-zinc-500 font-medium bg-zinc-50/30">
+                                                No recorded entries found.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </DialogContent>
@@ -456,38 +491,40 @@ export default function FinancePage() {
 
             {/* AP Deep Dive Modal */}
             <Dialog open={apModalOpen} onOpenChange={setApModalOpen}>
-                <DialogContent className="sm:max-w-2xl">
+                <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-                            Accounts Payable <span className="text-xs bg-rose-100 text-rose-800 px-2 py-1 rounded-full uppercase tracking-wider">Deep Dive</span>
+                            Accounts Payable
                         </DialogTitle>
                     </DialogHeader>
-                    <div className="py-6">
-                        <div className="h-[300px] w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={apChartData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f4f4f5" />
-                                    <XAxis type="number" axisLine={false} tickLine={false} tickFormatter={(val) => formatCurrency(val, currency)} />
-                                    <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} />
-                                    <Tooltip
-                                        formatter={(val: any) => formatCurrency(val, currency)}
-                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                                    />
-                                    <Bar dataKey="value" name="Amount" radius={[0, 4, 4, 0]}>
-                                        {apChartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={index === 0 ? "#10b981" : index === 3 ? "#f43f5e" : "#f59e0b"} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                        <div className="grid grid-cols-4 gap-4 mt-6 text-center">
-                            {apChartData.map((d, i) => (
-                                <div key={i} className="bg-zinc-50 p-3 rounded-xl border border-zinc-100">
-                                    <p className="text-xs font-semibold text-zinc-500 mb-1">{d.name}</p>
-                                    <p className={`text-lg font-bold ${i === 0 ? 'text-emerald-600' : i === 3 ? 'text-rose-600' : 'text-amber-500'}`}>{formatCurrency(d.value, currency)}</p>
-                                </div>
-                            ))}
+                    <div className="py-2">
+                        {/* Table */}
+                        <div className="mt-8 border border-zinc-200 rounded-xl overflow-hidden">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-zinc-50 border-b border-zinc-200">
+                                    <tr>
+                                        <th className="px-4 py-3 font-semibold text-zinc-500 w-16">Sl No</th>
+                                        <th className="px-4 py-3 font-semibold text-zinc-500">Recorded Date</th>
+                                        <th className="px-4 py-3 font-semibold text-zinc-500 text-right">Aggregated Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {metrics.map((row, i) => (
+                                        <tr key={i} className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50/50 transition-colors">
+                                            <td className="px-4 py-3 text-zinc-500">{i + 1}</td>
+                                            <td className="px-4 py-3 font-medium text-zinc-700">{formatDate(row.date)}</td>
+                                            <td className="px-4 py-3 text-zinc-900 font-bold text-right">{formatCurrency(row.apTotal || 0, currency)}</td>
+                                        </tr>
+                                    ))}
+                                    {metrics.length === 0 && (
+                                        <tr>
+                                            <td colSpan={3} className="px-4 py-12 text-center text-zinc-500 font-medium bg-zinc-50/30">
+                                                No recorded entries found.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </DialogContent>
@@ -499,11 +536,14 @@ export default function FinancePage() {
                 category="finance"
             />
 
-            <CashInsightsModal
+            <KpiInsightModal
                 open={insightModalOpen}
                 onOpenChange={setInsightModalOpen}
-                type={insightModalType}
-                defaultPeriod={period}
+                title={insightData?.title || null}
+                metricKey={insightData?.metricKey || null}
+                category="finance"
+                formulaDesc={insightData?.formulaDesc || null}
+                formatType="currency"
             />
         </div>
     )

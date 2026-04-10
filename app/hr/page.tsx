@@ -15,11 +15,12 @@ import {
 } from 'recharts'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { SmartEntrySheet } from "@/components/data-entry/SmartEntrySheet"
+import { KpiInsightModal } from "@/components/modals/KpiInsightModal"
 import { cn } from "@/lib/utils"
 
 export default function HrPage() {
     const { setHeaderInfo } = useHeader()
-    const { period: globalPeriod } = useFilter()
+    const { period: globalPeriod, selectedCompanyIds } = useFilter()
 
     useEffect(() => {
         setHeaderInfo("Human Resources", "Monitor organization strength, hiring pipelines, and employee satisfaction.")
@@ -31,12 +32,14 @@ export default function HrPage() {
     const [localPeriod, setLocalPeriod] = useState("Weekly")
 
     const [positionsModalOpen, setPositionsModalOpen] = useState(false)
-    const [orgStrengthModalOpen, setOrgStrengthModalOpen] = useState(false)
+    const [insightModalOpen, setInsightModalOpen] = useState(false)
+    const [insightData, setInsightData] = useState<{ title: string, metricKey: string, formulaDesc: string, formatType: "number" | "currency" | "percent" } | null>(null)
 
     const fetchData = async () => {
         setLoading(true)
         try {
-            const res = await fetch(`/api/metrics?category=hr&period=${localPeriod}`)
+            const companyQuery = selectedCompanyIds.length > 0 ? `&companies=${selectedCompanyIds.join(',')}` : ''
+            const res = await fetch(`/api/metrics?category=hr&period=${localPeriod}${companyQuery}`)
             const data = await res.json()
             setMetrics(Array.isArray(data) ? data : [])
         } catch (error) {
@@ -48,7 +51,7 @@ export default function HrPage() {
 
     useEffect(() => {
         fetchData()
-    }, [localPeriod])
+    }, [localPeriod, selectedCompanyIds])
 
     const latest = metrics[0] || {}
 
@@ -81,12 +84,6 @@ export default function HrPage() {
         name: new Date(m.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
         strength: m.orgStrength || 0
     })).reverse()
-
-    const activeHires = [
-        { role: "Senior Engineer", team: "Engineering", status: "Offer Extended" },
-        { role: "Marketing Lead", team: "Marketing", status: "Interviewing" },
-        { role: "Sales Rep", team: "Sales", status: "Sourcing" },
-    ]
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
@@ -131,7 +128,7 @@ export default function HrPage() {
                                         <h3 className="text-2xl font-bold text-zinc-900 mt-1">{latest.orgStrength || 0}</h3>
                                     </div>
                                     <div className="flex flex-col gap-2 relative z-20">
-                                        <button onClick={() => setOrgStrengthModalOpen(true)} className="ml-auto p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-emerald-600 transition-all z-20">
+                                        <button onClick={() => { setInsightData({ title: "Org Strength", metricKey: "orgStrength", formulaDesc: "Total headcount of active employees maintained across selected companies during the specified period.", formatType: "number" }); setInsightModalOpen(true); }} className="ml-auto p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-emerald-600 transition-all z-20">
                                             <Eye className="w-4 h-4" />
                                         </button>
                                         <div className="p-2 bg-emerald-50 rounded-xl">
@@ -212,19 +209,14 @@ export default function HrPage() {
                         <div className="flex items-center justify-between mb-6">
                             <h3 className="font-bold text-zinc-900">Active Hiring</h3>
                         </div>
-                        <div className="flex-1 space-y-4 overflow-hidden relative">
-                            {activeHires.map((hire, i) => (
-                                <div key={i} className="flex flex-col gap-2 p-4 rounded-xl bg-zinc-50 border border-zinc-100">
-                                    <div className="flex justify-between items-center">
-                                        <h4 className="text-sm font-bold text-zinc-900">{hire.role}</h4>
-                                    </div>
-                                    <p className="text-xs text-zinc-500">{hire.team}</p>
-                                    <div className="mt-2 flex items-center gap-2">
-                                        {hire.status === 'Offer Extended' ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <MoreHorizontal className="w-3.5 h-3.5 text-blue-500" />}
-                                        <span className={`text-xs font-semibold ${hire.status === 'Offer Extended' ? 'text-emerald-600' : 'text-blue-600'}`}>{hire.status}</span>
-                                    </div>
-                                </div>
-                            ))}
+                        <div className="flex-1 space-y-4 overflow-hidden relative flex flex-col items-center justify-center text-center">
+                            <div className="w-12 h-12 bg-zinc-50 rounded-full flex items-center justify-center mb-2 border border-zinc-100">
+                                <Users className="w-6 h-6 text-zinc-300" />
+                            </div>
+                            <h4 className="text-sm font-bold text-zinc-700">No Data Linkage</h4>
+                            <p className="text-xs text-zinc-500 px-4">
+                                Granular candidate role tracking is currently not mapped in the backend schema.
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -278,29 +270,22 @@ export default function HrPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Org Strength Modal */}
-            <Dialog open={orgStrengthModalOpen} onOpenChange={setOrgStrengthModalOpen}>
-                <DialogContent className="sm:max-w-xl">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-bold">Organization Strength Details</DialogTitle>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
-                            <div>
-                                <p className="text-sm text-emerald-600 font-medium">Headcount Total</p>
-                                <p className="text-2xl font-bold text-emerald-700">{latest.orgStrength || 0}</p>
-                            </div>
-                            <Users className="w-8 h-8 text-emerald-500 opacity-50" />
-                        </div>
-                        <p className="text-sm text-zinc-500">This metric represents the total number of full-time and part-time employees currently active in the organization during the selected period.</p>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            {/* Org Strength Modal Replaced by Unified Modal */}
 
             <SmartEntrySheet
                 isOpen={isEntryOpen}
                 onClose={() => { setIsEntryOpen(false); fetchData(); }}
                 category="hr"
+            />
+            
+            <KpiInsightModal
+                open={insightModalOpen}
+                onOpenChange={setInsightModalOpen}
+                title={insightData?.title || null}
+                metricKey={insightData?.metricKey || null}
+                category="hr"
+                formulaDesc={insightData?.formulaDesc || null}
+                formatType={insightData?.formatType}
             />
         </div>
     )
