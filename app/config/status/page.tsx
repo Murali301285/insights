@@ -134,6 +134,26 @@ export default function StatusMasterPage() {
             cell: ({ row }) => row.index + 1,
         },
         {
+            id: "company",
+            accessorFn: (row) => (row as any).company?.name || "Global",
+            header: ({ column }) => {
+                return (
+                    <Button variant="ghost" className="-ml-3 h-8 data-[state=open]:bg-accent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+                        Company Context
+                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                    </Button>
+                )
+            },
+            cell: ({ row }) => {
+                const companyName = (row.original as any).company?.name;
+                if (!companyName) return <span className="px-2.5 py-1 rounded bg-zinc-100/80 text-zinc-500 font-semibold border border-zinc-200/50 text-xs shadow-sm uppercase tracking-wider">Global (All)</span>;
+                const colors = ["bg-blue-100/80 text-blue-800 border-blue-200","bg-purple-100/80 text-purple-800 border-purple-200","bg-emerald-100/80 text-emerald-800 border-emerald-200","bg-rose-100/80 text-rose-800 border-rose-200"];
+                const hash = companyName.charCodeAt(0) || 0;
+                const colorClass = colors[hash % colors.length];
+                return <span className={`px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wider shadow-sm border ${colorClass}`}>{companyName}</span>;
+            }
+        },
+        {
             accessorKey: "order",
             header: ({ column }) => {
                 return (
@@ -254,14 +274,13 @@ export default function StatusMasterPage() {
                         </SelectContent>
                     </Select>
                 </div>
-                <h2 className="text-lg font-medium">Pipeline Status Levels</h2>
                 <Dialog open={isAddOpen} onOpenChange={(open) => {
                     setIsAddOpen(open)
                     if (!open) setEditItem(null)
                 }}>
                     <DialogTrigger asChild>
-                        <Button className="bg-emerald-600 hover:bg-emerald-700">
-                            <Plus className="mr-2 h-4 w-4" /> Add Status
+                        <Button size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all font-semibold rounded-lg">
+                            <Plus className="mr-2 h-4 w-4" /> Entry
                         </Button>
                     </DialogTrigger>
                     <DialogContent>

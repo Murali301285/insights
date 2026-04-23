@@ -5,27 +5,13 @@ import { useHeader } from "@/components/providers/HeaderProvider"
 import { DataTable } from "@/components/ui/data-table"
 import { Button } from "@/components/ui/button"
 import { Plus, MoreHorizontal, Pencil, Trash, ArrowUpDown } from "lucide-react"
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ColumnDef } from "@tanstack/react-table"
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
 
 type Zone = {
@@ -35,9 +21,10 @@ type Zone = {
     remarks: string | null
     isActive: boolean
     createdAt: string
+    company?: { name: string }
 }
 
-export default function ZoneMasterPage() {
+export default function ZoneConfigPage() {
     const { setHeaderInfo } = useHeader()
     const [data, setData] = useState<Zone[]>([])
     const [loading, setLoading] = useState(true)
@@ -48,7 +35,6 @@ export default function ZoneMasterPage() {
 
     useEffect(() => {
         setHeaderInfo("Zone Master", "Configure and manage geographical zones.")
-        
     }, [setHeaderInfo])
 
     useEffect(() => {
@@ -105,7 +91,7 @@ export default function ZoneMasterPage() {
                 fetchData()
             } else {
                 const err = await res.json()
-                toast.error(err.error || "Failed to save zone")
+                toast.error(err.error || "Failed to save")
             }
         } catch (error) {
             toast.error("Error saving zone")
@@ -126,106 +112,59 @@ export default function ZoneMasterPage() {
     }
 
     const columns: ColumnDef<Zone>[] = [
-        {
-            id: "index",
-            header: "Sl No.",
-            cell: ({ row }) => row.index + 1,
-        },
+        { id: "index", header: "Sl No.", cell: ({ row }) => row.index + 1 },
         {
             accessorKey: "zoneName",
-            header: ({ column }) => {
-                return (
-                    <Button variant="ghost" className="-ml-3 h-8 data-[state=open]:bg-accent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-                        Zone
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                    </Button>
-                )
-            },
+            header: ({ column }) => (
+                <Button variant="ghost" className="-ml-3 h-8" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+                    Zone <ArrowUpDown className="ml-2 h-4 w-4" />
+                </Button>
+            ),
+            cell: ({ row }) => <span className="font-semibold text-emerald-700">{row.original.zoneName}</span>
+        },
+        {
+            accessorKey: "companyId",
+            header: "Company",
             cell: ({ row }) => {
-                const item = row.original;
-                return (
-                    <HoverCard>
-                        <HoverCardTrigger asChild>
-                            <span className="cursor-pointer font-medium hover:underline text-emerald-700">{item.zoneName}</span>
-                        </HoverCardTrigger>
-                        <HoverCardContent className="w-64" side="right">
-                            <div className="space-y-2">
-                                <h4 className="text-sm font-semibold">{item.zoneName}</h4>
-                                <div className="text-xs text-muted-foreground">
-                                    <p><span className="font-semibold text-zinc-700">Remarks:</span> {item.remarks || "N/A"}</p>
-                                    <p><span className="font-semibold text-zinc-700">Status:</span> {item.isActive ? "Active" : "Inactive"}</p>
-                                </div>
-                            </div>
-                        </HoverCardContent>
-                    </HoverCard>
-                )
+                const item = row.original as any;
+                const companyName = item.company?.name;
+                if (!companyName) return <span className="text-zinc-700 bg-zinc-100 px-2 py-1 rounded text-xs font-medium border border-zinc-200">Global</span>;
+                return <span className="text-slate-700 font-medium">{companyName}</span>;
+            }
+        },
+        { accessorKey: "remarks", header: "Remarks" },
+        {
+            accessorKey: "isActive",
+            header: "Status",
+            cell: ({ row }) => {
+                const isActive = row.original.isActive
+                return <span className={isActive ? "text-emerald-500 font-medium" : "text-red-500 font-medium"}>{isActive ? "Active" : "Inactive"}</span>
             }
         },
         {
-            accessorKey: "remarks",
-            header: ({ column }) => {
-                return (
-                    <Button variant="ghost" className="-ml-3 h-8 data-[state=open]:bg-accent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-                        Remarks
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                    </Button>
-                )
-            },
-        },
-        {
-            accessorKey: "isActive",
-            header: ({ column }) => {
-                return (
-                    <Button variant="ghost" className="-ml-3 h-8 data-[state=open]:bg-accent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-                        Status
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                    </Button>
-                )
-            },
-            cell: ({ row }) => (
-                <span className={row.original.isActive ? "text-emerald-500 font-medium" : "text-zinc-500 font-medium"}>
-                    {row.original.isActive ? "Active" : "Inactive"}
-                </span>
-            )
-        },
-        {
             id: "actions",
-            cell: ({ row }) => {
-                const item = row.original
-                return (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Open menu</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem className="text-zinc-700" onClick={() => {
-                                setEditItem(item)
-                                setIsAddOpen(true)
-                            }}>
-                                <Pencil className="mr-2 h-4 w-4" /> Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDelete(item.slno)} className="text-red-600">
-                                <Trash className="mr-2 h-4 w-4" /> Delete
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                )
-            },
+            cell: ({ row }) => (
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => { setEditItem(row.original); setIsAddOpen(true); }}><Pencil className="mr-2 h-4 w-4" /> Edit</DropdownMenuItem>
+                        <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(row.original.slno)}><Trash className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            ),
         },
     ]
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
+            <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-zinc-200">
                 <div className="flex items-center gap-4">
-                    <h2 className="text-lg font-bold text-zinc-800">Configuration</h2>
+                    <span className="font-semibold text-zinc-900 border-r pr-4 border-zinc-200">Configuration</span>
                     <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
-                        <SelectTrigger className="w-[200px] h-9 bg-zinc-50 border-zinc-200">
-                            <SelectValue placeholder="All Companies" />
+                        <SelectTrigger className="w-[200px] border-none bg-zinc-50 font-medium">
+                            <SelectValue placeholder="Select Company" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">Global / All Companies</SelectItem>
@@ -235,62 +174,38 @@ export default function ZoneMasterPage() {
                         </SelectContent>
                     </Select>
                 </div>
-                <h2 className="text-lg font-medium">Zones</h2>
-                <Dialog open={isAddOpen} onOpenChange={(open) => {
-                    setIsAddOpen(open)
-                    if (!open) setEditItem(null)
-                }}>
+                <h1 className="font-bold text-zinc-800 absolute left-1/2 -translate-x-1/2 hidden md:block">Zones</h1>
+                <Dialog open={isAddOpen} onOpenChange={(v) => { setIsAddOpen(v); if(!v) setEditItem(null); }}>
                     <DialogTrigger asChild>
-                        <Button className="bg-emerald-600 hover:bg-emerald-700">
+                        <Button className="bg-emerald-600 hover:bg-emerald-700 rounded-lg text-white font-semibold">
                             <Plus className="mr-2 h-4 w-4" /> Add Zone
                         </Button>
                     </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>{editItem ? "Edit Zone" : "Add New Zone"}</DialogTitle>
-                            <DialogDescription>
-                                Enter the details of the zone.
-                            </DialogDescription>
-                        </DialogHeader>
+                    <DialogContent className="max-w-md hidden-scrollbar">
+                        <DialogHeader><DialogTitle>{editItem ? "Edit Zone" : "Add Zone"}</DialogTitle></DialogHeader>
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="companyId">Company Context</Label>
-                                <Select name="companyId" defaultValue={editItem?.companyId || (selectedCompanyId !== "all" ? selectedCompanyId : "global")}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Global (All Companies)" />
-                                    </SelectTrigger>
+                            <div className="space-y-2"><Label>Zone Name</Label><Input name="zoneName" defaultValue={editItem?.zoneName} required /></div>
+                            <div className="space-y-2"><Label>Company Context</Label>
+                                <Select name="companyId" defaultValue={editItem?.companyId || "global"}>
+                                    <SelectTrigger><SelectValue placeholder="Global Mapping" /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="global">Global (All Companies)</SelectItem>
+                                        <SelectItem value="global">Global / All Companies</SelectItem>
                                         {companies.map(c => (
                                             <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="zoneName">Zone Name</Label>
-                                <Input id="zoneName" name="zoneName" defaultValue={editItem?.zoneName} required />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="remarks">Remarks</Label>
-                                <Input id="remarks" name="remarks" defaultValue={editItem?.remarks || ''} />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <Label htmlFor="isActive">Active Status</Label>
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" name="isActive" className="sr-only peer" defaultChecked={editItem ? editItem.isActive : true} />
-                                    <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                                </label>
-                            </div>
-                            <DialogFooter>
-                                <Button type="submit">{editItem ? "Update" : "Create"} Zone</Button>
-                            </DialogFooter>
+                            <div className="space-y-2"><Label>Remarks</Label><Input name="remarks" defaultValue={editItem?.remarks || ""} /></div>
+                            <div className="flex items-center justify-between border p-3 rounded-lg"><Label>Active Status</Label><Switch name="isActive" defaultChecked={editItem ? editItem.isActive : true} /></div>
+                            <div className="flex justify-end pt-4"><Button type="submit" className="bg-emerald-600 shadow-sm">{editItem ? "Update Zone" : "Save Zone"}</Button></div>
                         </form>
                     </DialogContent>
                 </Dialog>
             </div>
-
-            <DataTable columns={columns} data={data} searchKey="zoneName" />
+            <div className="bg-white rounded-xl border border-zinc-200 p-2 shadow-sm">
+               <DataTable columns={columns} data={data} searchKey="zoneName" />
+            </div>
         </div>
     )
 }

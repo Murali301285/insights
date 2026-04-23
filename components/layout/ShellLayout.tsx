@@ -7,6 +7,7 @@ import { FilterBar } from "@/components/layout/FilterBar"
 import { InsightBackground } from "@/components/design/InsightLogo"
 import { SilotechFooter } from "@/components/layout/SilotechFooter"
 import { UserProfile } from "@/components/layout/UserProfile"
+import { FloatingChatButton } from "@/components/layout/FloatingChatButton"
 
 interface User {
     name: string
@@ -51,6 +52,7 @@ export function ShellLayout({ children, user }: ShellLayoutProps) {
                     <SilotechFooter />
                 </div>
             </main>
+            <FloatingChatButton />
         </div>
     )
 }

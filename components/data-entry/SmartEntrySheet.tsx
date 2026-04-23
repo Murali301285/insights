@@ -119,7 +119,7 @@ export function SmartEntrySheet({ isOpen, onClose, category }: SmartEntrySheetPr
     const availableTabs = useMemo(() => {
         let tabs = Array.from(new Set(fields.map((f: any) => f.tab).filter(Boolean))) as string[];
         if (category === "sales") {
-            tabs = ["Targets", "New Opportunity"];
+            tabs = ["Entry", "Targets"];
         } else if (category === "finance") {
             tabs = ["Cash Statement", "Fund Value"];
         }
@@ -373,7 +373,7 @@ export function SmartEntrySheet({ isOpen, onClose, category }: SmartEntrySheetPr
                         <div className="flex-1 flex items-center justify-center">
                             <Loader2 className="w-8 h-8 animate-spin text-zinc-300" />
                         </div>
-                    ) : activeTab === "New Opportunity" ? (
+                    ) : activeTab === "Entry" ? (
                         <OpportunityManager onClose={onClose} activeCompanyId={activeCompanyId} />
                     ) : activeTab === "Fund Value" ? (
                         <FundValueManager activeCompanyId={activeCompanyId} />

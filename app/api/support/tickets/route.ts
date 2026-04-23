@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
         // @ts-ignore
         const tickets = await prisma.supportTicket.findMany({
             where: { companyId, type },
-            include: { incharge: true, order: { include: { opportunity: { include: { customer: true } } } } },
+            include: { incharge: true, order: { include: { opportunity: { include: { customer: true } } } }, opportunity: { include: { customer: true, status: true, incharge: true } } },
             orderBy: { createdAt: 'desc' }
         });
 
@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
                 actualDays: body.actualDays ? parseInt(body.actualDays) : null,
                 inchargeId: body.inchargeId || null,
                 orderId: body.orderId || null,
+                opportunityId: body.opportunityId || null,
                 status: body.status || "OPEN",
                 comments: body.comments || [],
                 attachments: body.attachments || [],
@@ -104,6 +105,8 @@ export async function PUT(req: NextRequest) {
         if (body.targetDate !== undefined) updateData.targetDate = body.targetDate ? new Date(body.targetDate) : null;
         if (body.actualDays !== undefined) updateData.actualDays = body.actualDays ? parseInt(body.actualDays) : null;
         if (body.inchargeId !== undefined) updateData.inchargeId = body.inchargeId || null;
+        if (body.orderId !== undefined) updateData.orderId = body.orderId || null;
+        if (body.opportunityId !== undefined) updateData.opportunityId = body.opportunityId || null;
         if (body.status !== undefined) updateData.status = body.status;
         if (body.isClosed !== undefined) updateData.isClosed = body.isClosed;
         if (body.closeReason !== undefined) updateData.closeReason = body.closeReason;

@@ -239,9 +239,9 @@ export default function ManufacturingPage() {
                         </button>
                     ))}
                 </div>
-                <Button onClick={() => setIsEntryOpen(true)} size="sm" className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg hover:shadow-xl transition-all h-9 rounded-full px-5">
-                    <LayoutList className="w-4 h-4" />
-                    Order Pipeline
+                <Button onClick={() => setIsEntryOpen(true)} size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all h-9 rounded-full px-5">
+                    <Plus className="w-4 h-4" />
+                    Entry
                 </Button>
             </div>
 
@@ -293,11 +293,11 @@ export default function ManufacturingPage() {
                             </div>
                         </div>
 
-                        {/* New Order (this week) */}
+                        {/* New Orders */}
                         <div className="bg-blue-50/50 rounded-2xl p-5 border border-blue-100/50 shadow-sm flex flex-col justify-between hover:shadow-md transition-all duration-300 relative">
                             <div className="flex justify-between items-start mb-3">
                                 <div>
-                                    <h3 className="font-semibold text-blue-800 text-sm mb-1">New Order (this week)</h3>
+                                    <h3 className="font-semibold text-blue-800 text-sm mb-1">New Orders</h3>
                                     <div className="flex items-baseline gap-2">
                                         <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{latest.rfqCustom || 0}</h2>
                                     </div>

@@ -348,8 +348,8 @@ export default function StageMasterPage() {
                     if (!open) setEditItem(null)
                 }}>
                     <DialogTrigger asChild>
-                        <Button className="bg-emerald-600 hover:bg-emerald-700">
-                            <Plus className="mr-2 h-4 w-4" /> Add Stage
+                        <Button size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all font-semibold rounded-lg">
+                            <Plus className="mr-2 h-4 w-4" /> Entry
                         </Button>
                     </DialogTrigger>
                     <DialogContent>

@@ -195,7 +195,7 @@ export default function SupportPage() {
                         {/* Active Volume */}
                         <div
                             className="bg-zinc-900 rounded-3xl p-6 shadow-xl relative overflow-hidden cursor-pointer group transition-all hover:scale-[1.01]"
-                            onClick={() => setOpenTicketsModalOpen(true)}
+                            onClick={() => { setInsightData({ title: "Open Tickets", metricKey: "openTickets", formulaDesc: "Total unresolved support items indicating current backlog.", formatType: "number" }); setInsightModalOpen(true); }}
                         >
                             <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl -mr-12 -mt-12 pointer-events-none" />
                             <button

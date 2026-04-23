@@ -29,6 +29,7 @@ async function main() {
             email: 'admin@insight.com',
             profileName: 'Admin User',
             password,
+            // @ts-ignore
             role: 'admin',
         },
     })

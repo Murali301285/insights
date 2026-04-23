@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     try {
         const users = await prisma.user.findMany({
             orderBy: { createdAt: 'desc' },
-            include: { companies: true }
+            include: { companies: true, role: true }
         });
         return NextResponse.json(users);
     } catch (error) {
@@ -21,12 +21,15 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { email, password, username, profileName, role, isBlocked, companyIds, hasGlobalAccess } = body;
+        const { email, password, firstName, lastName, roleId, phoneNumber, isBlocked, companyIds, hasGlobalAccess, hasVaultAccess } = body;
 
         // Basic Validation
-        if (!email || !password || !username || !profileName) {
+        if (!email || !password || !firstName || !lastName) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
         }
+
+        const username = email.toLowerCase();
+        const profileName = `${firstName} ${lastName}`.trim();
 
         // Check if user exists
         const existingUser = await prisma.user.findFirst({
@@ -50,9 +53,13 @@ export async function POST(req: NextRequest) {
                 password: hashedPassword,
                 username,
                 profileName,
-                role: role || "user",
+                firstName,
+                lastName,
+                roleId: roleId || null,
+                phoneNumber: phoneNumber || null,
                 isBlocked: isBlocked || false,
                 hasGlobalAccess: hasGlobalAccess || false,
+                hasVaultAccess: hasVaultAccess || false,
                 companies: companyIds?.length > 0 ? { connect: companyIds.map((id: string) => ({ id })) } : undefined
             },
         });
@@ -88,17 +95,24 @@ export async function PUT(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { id, email, password, username, profileName, role, isBlocked, companyIds, hasGlobalAccess } = body;
+        const { id, email, password, firstName, lastName, roleId, phoneNumber, isBlocked, companyIds, hasGlobalAccess, hasVaultAccess } = body;
 
         if (!id) return NextResponse.json({ error: "Missing user ID" }, { status: 400 });
+
+        const username = email ? email.toLowerCase() : undefined;
+        const profileName = firstName && lastName ? `${firstName} ${lastName}`.trim() : undefined;
 
         const dataToUpdate: any = {
             email,
             username,
             profileName,
-            role,
+            firstName,
+            lastName,
+            roleId: roleId || null,
+            phoneNumber: phoneNumber || null,
             isBlocked,
             hasGlobalAccess: hasGlobalAccess || false,
+            hasVaultAccess: hasVaultAccess || false,
         };
 
         if (companyIds) {

@@ -18,7 +18,15 @@ export async function POST(request: NextRequest) {
         }
 
         // Find User
-        const user = await prisma.user.findUnique({ where: { email } });
+        const user = await prisma.user.findFirst({ 
+            where: { 
+                email: {
+                    equals: email,
+                    mode: "insensitive"
+                }
+            },
+            include: { role: true }
+        });
         if (!user) {
             await logAction({
                 action: "LOGIN_FAILED",
@@ -62,7 +70,8 @@ export async function POST(request: NextRequest) {
             email: user.email,
             name: user.profileName || user.username || "User",
             image: user.image || "",
-            role: user.role,
+            role: user.role?.name || "user",
+            roleId: user.roleId || "",
         });
 
         await logAction({

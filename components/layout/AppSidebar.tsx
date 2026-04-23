@@ -16,46 +16,22 @@ import {
     Building,
     ChevronDown,
     Network,
-    MessageSquareText
+    MessageSquareText,
+    ClipboardList,
+    Archive
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { usePathname, useRouter } from "next/navigation"
 
+import * as Icons from "lucide-react"
+
 interface NavItem {
+    id: string
     title: string
-    icon?: any
+    iconStr?: string
     href?: string
-    role?: string
     children?: NavItem[]
 }
-
-const parseNav: NavItem[] = [
-    { title: "Dashboard", icon: LayoutDashboard, href: "/" },
-    { title: "Finance", icon: PieChart, href: "/finance" },
-    { title: "Business Acquisition", icon: Users, href: "/sales" },
-    { title: "Order fulfilment", icon: Factory, href: "/manufacturing" },
-    { title: "Supply Chain", icon: Package, href: "/supply-chain" },
-    { title: "Field Support", icon: Search, href: "/support" },
-    { title: "HR & Admin", icon: Users, href: "/hr" },
-    { title: "Hierarchy", href: "/config/hierarchy", icon: Network },
-    {
-        title: "Config",
-        icon: Wrench,
-        role: "admin",
-        children: [
-            { title: "Category", href: "/config/category" },
-            { title: "Payment Type", href: "/config/payment-type" },
-            { title: "Customer", href: "/config/customer" },
-            { title: "Supplier", href: "/config/supplier" },
-            { title: "User", href: "/config/user" },
-            { title: "Company", href: "/config/company" },
-            { title: "Zone", href: "/config/zone" },
-            { title: "Status", href: "/config/status" },
-            { title: "Stage", href: "/config/stage" },
-            { title: "Request Stages", href: "/config/request-stages" },
-        ]
-    },
-]
 
 interface AppSidebarProps {
     user?: {
@@ -67,22 +43,31 @@ interface AppSidebarProps {
 
 export function AppSidebar({ user }: AppSidebarProps) {
     const [collapsed, setCollapsed] = React.useState(false)
-    const [openConfig, setOpenConfig] = React.useState(false) // Default closed as requested by user
+    const [openMenu, setOpenMenu] = React.useState<string | null>(null)
+    const [parseNav, setParseNav] = React.useState<NavItem[]>([])
     const pathname = usePathname()
     const router = useRouter()
 
-    // Auto-close config menu if navigating away
     React.useEffect(() => {
-        if (!pathname.startsWith('/config')) {
-            setOpenConfig(false)
-        }
-    }, [pathname])
+        // Fetch User Authorized Navigation Structure
+        fetch('/api/user-nav')
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data)) setParseNav(data);
+            })
+            .catch(console.error)
+    }, [])
 
-    // Filter Navigation based on Role
-    const filteredNav = parseNav.filter(item => {
-        if (!item.role) return true; // Public items
-        return user?.role === item.role; // Protected items
-    });
+    // Auto-close menus if navigating away
+    React.useEffect(() => {
+        const currentActiveParent = parseNav.find(item =>
+            item.children &&
+            (pathname === item.href || item.children.some(child => child.href === pathname))
+        )
+        if (!currentActiveParent) {
+            setOpenMenu(null)
+        }
+    }, [pathname, parseNav])
 
     return (
         <div
@@ -104,62 +89,62 @@ export function AppSidebar({ user }: AppSidebarProps) {
                     onClick={() => setCollapsed(!collapsed)}
                     className="h-8 w-8 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-50 z-10"
                 >
-                    {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+                    {collapsed ? <Icons.ChevronRight className="w-4 h-4" /> : <Icons.ChevronLeft className="w-4 h-4" />}
                 </Button>
             </div>
 
             {/* Navigation */}
             <div className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
-                {filteredNav.map((item) => {
-                    const isParent = !!item.children;
+                {parseNav.map((item) => {
+                    const isParent = !!item.children && item.children.length > 0;
                     const isActive = item.href
                         ? (pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href)))
                         : item.children?.some(child => child.href === pathname);
 
+                    const IconComponent = (item.iconStr && Icons[item.iconStr as keyof typeof Icons]) || Icons.HelpCircle;
+
                     if (isParent && item.children) {
                         return (
-                            <div key={item.title} className="space-y-1">
+                            <div key={item.id} className="space-y-1">
                                 <button
                                     className={cn(
                                         "flex items-center w-full p-2.5 rounded-xl transition-all duration-200 group text-sm font-medium justify-between",
-                                        isActive && !openConfig // Highlight parent if active but closed
+                                        isActive && openMenu !== item.title // Highlight parent if active but closed
                                             ? "bg-zinc-50 text-zinc-900"
                                             : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900",
                                         collapsed && "justify-center"
                                     )}
-                                    onClick={() => !collapsed && setOpenConfig(!openConfig)}
+                                    onClick={() => !collapsed && setOpenMenu(openMenu === item.title ? null : item.title)}
                                 >
                                     <div className="flex items-center">
-                                        <item.icon className={cn("w-5 h-5 shrink-0 transition-colors", isActive ? "text-emerald-600" : "text-zinc-400 group-hover:text-zinc-600")} />
+                                        {/* @ts-ignore */}
+                                        <IconComponent className={cn("w-5 h-5 shrink-0 transition-colors", isActive ? "text-emerald-600" : "text-zinc-400 group-hover:text-zinc-600")} />
                                         <span className={cn("ml-3 whitespace-nowrap transition-all duration-300", collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100")}>
                                             {item.title}
                                         </span>
                                     </div>
                                     {!collapsed && (
-                                        <ChevronDown className={cn("w-4 h-4 transition-transform", openConfig ? "rotate-180" : "")} />
+                                        <Icons.ChevronDown className={cn("w-4 h-4 transition-transform", openMenu === item.title ? "rotate-180" : "")} />
                                     )}
                                 </button>
 
                                 {/* Sub-menu */}
-                                {openConfig && !collapsed && (
+                                {openMenu === item.title && !collapsed && (
                                     <div className="ml-9 space-y-1 border-l-2 border-zinc-100 pl-2 animate-in slide-in-from-top-2 duration-200">
                                         {item.children.map(child => {
                                             const isChildActive = pathname === child.href;
                                             return (
                                                 <button
-                                                    key={child.title}
-                                                    onClick={() => router.push(child.href!)}
+                                                    key={child.id}
+                                                    onClick={() => child.href && router.push(child.href)}
                                                     className={cn(
                                                         "flex items-center w-full p-2 rounded-lg text-xs font-medium transition-colors",
                                                         isChildActive
                                                             ? "text-emerald-700 bg-emerald-50/50"
-                                                            : "text-zinc-500 hover:text-zinc-900"
+                                                            : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50"
                                                     )}
                                                 >
                                                     {child.title}
-                                                    {isChildActive && (
-                                                        <div className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_2px_rgba(16,185,129,0.3)]" />
-                                                    )}
                                                 </button>
                                             )
                                         })}
@@ -171,35 +156,71 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
                     return (
                         <button
-                            key={item.title}
+                            key={item.id}
+                            onClick={() => item.href && router.push(item.href)}
                             className={cn(
                                 "flex items-center w-full p-2.5 rounded-xl transition-all duration-200 group text-sm font-medium",
                                 isActive
-                                    ? "bg-emerald-50 text-emerald-900 shadow-sm"
+                                    ? "bg-emerald-50 text-emerald-700 font-semibold shadow-sm border border-emerald-100"
                                     : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900",
                                 collapsed && "justify-center"
                             )}
-                            onClick={() => router.push(item.href!)}
                         >
-                            <item.icon className={cn("w-5 h-5 shrink-0 transition-colors", isActive ? "text-emerald-600" : "text-zinc-400 group-hover:text-zinc-600")} />
+                            {/* @ts-ignore */}
+                            <IconComponent className={cn("w-5 h-5 shrink-0 transition-colors", isActive ? "text-emerald-600" : "text-zinc-400 group-hover:text-zinc-600")} />
                             <span className={cn("ml-3 whitespace-nowrap transition-all duration-300", collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100")}>
                                 {item.title}
                             </span>
-                            {isActive && !collapsed && (
-                                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_2px_rgba(16,185,129,0.3)]" /> // Blinking Green Dot with Shadow
-                            )}
                         </button>
                     )
                 })}
             </div>
 
-            {/* Fixed Chat Menu at Bottom */}
-            <div className="p-3 border-t border-zinc-100 bg-white">
+            {/* Fixed Action Menus at Bottom */}
+            <div className="p-3 border-t border-zinc-100 bg-white space-y-2">
+
+                {/* Email Button */}
                 <button
                     className={cn(
                         "relative flex items-center w-full p-2.5 rounded-xl transition-all duration-200 group text-sm font-semibold justify-center",
-                        pathname === "/chat" 
-                            ? "bg-violet-600 text-white shadow-md shadow-violet-200" 
+                        pathname === "/email"
+                            ? "bg-violet-600 text-white shadow-md shadow-violet-200"
+                            : "bg-violet-50 text-violet-700 hover:bg-violet-100 hover:text-violet-900 border border-violet-200"
+                    )}
+                    onClick={() => router.push('/email')}
+                >
+                    <div className="relative flex items-center justify-center">
+                        <Icons.Mail className={cn("w-5 h-5 shrink-0 transition-colors", pathname === "/email" ? "text-white" : "text-violet-600")} />
+                    </div>
+                    <span className={cn("ml-3 whitespace-nowrap transition-all duration-300", collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100")}>
+                        Email
+                    </span>
+                </button>
+
+                {/* Weekly Review Button */}
+                <button
+                    className={cn(
+                        "relative flex items-center w-full p-2.5 rounded-xl transition-all duration-200 group text-sm font-semibold justify-center",
+                        pathname === "/weekly-review"
+                            ? "bg-violet-600 text-white shadow-md shadow-violet-200"
+                            : "bg-violet-50 text-violet-700 hover:bg-violet-100 hover:text-violet-900 border border-violet-200"
+                    )}
+                    onClick={() => router.push('/weekly-review')}
+                >
+                    <div className="relative flex items-center justify-center">
+                        <ClipboardList className={cn("w-5 h-5 shrink-0 transition-colors", pathname === "/weekly-review" ? "text-white" : "text-violet-600")} />
+                    </div>
+                    <span className={cn("ml-3 whitespace-nowrap transition-all duration-300", collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100")}>
+                        Weekly Review
+                    </span>
+                </button>
+
+                {/* Assistance Button */}
+                <button
+                    className={cn(
+                        "relative flex items-center w-full p-2.5 rounded-xl transition-all duration-200 group text-sm font-semibold justify-center",
+                        pathname === "/chat"
+                            ? "bg-violet-600 text-white shadow-md shadow-violet-200"
                             : "bg-violet-50 text-violet-700 hover:bg-violet-100 hover:text-violet-900 border border-violet-200"
                     )}
                     onClick={() => router.push('/chat')}
@@ -214,7 +235,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
                         )}
                     </div>
                     <span className={cn("ml-3 whitespace-nowrap transition-all duration-300", collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100")}>
-                        Chat with System
+                        Assistant
                     </span>
                     {pathname !== "/chat" && collapsed && (
                         <span className="absolute top-1 right-2 flex h-2 w-2">

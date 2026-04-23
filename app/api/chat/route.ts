@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import Groq from 'groq-sdk';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
+import pdfParse from 'pdf-parse';
 
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY || "fake-key-for-build",
@@ -10,11 +10,16 @@ const groq = new Groq({
 
 export async function POST(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await getSession();
         if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
         const body = await req.json();
-        const { messages, categoryContext, action, excelPayload } = body;
+        const { messages, categoryContext, action, excelPayload, docId } = body;
+
+        let pdfBase64 = null;
+        if (docId) {
+            const vaultDoc = await prisma.vaultDocument.findUnique({ select: { fileData: true }, where: { id: docId } });
+            if (vaultDoc) pdfBase64 = vaultDoc.fileData;
+        }
 
         // Action: Revoke System
         if (action === 'REVOKE') {
@@ -84,13 +89,37 @@ If the data looks perfectly mappable to insert, you MUST output a JSON block at 
 \`\`\`
 In the standard response, do NOT execute deletions or modifications yourself.`;
 
-        const groqMessages = [
-            { role: 'system', content: SYSTEM_PROMPT },
-            ...messages.map((m: any) => ({ role: m.role, content: m.content }))
-        ];
+        const priorUserLogs = messages.map((m: any) => ({ role: m.role, content: m.content }));
+        
+        // Grab the last message to append attachments into, to avoid consecutive user roles which LLaMA models reject.
+        let dynamicUserContent = "";
+        
+        if (priorUserLogs.length > 0 && priorUserLogs[priorUserLogs.length - 1].role === 'user') {
+            dynamicUserContent = priorUserLogs.pop().content;
+        }
 
         if (excelPayload) {
-             groqMessages.push({ role: 'user', content: `[SYSTEM ATTACHMENT]: Here is the parsed Excel data: ${JSON.stringify(excelPayload)}. Validate this against the schema. Output JSON if it is fully ready, else ask what is missing.` });
+             dynamicUserContent = `[SYSTEM ATTACHMENT]: Here is the parsed Excel data: ${JSON.stringify(excelPayload).substring(0, 15000)}. Validate against schema. Output JSON if fully ready.\n\nUser Request: ${dynamicUserContent}`;
+        } else if (pdfBase64) {
+             try {
+                 const base64Data = pdfBase64.split(',')[1] || pdfBase64;
+                 const pdfBuffer = Buffer.from(base64Data, 'base64');
+                 const data = await pdfParse(pdfBuffer);
+                 const truncatedText = data.text ? data.text.substring(0, 24000) : "";
+                 dynamicUserContent = `[SYSTEM PDF ATTACHMENT EXTRACTED TEXT]:\n\n${truncatedText}\n\n---\nThe user's request is based on the above document text. Do not mention that you were given extracted text directly.\n\nUser Request: ${dynamicUserContent}`;
+             } catch (e: any) {
+                 console.error("PDF Parse error", e);
+                 dynamicUserContent = `[SYSTEM WARNING]: Failed to extract text from the PDF file. Error: ${e.message}\n\nUser Request: ${dynamicUserContent}`;
+             }
+        }
+
+        const groqMessages = [
+            { role: 'system', content: SYSTEM_PROMPT },
+            ...priorUserLogs,
+        ];
+        
+        if (dynamicUserContent) {
+            groqMessages.push({ role: 'user', content: dynamicUserContent });
         }
 
         // Only call Groq if we really want a chat response
@@ -100,7 +129,7 @@ In the standard response, do NOT execute deletions or modifications yourself.`;
 
         const chatCompletion = await groq.chat.completions.create({
             messages: groqMessages,
-            model: 'llama3-70b-8192',
+            model: 'llama-3.3-70b-versatile',
             temperature: 0.1,
             max_tokens: 1024,
         });
@@ -122,7 +151,7 @@ In the standard response, do NOT execute deletions or modifications yourself.`;
         return NextResponse.json({ content: replyString, validationPayload, role: "assistant" });
 
     } catch (error: any) {
-        console.error("Chat API Error:", error.message);
-        return NextResponse.json({ error: "Failed to process chat" }, { status: 500 });
+        console.error("Chat API Error:", error.stack);
+        return NextResponse.json({ error: `Failed to process chat: ${error.message}` }, { status: 500 });
     }
 }

@@ -41,6 +41,7 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
     // Dependencies
     const [users, setUsers] = useState<any[]>([])
     const [orders, setOrders] = useState<any[]>([])
+    const [opportunities, setOpportunities] = useState<any[]>([])
     const [suppliers, setSuppliers] = useState<any[]>([])
 
     // Active Edit
@@ -94,10 +95,13 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
                 setUsers(Array.isArray(data) ? data : [])
             }).catch(console.error)
 
-            fetch('/api/orders').then(r => r.json()).then(data => {
+            fetch('/api/manufacturing/orders').then(r => r.json()).then(data => {
                 setOrders(Array.isArray(data) ? data : [])
             }).catch(console.error)
 
+            fetch('/api/sales/opportunities').then(r => r.json()).then(data => {
+                setOpportunities(Array.isArray(data) ? data : [])
+            }).catch(console.error)
         }
     }, [isOpen])
 
@@ -135,7 +139,8 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
     const handleCreateNew = () => {
         setActiveRequest(null)
         setFormData({
-            date: new Date().toISOString().split('T')[0]
+            date: new Date().toISOString().split('T')[0],
+            bucket: 'Na'
         })
         setEditModalOpen(true)
     }
@@ -148,6 +153,9 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
             actualDays: req.actualDays?.toString() || '',
             details: req.details || '',
             inchargeId: req.inchargeId || '',
+            bucket: req.orderId ? 'Order Fulfillment' : (req.opportunityId ? 'Business Acquisition' : 'Na'),
+            orderId: req.orderId || '',
+            opportunityId: req.opportunityId || ''
         })
         setEditModalOpen(true)
     }
@@ -174,6 +182,7 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
                 inchargeId: formData.inchargeId || null,
                 type: viewTab,
                 orderId: viewTab === 'EXTERNAL' ? (formData.orderId || null) : null,
+                opportunityId: viewTab === 'EXTERNAL' ? (formData.opportunityId || null) : null,
                 supplierSlno: formData.supplierSlno || null
             }
 
@@ -592,18 +601,93 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
                             </div>
 
                             {!activeRequest && viewTab === 'EXTERNAL' && (
-                                <div className="space-y-2 w-full pt-1">
-                                    <label className="text-[11px] font-black uppercase tracking-wider text-zinc-500">Order No. *</label>
-                                    <Select value={formData.orderId || ""} onValueChange={(v) => setFormData({ ...formData, orderId: v })}>
-                                        <SelectTrigger className="h-11 bg-white border-zinc-200 shadow-sm rounded-xl font-medium">
-                                            <SelectValue placeholder="Link to existing Order" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {orders.map(o => (
-                                                <SelectItem key={o.id} value={o.id}>{o.orderNo}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                <div className="grid grid-cols-2 gap-6 w-full pt-1">
+                                    <div className="space-y-2">
+                                        <label className="text-[11px] font-black uppercase tracking-wider text-zinc-500">Bucket *</label>
+                                        <Select value={formData.bucket} onValueChange={(v) => setFormData({ ...formData, bucket: v, orderId: '', opportunityId: '' })}>
+                                            <SelectTrigger className="h-11 bg-white border-zinc-200 shadow-sm rounded-xl font-medium">
+                                                <SelectValue placeholder="Select Bucket" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="Na">Na</SelectItem>
+                                                <SelectItem value="Business Acquisition">Business Acquisition</SelectItem>
+                                                <SelectItem value="Order Fulfillment">Order Fulfillment</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[11px] font-black uppercase tracking-wider text-zinc-500">Reference {formData.bucket !== 'Na' && '*'}</label>
+                                        <Select 
+                                            value={formData.bucket === 'Order Fulfillment' ? formData.orderId : formData.bucket === 'Business Acquisition' ? formData.opportunityId : ''} 
+                                            onValueChange={(v) => {
+                                                if (formData.bucket === 'Order Fulfillment') setFormData({ ...formData, orderId: v, opportunityId: '' })
+                                                else if (formData.bucket === 'Business Acquisition') setFormData({ ...formData, opportunityId: v, orderId: '' })
+                                            }}
+                                            disabled={formData.bucket === 'Na'}
+                                        >
+                                            <SelectTrigger className="h-11 bg-white border-zinc-200 shadow-sm rounded-xl font-medium">
+                                                <SelectValue placeholder={formData.bucket === 'Na' ? 'Not Applicable' : 'Select Reference'} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {formData.bucket === 'Order Fulfillment' && orders.map(o => (
+                                                    <SelectItem key={o.id} value={o.id} title={`${o.orderNo} | ${companies.find(c => c.id === activeCompanyId)?.name} | ${o.currentStage?.stageName || 'Unassigned'} | ${o.orderIncharge || 'Unassigned'}`} className="font-bold flex flex-col items-start gap-0.5 py-2">
+                                                        <span>{o.orderNo}</span>
+                                                        <span className="text-[10px] text-zinc-400 font-normal">{o.opportunity?.opportunityName}</span>
+                                                    </SelectItem>
+                                                ))}
+                                                {formData.bucket === 'Business Acquisition' && opportunities.map(o => (
+                                                    <SelectItem key={o.id} value={o.id} title={`${o.oppNumber || o.slno} | ${o.customer?.customerName || '-'} | ${o.status?.statusName || 'Unassigned'} | ${o.incharge?.name || 'Unassigned'}`} className="font-bold flex flex-col items-start gap-0.5 py-2">
+                                                        <span>{o.oppNumber || o.slno} - {o.opportunityName}</span>
+                                                        <span className="text-[10px] text-zinc-400 font-normal">{o.customer?.customerName}</span>
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    
+                                    {/* Tooltip detail block embedded directly below when item is selected */}
+                                    <div className="col-span-2">
+                                    {formData.bucket === 'Order Fulfillment' && formData.orderId && (() => {
+                                        const matchedOrder = orders.find(o => o.id === formData.orderId);
+                                        if (!matchedOrder) return null;
+                                        return (
+                                            <div className="bg-indigo-50/70 border border-indigo-100 p-3.5 rounded-lg text-[11px] leading-relaxed text-indigo-900 grid grid-cols-2 gap-y-2 gap-x-4">
+                                                <div className="col-span-2 text-xs">
+                                                    <strong className="text-indigo-950 uppercase tracking-wider text-[10px]">Project Brief: </strong> <span className="italic">{matchedOrder.opportunity?.opportunityName || 'No project metadata recorded.'}</span>
+                                                </div>
+                                                <div>
+                                                    <strong className="text-indigo-950 uppercase tracking-wider text-[10px]">Customer Name: </strong> <span className="italic">{companies.find(c => c.id === activeCompanyId)?.name || '-'}</span>
+                                                </div>
+                                                <div>
+                                                    <strong className="text-indigo-950 uppercase tracking-wider text-[10px]">Current Stage: </strong> <span className="italic">{matchedOrder.currentStage?.stageName || 'Unassigned'}</span>
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <strong className="text-indigo-950 uppercase tracking-wider text-[10px]">Incharge: </strong> <span className="italic">{matchedOrder.orderIncharge || 'Unassigned'}</span>
+                                                </div>
+                                            </div>
+                                        )
+                                    })()}
+                                    {formData.bucket === 'Business Acquisition' && formData.opportunityId && (() => {
+                                        const matchedOpp = opportunities.find(o => o.id === formData.opportunityId);
+                                        if (!matchedOpp) return null;
+                                        return (
+                                            <div className="bg-emerald-50/70 border border-emerald-100 p-3.5 rounded-lg text-[11px] leading-relaxed text-emerald-900 grid grid-cols-2 gap-y-2 gap-x-4">
+                                                <div className="col-span-2 text-xs">
+                                                    <strong className="text-emerald-950 uppercase tracking-wider text-[10px]">Opportunity: </strong> <span className="italic">{matchedOpp.opportunityName || '-'}</span>
+                                                </div>
+                                                <div>
+                                                    <strong className="text-emerald-950 uppercase tracking-wider text-[10px]">Customer Name: </strong> <span className="italic">{matchedOpp.customer?.customerName || '-'}</span>
+                                                </div>
+                                                <div>
+                                                    <strong className="text-emerald-950 uppercase tracking-wider text-[10px]">Current Stage: </strong> <span className="italic">{matchedOpp.status?.statusName || 'Unassigned'}</span>
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <strong className="text-emerald-950 uppercase tracking-wider text-[10px]">Incharge: </strong> <span className="italic">{matchedOpp.incharge?.name || 'Unassigned'}</span>
+                                                </div>
+                                            </div>
+                                        )
+                                    })()}
+                                    </div>
                                 </div>
                             )}
 
@@ -626,7 +710,7 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
                                     </SelectTrigger>
                                     <SelectContent>
                                         {users.map(u => (
-                                            <SelectItem key={u.id} value={u.id}>{u.profileName || u.username} ({u.role})</SelectItem>
+                                            <SelectItem key={u.id} value={u.id}>{u.profileName || u.username} ({u.role?.name || u.role})</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>

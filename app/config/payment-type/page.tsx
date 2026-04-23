@@ -258,14 +258,13 @@ export default function PaymentTypeMasterPage() {
                         </SelectContent>
                     </Select>
                 </div>
-                <h2 className="text-lg font-medium">Payment Types</h2>
                 <Dialog open={isAddOpen} onOpenChange={(open) => {
                     setIsAddOpen(open)
                     if (!open) setEditItem(null)
                 }}>
                     <DialogTrigger asChild>
-                        <Button className="bg-emerald-600 hover:bg-emerald-700">
-                            <Plus className="mr-2 h-4 w-4" /> Add Payment Type
+                        <Button size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all font-semibold rounded-lg">
+                            <Plus className="mr-2 h-4 w-4" /> Entry
                         </Button>
                     </DialogTrigger>
                     <DialogContent>
@@ -277,7 +276,7 @@ export default function PaymentTypeMasterPage() {
                         </DialogHeader>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="companyId">Company Context</Label>
+                                <Label htmlFor="companyId">Company Context <span className="text-red-500">*</span></Label>
                                 <Select name="companyId" defaultValue={editItem?.companyId || (selectedCompanyId !== "all" ? selectedCompanyId : "global")}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Global (All Companies)" />
@@ -291,7 +290,7 @@ export default function PaymentTypeMasterPage() {
                                 </Select>
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="paymentType">Payment Type</Label>
+                                <Label htmlFor="paymentType">Payment Type <span className="text-red-500">*</span></Label>
                                 <Input id="paymentType" name="paymentType" defaultValue={editItem?.paymentType} required />
                             </div>
                             <div className="space-y-2">

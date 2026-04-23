@@ -187,3 +187,10 @@
     scrollbar-color: rgb(113 113 122 / 0.4) transparent;
   }
 }
+
+
+
+@keyframes scrollUp {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-33.333%); }
+}

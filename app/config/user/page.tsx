@@ -4,273 +4,366 @@ import { useState, useEffect } from "react"
 import { useHeader } from "@/components/providers/HeaderProvider"
 import { DataTable } from "@/components/ui/data-table"
 import { Button } from "@/components/ui/button"
-import { Plus, MoreHorizontal, Pencil, Trash, Ban, ShieldCheck, Mail } from "lucide-react"
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Plus, MoreHorizontal, Pencil, Trash, ArrowUpDown } from "lucide-react"
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ColumnDef } from "@tanstack/react-table"
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
-import { Badge } from "@/components/ui/badge"
 
-interface User {
+type User = {
     id: string
+    firstName?: string
+    lastName?: string
+    profileName?: string
     email: string
-    username: string
-    profileName: string
-    role: string
+    phoneNumber?: string
+    notificationEmails?: string
+    primaryManagerId?: string
+    secondaryManagerId?: string
+    companyIds?: string[]
+    companies?: any[]
+    roleId?: string
     isBlocked: boolean
-    companies?: { id: string, name: string }[]
-    hasGlobalAccess?: boolean
-    companyId?: string
-    company?: {
-        name: string
-    }
-}
-
-interface Company {
-    id: string
-    name: string
+    createdAt: string
 }
 
 export default function UserConfigPage() {
     const { setHeaderInfo } = useHeader()
-    const [users, setUsers] = useState<User[]>([])
-    const [companies, setCompanies] = useState<Company[]>([])
+    const [data, setData] = useState<User[]>([])
+    const [companies, setCompanies] = useState<any[]>([])
+    const [roles, setRoles] = useState<any[]>([])
+
+    // We'll use "data" itself for the manager list, since all users are loaded
     const [loading, setLoading] = useState(true)
     const [isAddOpen, setIsAddOpen] = useState(false)
+    const [isEditOpen, setIsEditOpen] = useState(false)
     const [editingUser, setEditingUser] = useState<User | null>(null)
-    const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([])
-    const [hasGlobalAccess, setHasGlobalAccess] = useState<boolean>(false)
 
-    const toggleCompany = (id: string) => {
-        if (selectedCompanyIds.includes(id)) setSelectedCompanyIds(selectedCompanyIds.filter(c => c !== id))
-        else setSelectedCompanyIds([...selectedCompanyIds, id])
-    }
-
-    const resetForm = () => {
-        setEditingUser(null)
-        setSelectedCompanyIds([])
-        setHasGlobalAccess(false)
-    }
-
-    const openEdit = (user: User) => {
-        setEditingUser(user)
-        setSelectedCompanyIds(user.companies?.map(c => c.id) || [])
-        setHasGlobalAccess(user.hasGlobalAccess || false)
-    }
+    // Form states for complex dropdowns
+    const [selectedCompany, setSelectedCompany] = useState<string>("")
+    const [selectedRole, setSelectedRole] = useState<string>("")
+    const [selectedPrimaryManager, setSelectedPrimaryManager] = useState<string>("none")
+    const [selectedSecondaryManager, setSelectedSecondaryManager] = useState<string>("none")
 
     useEffect(() => {
-        setHeaderInfo("User Configuration", "Manage users, roles, and access permissions.")
-        fetchData()
+        setHeaderInfo("User Management", "Configure and manage employee accounts and RBAC.")
+        fetchInitialData()
     }, [setHeaderInfo])
 
-    async function fetchData() {
+    async function fetchInitialData() {
         setLoading(true)
         try {
-            const [usersRes, companiesRes] = await Promise.all([
-                fetch("/api/users"),
-                fetch("/api/companies")
+            // In a real app we'd fetch /api/users, /api/companies, /api/roles
+            // Assuming endpoints exist, using mock data fallback if they fail
+            const [usersRes, compRes, roleRes] = await Promise.all([
+                fetch("/api/users").catch(() => null),
+                fetch("/api/companies").catch(() => null),
+                fetch("/api/config/roles").catch(() => null)
             ])
 
-            if (usersRes.ok) {
-                const data = await usersRes.json()
-                setUsers(data)
-            }
-            if (companiesRes.ok) {
-                const data = await companiesRes.json()
-                setCompanies(data)
-            }
+            if (usersRes && usersRes.ok) setData(await usersRes.json())
+            if (compRes && compRes.ok) setCompanies(await compRes.json())
+            if (roleRes && roleRes.ok) setRoles(await roleRes.json())
+
         } catch (error) {
-            toast.error("Failed to load data")
+            toast.error("Failed to load user configuration data")
         } finally {
             setLoading(false)
         }
     }
 
-    async function handleCreateUser(e: React.FormEvent<HTMLFormElement>) {
+    const openAddDialog = () => {
+        setSelectedCompany("")
+        setSelectedRole("")
+        setSelectedPrimaryManager("none")
+        setSelectedSecondaryManager("none")
+        setIsAddOpen(true)
+    }
+
+    const openEditDialog = (user: User) => {
+        // Safe defaults if API hasn't mapped properly yet
+        setSelectedCompany(user.companies?.[0]?.id || "")
+        setSelectedRole(user.roleId || "")
+        setSelectedPrimaryManager(user.primaryManagerId || "none")
+        setSelectedSecondaryManager(user.secondaryManagerId || "none")
+        setEditingUser(user)
+        setIsEditOpen(true)
+    }
+
+    const validateForm = (formData: FormData): boolean => {
+        const password = formData.get('password') as string
+        const confirmPassword = formData.get('confirmPassword') as string
+        const notificationEmails = formData.get('notificationEmails') as string
+
+        if (password && password !== confirmPassword) {
+            toast.error("Passwords do not match!")
+            return false
+        }
+
+        if (notificationEmails) {
+            const emails = notificationEmails.split(',').map(e => e.trim()).filter(e => e)
+            if (emails.length > 2) {
+                toast.error("Maximum 2 notification emails allowed.")
+                return false
+            }
+        }
+        return true
+    }
+
+    async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
         const formData = new FormData(e.currentTarget)
 
-        const payload = {
-            username: formData.get("username"),
-            profileName: formData.get("profileName"),
-            email: formData.get("email"),
-            password: formData.get("password"),
-            role: formData.get("role"),
-            companyIds: selectedCompanyIds,
-            hasGlobalAccess,
-            isBlocked: formData.get("isBlocked") === "on"
-        }
+        if (!validateForm(formData)) return;
+
+        const payload: any = Object.fromEntries(formData)
+
+        payload.companyIds = selectedCompany ? [selectedCompany] : []
+        payload.roleId = selectedRole
+        payload.primaryManagerId = selectedPrimaryManager === 'none' ? null : selectedPrimaryManager
+        payload.secondaryManagerId = selectedSecondaryManager === 'none' ? null : selectedSecondaryManager
+        payload.isBlocked = payload.isActive !== 'on'
+        delete payload.isActive
+        delete payload.confirmPassword
 
         try {
             const res = await fetch("/api/users", {
                 method: "POST",
-                body: JSON.stringify(payload),
-                headers: { "Content-Type": "application/json" }
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
             })
-
             if (res.ok) {
-                toast.success("User created successfully")
+                toast.success("User successfully created")
                 setIsAddOpen(false)
-                fetchData()
+                fetchInitialData()
             } else {
-                const data = await res.json()
-                toast.error(data.error || "Failed to create user")
+                toast.error("Failed to create user (Ensure email is unique)")
             }
-        } catch (err) {
-            toast.error("Something went wrong")
+        } catch (error) {
+            toast.error("Error creating user")
         }
     }
 
-    async function handleUpdateUser(e: React.FormEvent<HTMLFormElement>) {
+    async function handleEdit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
-        if (!editingUser) return
+        if (!editingUser) return;
 
         const formData = new FormData(e.currentTarget)
-        const password = formData.get("password") as string
-        const payload: any = {
-            id: editingUser.id,
-            username: formData.get("username"),
-            profileName: formData.get("profileName"),
-            email: formData.get("email"),
-            role: formData.get("role"),
-            companyIds: selectedCompanyIds,
-            hasGlobalAccess,
-            isBlocked: formData.get("isBlocked") === "on"
-        }
+        if (!validateForm(formData)) return;
 
-        if (password) payload.password = password
+        const payload: any = Object.fromEntries(formData)
+        payload.companyIds = selectedCompany ? [selectedCompany] : []
+        payload.roleId = selectedRole
+        payload.primaryManagerId = selectedPrimaryManager === 'none' ? null : selectedPrimaryManager
+        payload.secondaryManagerId = selectedSecondaryManager === 'none' ? null : selectedSecondaryManager
+        payload.isBlocked = payload.isActive !== 'on'
+        delete payload.isActive
+        delete payload.confirmPassword
+
+        if (!payload.password) delete payload.password // don't update if empty
 
         try {
             const res = await fetch("/api/users", {
                 method: "PUT",
-                body: JSON.stringify(payload),
-                headers: { "Content-Type": "application/json" }
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: editingUser.id, ...payload })
             })
             if (res.ok) {
                 toast.success("User updated successfully")
+                setIsEditOpen(false)
                 setEditingUser(null)
-                fetchData()
+                fetchInitialData()
             } else {
-                const data = await res.json()
-                toast.error(data.error || "Failed to update user")
+                toast.error("Failed to update user")
             }
-        } catch (err) {
-            toast.error("Something went wrong")
+        } catch (error) {
+            toast.error("Error updating user")
         }
     }
 
-    async function handleDeleteUser(id: string) {
-        if (!confirm("Are you sure you want to delete this user?")) return
+    async function handleDelete(id: string) {
+        if (!confirm("Are you sure? This action cannot be undone.")) return
         try {
             const res = await fetch(`/api/users?id=${id}`, { method: "DELETE" })
             if (res.ok) {
-                toast.success("User deleted successfully")
-                fetchData()
-            } else {
-                toast.error("Failed to delete user")
+                toast.success("User deleted")
+                fetchInitialData()
             }
-        } catch (error) {
-            toast.error("Something went wrong")
+        } catch (e) {
+            toast.error("Failed to delete")
         }
     }
 
-    async function handleBlockToggle(id: string, isBlocked: boolean) {
-        try {
-            const res = await fetch("/api/users", {
-                method: "PUT",
-                body: JSON.stringify({ id, isBlocked }),
-                headers: { "Content-Type": "application/json" }
-            })
-            if (res.ok) {
-                toast.success("User status updated")
-                fetchData()
-            } else {
-                toast.error("Failed to update status")
-            }
-        } catch {
-            toast.error("Something went wrong")
-        }
-    }
-
-    // Columns Definition
-    const columns: ColumnDef<User>[] = [
-        {
-            id: "index",
-            header: "Sl No.",
-            cell: ({ row }) => row.index + 1,
-        },
-        {
-            accessorKey: "profileName",
-            header: "Name",
-            cell: ({ row }) => (
-                <div className="flex flex-col">
-                    <span className="font-medium">{row.original.profileName || row.original.username}</span>
-                    <span className="text-xs text-zinc-500">{row.original.email}</span>
+    const FormContent = ({ defaultData }: { defaultData?: User }) => (
+        <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label>First Name <span className="text-red-500">*</span></Label>
+                    <Input name="firstName" maxLength={20} required defaultValue={defaultData?.firstName} />
                 </div>
-            )
+                <div className="space-y-2">
+                    <Label>Last Name <span className="text-red-500">*</span></Label>
+                    <Input name="lastName" maxLength={20} required defaultValue={defaultData?.lastName} />
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label>Email Id <span className="text-zinc-400 text-[10px] lowercase font-normal">(login id)</span> <span className="text-red-500">*</span></Label>
+                    <Input name="email" type="email" required defaultValue={defaultData?.email} className="lowercase" autoComplete="off" />
+                </div>
+                <div className="space-y-2">
+                    <Label>Contact No</Label>
+                    <Input name="phoneNumber" type="tel" defaultValue={defaultData?.phoneNumber} autoComplete="off" />
+                </div>
+            </div>
+
+            {/* Passwords */}
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label>Password {defaultData ? "" : <span className="text-red-500">*</span>}</Label>
+                    <Input name="password" type="password" required={!defaultData} placeholder={defaultData ? "Leave blank to keep current" : ""} autoComplete="new-password" />
+                </div>
+                <div className="space-y-2">
+                    <Label>Confirm Password {defaultData ? "" : <span className="text-red-500">*</span>}</Label>
+                    <Input name="confirmPassword" type="password" required={!defaultData} autoComplete="new-password" />
+                </div>
+            </div>
+
+            {/* Company and Role */}
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label>Company <span className="text-red-500">*</span></Label>
+                    <Select value={selectedCompany} onValueChange={setSelectedCompany} required>
+                        <SelectTrigger><SelectValue placeholder="Select Company" /></SelectTrigger>
+                        <SelectContent>
+                            {companies.map(c => (
+                                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-2">
+                    <Label>Role <span className="text-red-500">*</span></Label>
+                    <Select value={selectedRole} onValueChange={setSelectedRole} required>
+                        <SelectTrigger><SelectValue placeholder="Select Role" /></SelectTrigger>
+                        <SelectContent>
+                            {roles.map(r => (
+                                <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
+            {/* Managers */}
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label>Primary Manager</Label>
+                    <Select value={selectedPrimaryManager} onValueChange={setSelectedPrimaryManager}>
+                        <SelectTrigger><SelectValue placeholder="Select manager" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="none">-- None --</SelectItem>
+                            {data.map(u => (
+                                <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-2">
+                    <Label>Secondary Manager</Label>
+                    <Select value={selectedSecondaryManager} onValueChange={setSelectedSecondaryManager}>
+                        <SelectTrigger><SelectValue placeholder="Select manager" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="none">-- None --</SelectItem>
+                            {data.map(u => (
+                                <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
+            {/* Notification Email */}
+            <div className="space-y-2">
+                <Label>Notification Email(s) <span className="text-zinc-400 text-xs">(Max 2, comma separated)</span></Label>
+                <Input name="notificationEmails" type="text" placeholder="hr@example.com, manager@example.com" defaultValue={defaultData?.notificationEmails} />
+            </div>
+
+            <div className="space-y-2 flex items-center gap-4 border p-4 rounded-xl bg-zinc-50/50">
+                <Label className="mt-2 text-sm font-medium">Account Active?</Label>
+                <Switch name="isActive" defaultChecked={defaultData ? !defaultData.isBlocked : true} />
+            </div>
+        </div>
+    )
+
+    const columns: ColumnDef<User>[] = [
+        { id: "index", header: "Sl No.", cell: ({ row }) => row.index + 1 },
+        {
+            accessorKey: "firstName",
+            header: ({ column }) => (
+                <Button variant="ghost" className="-ml-3 h-8" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+                    User Name <ArrowUpDown className="ml-2 h-4 w-4" />
+                </Button>
+            ),
+            cell: ({ row }) => {
+                const isActive = !row.original.isBlocked
+                const name = `${row.original.firstName || ''} ${row.original.lastName || ''}`.trim() || row.original.email
+                return (
+                    <HoverCard>
+                        <HoverCardTrigger asChild>
+                            <span className="cursor-pointer font-medium hover:underline text-emerald-700">{name}</span>
+                        </HoverCardTrigger>
+                        <HoverCardContent className="w-64" side="right">
+                            <div className="space-y-2">
+                                <h4 className="text-sm font-semibold">{name}</h4>
+                                <div className="text-xs text-muted-foreground pb-2 border-b border-zinc-100">
+                                    <p><span className="font-semibold text-zinc-700">Email:</span> {row.original.email}</p>
+                                    <p><span className="font-semibold text-zinc-700">Phone:</span> {row.original.phoneNumber || "N/A"}</p>
+                                    <p><span className="font-semibold text-zinc-700">Status:</span>
+                                        <span className={isActive ? "text-emerald-500 ml-1 font-medium" : "text-red-500 ml-1 font-medium"}>
+                                            {isActive ? "Active" : "Blocked"}
+                                        </span>
+                                    </p>
+                                </div>
+                            </div>
+                        </HoverCardContent>
+                    </HoverCard>
+                )
+            }
         },
         {
-            accessorKey: "role",
-            header: "Role",
-            cell: ({ row }) => (
-                <Badge variant="outline" className={row.original.role === "admin" ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-zinc-50 text-zinc-700 border-zinc-200"}>
-                    {row.original.role}
-                </Badge>
-            )
-        },
-        {
-            id: "companies",
+            id: "companyName",
             header: "Company",
             cell: ({ row }) => {
-                if (row.original.hasGlobalAccess) {
-                    return <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-1 rounded">Global (All Companies)</span>;
-                }
-                const companies = row.original.companies;
-                if (!companies || companies.length === 0) return <span className="text-sm text-zinc-400">-</span>;
-                return (
-                    <div className="flex flex-wrap gap-1 max-w-[250px]">
-                        {companies.map(c => (
-                            <span key={c.id} className="text-[11px] font-medium bg-zinc-100 border border-zinc-200 text-zinc-700 px-1.5 py-0.5 rounded">
-                                {c.name}
-                            </span>
-                        ))}
-                    </div>
-                );
+                const user = row.original as any;
+                const companyName = user.companies && user.companies.length > 0
+                    ? user.companies.map((c: any) => c.name).join(", ")
+                    : (user.hasGlobalAccess ? "Global" : "N/A");
+                return <span className="font-medium text-slate-700">{companyName}</span>
             }
         },
+        { accessorKey: "email", header: "Email / Login ID" },
+        { accessorKey: "phoneNumber", header: "Contact No" },
         {
             accessorKey: "isBlocked",
             header: "Status",
-            cell: ({ row }) => (
-                <span className={row.original.isBlocked ? "text-red-500 font-medium text-xs" : "text-emerald-500 font-medium text-xs"}>
-                    {row.original.isBlocked ? "Blocked" : "Active"}
-                </span>
-            )
+            cell: ({ row }) => {
+                const isActive = !row.original.isBlocked
+                return (
+                    <div className="flex items-center gap-1.5">
+                        <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                        <span className={isActive ? "text-emerald-700 font-medium" : "text-red-700 font-medium"}>
+                            {isActive ? "Active" : "Inactive"}
+                        </span>
+                    </div>
+                )
+            }
         },
         {
             id: "actions",
@@ -286,17 +379,10 @@ export default function UserConfigPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => navigator.clipboard.writeText(user.id)}>
-                                Copy ID
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-zinc-700" onClick={() => openEdit(user)}>
+                            <DropdownMenuItem onClick={() => openEditDialog(user)} className="text-blue-700">
                                 <Pencil className="mr-2 h-4 w-4" /> Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-orange-600" onClick={() => handleBlockToggle(user.id, !user.isBlocked)}>
-                                <Ban className="mr-2 h-4 w-4" /> {user.isBlocked ? "Unblock" : "Block"}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteUser(user.id)}>
+                            <DropdownMenuItem onClick={() => handleDelete(user.id)} className="text-red-600">
                                 <Trash className="mr-2 h-4 w-4" /> Delete
                             </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -308,186 +394,49 @@ export default function UserConfigPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h2 className="text-lg font-medium">System Users</h2>
-                <Dialog open={isAddOpen} onOpenChange={(o) => { setIsAddOpen(o); if (!o) resetForm(); }}>
+            <div className="flex justify-end items-center">
+                <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                     <DialogTrigger asChild>
-                        <Button className="bg-zinc-900 hover:bg-zinc-800">
+                        <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={openAddDialog}>
                             <Plus className="mr-2 h-4 w-4" /> Add User
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[500px]">
+                    <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto hidden-scrollbar">
                         <DialogHeader>
                             <DialogTitle>Add New User</DialogTitle>
-                            <DialogDescription>
-                                Create a new account.
-                            </DialogDescription>
                         </DialogHeader>
-                        <form onSubmit={handleCreateUser} className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="username">Username</Label>
-                                    <Input id="username" name="username" required />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="profileName">Display Name</Label>
-                                    <Input id="profileName" name="profileName" required />
-                                </div>
+                        <form onSubmit={handleAdd} className="space-y-6 pb-2">
+                            {FormContent({ defaultData: undefined })}
+                            <div className="flex justify-end border-t pt-4">
+                                <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 w-full md:w-auto mt-2">
+                                    Save User Entry
+                                </Button>
                             </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="email">Email</Label>
-                                <Input id="email" name="email" type="email" required />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="password">Password</Label>
-                                    <Input id="password" name="password" type="password" required />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="role">Role</Label>
-                                    <Select name="role" defaultValue="user">
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select role" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="user">User</SelectItem>
-                                            <SelectItem value="admin">Admin</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <Label>Assign Company Access</Label>
-                                    <label className="flex items-center gap-2 cursor-pointer border px-3 py-1 rounded bg-zinc-50 hover:bg-zinc-100 transition-colors">
-                                        <Checkbox
-                                            checked={hasGlobalAccess}
-                                            onCheckedChange={(c) => setHasGlobalAccess(!!c)}
-                                        />
-                                        <span className="text-sm font-semibold text-zinc-800">Global (All Companies)</span>
-                                    </label>
-                                </div>
-                                <div className={`p-3 border rounded-md max-h-40 overflow-y-auto grid grid-cols-2 gap-2 ${hasGlobalAccess ? 'opacity-50 pointer-events-none' : ''}`}>
-                                    {companies.map(c => (
-                                        <label key={c.id} className="flex items-center gap-2 text-sm text-zinc-700 cursor-pointer hover:text-emerald-700">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedCompanyIds.includes(c.id)}
-                                                onChange={() => toggleCompany(c.id)}
-                                                className="rounded border-gray-300 text-emerald-600"
-                                            />
-                                            {c.name}
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="flex items-center space-x-2 pt-2">
-                                <Checkbox id="isBlocked" name="isBlocked" />
-                                <Label htmlFor="isBlocked" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                    Block access immediately
-                                </Label>
-                            </div>
-
-                            <DialogFooter>
-                                <Button type="submit">Create User</Button>
-                            </DialogFooter>
                         </form>
                     </DialogContent>
                 </Dialog>
             </div>
 
-            <DataTable columns={columns} data={users} searchKey="profileName" />
-
             {/* Edit Modal */}
-            <Dialog open={!!editingUser} onOpenChange={(o) => !o && resetForm()}>
-                <DialogContent className="sm:max-w-[500px]">
+            <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+                <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto hidden-scrollbar">
                     <DialogHeader>
-                        <DialogTitle>Edit User</DialogTitle>
-                        <DialogDescription>
-                            Update user profile and permissions.
-                        </DialogDescription>
+                        <DialogTitle>Edit User Profile</DialogTitle>
                     </DialogHeader>
                     {editingUser && (
-                        <form onSubmit={handleUpdateUser} className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="edit-username">Username</Label>
-                                    <Input id="edit-username" name="username" defaultValue={editingUser.username} required />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="edit-profileName">Display Name</Label>
-                                    <Input id="edit-profileName" name="profileName" defaultValue={editingUser.profileName} required />
-                                </div>
+                        <form onSubmit={handleEdit} className="space-y-6 pb-2">
+                            {FormContent({ defaultData: editingUser })}
+                            <div className="flex justify-end border-t pt-4">
+                                <Button type="submit" className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 mt-2">
+                                    Save Changes
+                                </Button>
                             </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="edit-email">Email</Label>
-                                <Input id="edit-email" name="email" type="email" defaultValue={editingUser.email} required />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="edit-password">Password (Leave blank to keep current)</Label>
-                                    <Input id="edit-password" name="password" type="password" placeholder="••••••••" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="edit-role">Role</Label>
-                                    <Select name="role" defaultValue={editingUser.role}>
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="user">User</SelectItem>
-                                            <SelectItem value="admin">Admin</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <Label>Assign Company Access</Label>
-                                    <label className="flex items-center gap-2 cursor-pointer border px-3 py-1 rounded bg-zinc-50 hover:bg-zinc-100 transition-colors">
-                                        <Checkbox
-                                            checked={hasGlobalAccess}
-                                            onCheckedChange={(c) => setHasGlobalAccess(!!c)}
-                                        />
-                                        <span className="text-sm font-semibold text-zinc-800">Global (All Companies)</span>
-                                    </label>
-                                </div>
-                                <div className={`p-3 border rounded-md max-h-40 overflow-y-auto grid grid-cols-2 gap-2 ${hasGlobalAccess ? 'opacity-50 pointer-events-none' : ''}`}>
-                                    {companies.map(c => (
-                                        <label key={c.id} className="flex items-center gap-2 text-sm text-zinc-700 cursor-pointer hover:text-emerald-700">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedCompanyIds.includes(c.id)}
-                                                onChange={() => toggleCompany(c.id)}
-                                                className="rounded border-gray-300 text-emerald-600"
-                                            />
-                                            {c.name}
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="flex items-center space-x-2 pt-2">
-                                <Checkbox id="edit-isBlocked" name="isBlocked" defaultChecked={editingUser.isBlocked} />
-                                <Label htmlFor="edit-isBlocked" className="text-sm font-medium leading-none">
-                                    Blocked Access
-                                </Label>
-                            </div>
-
-                            <DialogFooter>
-                                <Button type="submit">Save Changes</Button>
-                            </DialogFooter>
                         </form>
                     )}
                 </DialogContent>
             </Dialog>
+
+            <DataTable columns={columns} data={data} searchKey="firstName" />
         </div>
     )
 }

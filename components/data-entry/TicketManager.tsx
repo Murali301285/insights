@@ -42,6 +42,7 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
     // Dependencies
     const [users, setUsers] = useState<any[]>([])
     const [orders, setOrders] = useState<any[]>([])
+    const [opportunities, setOpportunities] = useState<any[]>([])
 
     // Active Edit
     const [editModalOpen, setEditModalOpen] = useState(false)
@@ -106,6 +107,7 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
     useEffect(() => {
         if (activeCompanyId && isOpen) {
             fetchOrders()
+            fetchOpportunities()
             fetchTickets()
         }
     }, [activeCompanyId, viewTab, isOpen])
@@ -121,6 +123,20 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
             setOrders(Array.isArray(data) ? data : [])
         } catch (error) {
             console.error("Failed to fetch orders:", error)
+        }
+    }
+
+    const fetchOpportunities = async () => {
+        try {
+            const res = await fetch(`/api/sales/opportunities?companyId=${activeCompanyId}`)
+            if (!res.ok || res.redirected || res.url.includes('/login')) {
+                setOpportunities([])
+                return
+            }
+            const data = await res.json()
+            setOpportunities(Array.isArray(data) ? data : [])
+        } catch (error) {
+            console.error("Failed to fetch opportunities:", error)
         }
     }
 
@@ -172,9 +188,15 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
             toast.error("Ticket Details are strictly required")
             return
         }
-        if (viewTab === 'EXTERNAL' && !formData.orderId) {
-            toast.error("Order Number mapping is required for external tickets")
-            return
+        if (viewTab === 'EXTERNAL') {
+            if (formData.bucket === 'Business Acquisition' && !formData.opportunityId) {
+                toast.error("Reference mapping is required for Business Acquisition tickets")
+                return
+            }
+            if (formData.bucket === 'Order Fulfillment' && !formData.orderId) {
+                toast.error("Reference mapping is required for Order Fulfillment tickets")
+                return
+            }
         }
 
         setSaving(true)
@@ -280,7 +302,8 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
         setActiveTicket(null)
         setFormData({
             date: new Date().toISOString().split('T')[0],
-            comments: []
+            comments: [],
+            bucket: 'Na'
         })
         setFiles([])
         setCloseFiles([])
@@ -296,7 +319,9 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
             targetDate: t.targetDate ? new Date(t.targetDate).toISOString().split('T')[0] : '',
             actualDays: t.actualDays || '',
             inchargeId: t.inchargeId || '',
+            bucket: t.orderId ? 'Order Fulfillment' : (t.opportunityId ? 'Business Acquisition' : 'Na'),
             orderId: t.orderId || '',
+            opportunityId: t.opportunityId || '',
             status: t.status || 'OPEN',
             closeReason: t.closeReason || '',
             comments: Array.isArray(t.comments) ? t.comments : []
@@ -708,20 +733,46 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
                                 </div>
                             </div>
 
-                            {/* Row 2: Order No & Status (External) */}
+                            {/* Row 2: Bucket & Status (External) */}
                             {viewTab === 'EXTERNAL' && (
-                                <div className="grid grid-cols-2 gap-5">
+                                <div className="grid grid-cols-3 gap-5">
                                     <div className="space-y-1.5">
-                                        <label className="text-xs font-bold text-zinc-600 uppercase tracking-wider">Order No. *</label>
-                                        <Select value={formData.orderId} onValueChange={(val) => setFormData({ ...formData, orderId: val })} disabled={!!activeTicket}>
+                                        <label className="text-xs font-bold text-zinc-600 uppercase tracking-wider">Bucket *</label>
+                                        <Select value={formData.bucket} onValueChange={(val) => setFormData({ ...formData, bucket: val, orderId: '', opportunityId: '' })} disabled={!!activeTicket}>
                                             <SelectTrigger className="h-9 bg-white">
-                                                <SelectValue placeholder="Link to existing Order" />
+                                                <SelectValue placeholder="Select Bucket" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {orders.map(o => (
-                                                    <SelectItem key={o.id} value={o.id} className="font-bold flex flex-col items-start gap-0.5">
+                                                <SelectItem value="Na">Na</SelectItem>
+                                                <SelectItem value="Business Acquisition">Business Acquisition</SelectItem>
+                                                <SelectItem value="Order Fulfillment">Order Fulfillment</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-bold text-zinc-600 uppercase tracking-wider">Reference {formData.bucket !== 'Na' && '*'}</label>
+                                        <Select 
+                                            value={formData.bucket === 'Order Fulfillment' ? formData.orderId : formData.bucket === 'Business Acquisition' ? formData.opportunityId : ''} 
+                                            onValueChange={(val) => {
+                                                if (formData.bucket === 'Order Fulfillment') setFormData({ ...formData, orderId: val, opportunityId: '' })
+                                                else if (formData.bucket === 'Business Acquisition') setFormData({ ...formData, opportunityId: val, orderId: '' })
+                                            }} 
+                                            disabled={!!activeTicket || formData.bucket === 'Na'}
+                                        >
+                                            <SelectTrigger className="h-9 bg-white">
+                                                <SelectValue placeholder={formData.bucket === 'Na' ? 'Not Applicable' : 'Select Reference'} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {formData.bucket === 'Order Fulfillment' && orders.map(o => (
+                                                    <SelectItem key={o.id} value={o.id} title={`${o.orderNo} | ${companies.find(c => c.id === activeCompanyId)?.name} | ${o.currentStage?.stageName || 'Unassigned'} | ${o.orderIncharge || 'Unassigned'}`} className="font-bold flex flex-col items-start gap-0.5">
                                                         <span>{o.orderNo}</span>
                                                         <span className="text-[10px] text-zinc-400 font-normal">{o.opportunity?.opportunityName}</span>
+                                                    </SelectItem>
+                                                ))}
+                                                {formData.bucket === 'Business Acquisition' && opportunities.map(o => (
+                                                    <SelectItem key={o.id} value={o.id} title={`${o.oppNumber || o.slno} | ${o.customer?.customerName || '-'} | ${o.status?.statusName || 'Unassigned'} | ${o.incharge?.name || 'Unassigned'}`} className="font-bold flex flex-col items-start gap-0.5">
+                                                        <span>{o.oppNumber || o.slno} - {o.opportunityName}</span>
+                                                        <span className="text-[10px] text-zinc-400 font-normal">{o.customer?.customerName}</span>
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
@@ -741,25 +792,47 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
                                 </div>
                             )}
 
-                            {viewTab === 'EXTERNAL' && formData.orderId && !activeTicket && (() => {
-                                const matchedOrder = orders.find(o => o.id === formData.orderId);
-                                if (!matchedOrder) return null;
-                                return (
-                                    <div className="bg-indigo-50/70 border border-indigo-100 p-3.5 rounded-lg text-[11px] leading-relaxed text-indigo-900 grid grid-cols-2 gap-y-2 gap-x-4">
-                                        <div className="col-span-2 text-xs">
-                                            <strong className="text-indigo-950 uppercase tracking-wider text-[10px]">Project Brief: </strong> {matchedOrder.opportunity?.opportunityName || 'No project metadata recorded.'}
+                            {viewTab === 'EXTERNAL' && !activeTicket && (() => {
+                                if (formData.bucket === 'Order Fulfillment' && formData.orderId) {
+                                    const matchedOrder = orders.find(o => o.id === formData.orderId);
+                                    if (!matchedOrder) return null;
+                                    return (
+                                        <div className="bg-indigo-50/70 border border-indigo-100 p-3.5 rounded-lg text-[11px] leading-relaxed text-indigo-900 grid grid-cols-2 gap-y-2 gap-x-4">
+                                            <div className="col-span-2 text-xs">
+                                                <strong className="text-indigo-950 uppercase tracking-wider text-[10px]">Project Brief: </strong> <span className="italic">{matchedOrder.opportunity?.opportunityName || 'No project metadata recorded.'}</span>
+                                            </div>
+                                            <div>
+                                                <strong className="text-indigo-950 uppercase tracking-wider text-[10px]">Customer Name: </strong> <span className="italic">{companies.find(c => c.id === activeCompanyId)?.name || '-'}</span>
+                                            </div>
+                                            <div>
+                                                <strong className="text-indigo-950 uppercase tracking-wider text-[10px]">Current Stage: </strong> <span className="italic">{matchedOrder.currentStage?.stageName || 'Unassigned'}</span>
+                                            </div>
+                                            <div className="col-span-2">
+                                                <strong className="text-indigo-950 uppercase tracking-wider text-[10px]">Incharge: </strong> <span className="italic">{matchedOrder.orderIncharge || 'Unassigned'}</span>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <strong className="text-indigo-950 uppercase tracking-wider text-[10px]">Customer Name: </strong> {companies.find(c => c.id === activeCompanyId)?.name || '-'}
+                                    )
+                                } else if (formData.bucket === 'Business Acquisition' && formData.opportunityId) {
+                                    const matchedOpp = opportunities.find(o => o.id === formData.opportunityId);
+                                    if (!matchedOpp) return null;
+                                    return (
+                                        <div className="bg-emerald-50/70 border border-emerald-100 p-3.5 rounded-lg text-[11px] leading-relaxed text-emerald-900 grid grid-cols-2 gap-y-2 gap-x-4">
+                                            <div className="col-span-2 text-xs">
+                                                <strong className="text-emerald-950 uppercase tracking-wider text-[10px]">Opportunity: </strong> <span className="italic">{matchedOpp.opportunityName || '-'}</span>
+                                            </div>
+                                            <div>
+                                                <strong className="text-emerald-950 uppercase tracking-wider text-[10px]">Customer Name: </strong> <span className="italic">{matchedOpp.customer?.customerName || '-'}</span>
+                                            </div>
+                                            <div>
+                                                <strong className="text-emerald-950 uppercase tracking-wider text-[10px]">Current Stage: </strong> <span className="italic">{matchedOpp.status?.statusName || 'Unassigned'}</span>
+                                            </div>
+                                            <div className="col-span-2">
+                                                <strong className="text-emerald-950 uppercase tracking-wider text-[10px]">Incharge: </strong> <span className="italic">{matchedOpp.incharge?.name || 'Unassigned'}</span>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <strong className="text-indigo-950 uppercase tracking-wider text-[10px]">Current Stage: </strong> {matchedOrder.currentStage?.stageName || 'Unassigned'}
-                                        </div>
-                                        <div className="col-span-2">
-                                            <strong className="text-indigo-950 uppercase tracking-wider text-[10px]">Incharge: </strong> {matchedOrder.orderIncharge || 'Unassigned'}
-                                        </div>
-                                    </div>
-                                )
+                                    )
+                                }
+                                return null;
                             })()}
 
                             {/* Row 3: Ticket Details */}

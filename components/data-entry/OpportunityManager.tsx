@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Calendar, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Check, ChevronsUpDown, Loader2, Plus, Eye, Trash, Clock, MessageSquare, Send, User, Download, Save, Pencil } from "lucide-react"
+import { Search, Calendar, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Check, ChevronsUpDown, Loader2, Plus, Eye, Trash, Clock, MessageSquare, Send, User, Download, Save, Pencil, X } from "lucide-react"
 import { toast } from "sonner"
 import { formatCurrency, cn } from "@/lib/utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -71,6 +71,128 @@ function SearchableSelect({ items, value, onChange, placeholder, disabled }: any
     )
 }
 
+function CreatableMultiSelect({ items, values, onChange, placeholder, disabled, activeCompanyId, onOptionCreated }: any) {
+    const [open, setOpen] = useState(false)
+    const [inputValue, setInputValue] = useState("")
+    const [creating, setCreating] = useState(false)
+
+    const selectedItems = items.filter((i: any) => values.includes(i.value?.toString()))
+
+    const handleCreate = async () => {
+        const val = inputValue.trim()
+        if(!val) return
+        if(!/^[a-zA-Z0-9 -]+$/.test(val)) {
+            toast.error("Invalid category name. Only letters, numbers, spaces, and hyphens are allowed.")
+            return
+        }
+        if(val.length > 20) {
+            toast.error("Category name must be 20 characters or less.")
+            return
+        }
+
+        setCreating(true)
+        try {
+            const res = await fetch("/api/config/category", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ categoryName: val, companyId: activeCompanyId })
+            })
+            if(res.ok) {
+                const newCat = await res.json()
+                toast.success("Category added dynamically")
+                onOptionCreated(newCat)
+                onChange([...values, newCat.slno.toString()])
+                setInputValue("")
+            } else {
+                const err = await res.json()
+                toast.error(err.error || "Failed to add category")
+            }
+        } catch(e) {
+            toast.error("Failed to create category")
+        } finally {
+            setCreating(false)
+        }
+    }
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    disabled={disabled}
+                    className="w-full justify-between h-auto min-h-[36px] px-2 min-w-[120px] font-normal text-xs bg-white border-emerald-200 hover:bg-zinc-50"
+                >
+                    <div className="flex flex-wrap gap-1">
+                        {selectedItems.length > 0 ? selectedItems.map((s:any) => (
+                            <span key={s.value} className="bg-zinc-100 px-1.5 py-0.5 rounded flex items-center gap-1 border border-zinc-200">
+                                {s.label}
+                                <button type="button" onClick={(e) => {
+                                    e.stopPropagation();
+                                    onChange(values.filter((v:any) => v !== s.value.toString()))
+                                }}><X className="w-3 h-3 text-zinc-400 hover:text-red-500" /></button>
+                            </span>
+                        )) : <span className="opacity-50 mt-1">{placeholder}</span>}
+                    </div>
+                    <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50 mt-1" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[250px] p-0 shadow-lg border-zinc-200">
+                <Command>
+                    <CommandInput 
+                        placeholder="Search or add new..." 
+                        className="h-8 text-xs border-none focus:ring-0" 
+                        value={inputValue}
+                        onValueChange={setInputValue}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const exists = items.some((i:any) => i.label.toLowerCase() === inputValue.trim().toLowerCase());
+                                if(!exists && inputValue.trim()) handleCreate();
+                            }
+                        }}
+                    />
+                    <CommandList>
+                        <CommandEmpty>
+                            {inputValue.trim() ? (
+                                <div className="p-2 text-xs text-center">
+                                    <Button size="sm" variant="ghost" className="w-full text-emerald-600 font-bold" onClick={handleCreate} disabled={creating}>
+                                        {creating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Plus className="w-3 h-3 mr-1" />}
+                                        Create "{inputValue}"
+                                    </Button>
+                                </div>
+                            ) : "No item found."}
+                        </CommandEmpty>
+                        <CommandGroup>
+                            {items.map((item: any) => (
+                                <CommandItem
+                                    key={item.value}
+                                    value={item.label}
+                                    onSelect={() => {
+                                        if(values.includes(item.value?.toString())) {
+                                            onChange(values.filter((v:any) => v !== item.value?.toString()))
+                                        } else {
+                                            onChange([...values, item.value?.toString()])
+                                        }
+                                    }}
+                                    className="text-xs cursor-pointer"
+                                >
+                                    <div className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-emerald-500", values.includes(item.value?.toString()) ? "bg-emerald-500 text-white" : "opacity-50 [&_svg]:invisible")}>
+                                        <Check className="h-3 w-3" />
+                                    </div>
+                                    {item.label}
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    )
+}
+
+
 export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () => void, activeCompanyId: string }) {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -80,11 +202,22 @@ export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () 
     })
 
     // New Entry State
-    const [newEntry, setNewEntry] = useState({
+    const [newEntry, setNewEntry] = useState<{
+        date: string,
+        opportunityName: string,
+        customerId: string,
+        categoryIds: string[],
+        value: string,
+        paymentTypeId: string,
+        zoneId: string,
+        statusId: string,
+        inchargeId: string,
+        remarks: string
+    }>({
         date: new Date().toISOString().split('T')[0],
         opportunityName: "",
         customerId: "",
-        categoryId: "",
+        categoryIds: [],
         value: "",
         paymentTypeId: "",
         zoneId: "",
@@ -154,7 +287,7 @@ export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () 
             date: new Date(opp.date).toISOString().split('T')[0],
             opportunityName: opp.opportunityName || "",
             customerId: opp.customerId?.toString() || "",
-            categoryId: opp.categoryId?.toString() || "",
+            categoryIds: opp.categories?.map((c: any) => c.slno.toString()) || [],
             value: opp.value?.toString() || "",
             paymentTypeId: opp.paymentTypeId?.toString() || "",
             zoneId: opp.zoneId?.toString() || "",
@@ -166,7 +299,7 @@ export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () 
     };
 
     const handleSave = async () => {
-        if (!newEntry.opportunityName || !newEntry.customerId || !newEntry.value || !newEntry.statusId || !newEntry.categoryId || !newEntry.paymentTypeId || !newEntry.zoneId || !newEntry.inchargeId) {
+        if (!newEntry.opportunityName || !newEntry.customerId || !newEntry.value || !newEntry.statusId || newEntry.categoryIds.length === 0 || !newEntry.paymentTypeId || !newEntry.zoneId || !newEntry.inchargeId) {
             toast.error("Please complete all required fields (marked with *)")
             return
         }
@@ -190,7 +323,7 @@ export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () 
                     date: new Date().toISOString().split('T')[0],
                     opportunityName: "",
                     customerId: "",
-                    categoryId: "",
+                    categoryIds: [],
                     value: "",
                     paymentTypeId: "",
                     zoneId: "",
@@ -461,7 +594,7 @@ export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () 
                         <Download className="w-3 h-3 mr-1.5" /> Export
                     </Button>
                     <Button size="sm" className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 font-semibold text-white shadow-sm" onClick={() => setIsAddModalOpen(true)}>
-                        <Plus className="w-3 h-3 mr-1" /> New Opportunity
+                        <Plus className="w-3 h-3 mr-1" /> Entry
                     </Button>
                 </div>
             </div>
@@ -626,7 +759,9 @@ export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () 
                                         })()}
                                     </span>
                                     <span className="flex items-center gap-1.5 bg-zinc-700 px-2.5 py-1 rounded-full text-white shadow-sm" title="Zone">{viewOpp?.zone?.zoneName}</span>
-                                    <span className="flex items-center gap-1.5 bg-zinc-700 px-2.5 py-1 rounded-full text-white shadow-sm" title="Category">{viewOpp?.category?.categoryName}</span>
+                                    {viewOpp?.categories && viewOpp.categories.length > 0 && viewOpp.categories.map((cat: any) => (
+                                        <span key={cat.slno} className="flex items-center gap-1.5 bg-zinc-700 px-2.5 py-1 rounded-full text-white shadow-sm" title="Category">{cat.categoryName}</span>
+                                    ))}
                                 </div>
                             </div>
 
@@ -745,7 +880,7 @@ export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () 
                         date: new Date().toISOString().split('T')[0],
                         opportunityName: "",
                         customerId: "",
-                        categoryId: "",
+                        categoryIds: [],
                         value: "",
                         paymentTypeId: "",
                         zoneId: "",
@@ -760,7 +895,7 @@ export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () 
                     <DialogHeader className="p-5 border-b border-zinc-100 bg-zinc-50/50">
                         <DialogTitle className="text-lg font-bold flex items-center gap-2">
                             <Plus className="w-5 h-5 text-emerald-600" />
-                            {editingId ? "Edit Opportunity" : "Create New Opportunity"}
+                            {editingId ? "Edit Opportunity" : "Entry"}
                         </DialogTitle>
                     </DialogHeader>
 
@@ -790,7 +925,19 @@ export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () 
                         </div>
                         <div className="space-y-1.5">
                             <Label className="text-xs font-bold text-zinc-700 uppercase tracking-widest">Category <span className="text-rose-500">*</span></Label>
-                            <SearchableSelect items={categoryOpts} value={newEntry.categoryId} onChange={(v: any) => setNewEntry({ ...newEntry, categoryId: v })} placeholder="Select Category" />
+                            <CreatableMultiSelect 
+                                items={categoryOpts} 
+                                values={newEntry.categoryIds} 
+                                onChange={(v: any) => setNewEntry({ ...newEntry, categoryIds: v })} 
+                                placeholder="Select Categories"
+                                activeCompanyId={activeCompanyId}
+                                onOptionCreated={(newCat: any) => {
+                                    setMasters(prev => ({
+                                        ...prev,
+                                        categories: [newCat, ...prev.categories]
+                                    }))
+                                }}
+                            />
                         </div>
 
                         <div className="space-y-1.5">

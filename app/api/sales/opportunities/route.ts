@@ -16,7 +16,7 @@ export async function GET(req: Request) {
             },
             include: {
                 customer: true,
-                category: true,
+                categories: true,
                 paymentType: true,
                 zone: true,
                 status: true,
@@ -73,12 +73,12 @@ export async function POST(req: Request) {
         const oppNumber = `${dd}${mm}${yy}${sequence}`;
 
         const parsedCustomer = parseInt(body.customerId);
-        const parsedCategory = parseInt(body.categoryId);
         const parsedPayment = parseInt(body.paymentTypeId);
         const parsedZone = parseInt(body.zoneId);
         const parsedStatus = parseInt(body.statusId);
+        const categoryIds = Array.isArray(body.categoryIds) ? body.categoryIds.map((id: any) => parseInt(id)).filter((id: number) => !isNaN(id)) : [];
 
-        if (isNaN(parsedCustomer) || isNaN(parsedCategory) || isNaN(parsedPayment) || isNaN(parsedZone) || isNaN(parsedStatus) || !body.inchargeId) {
+        if (isNaN(parsedCustomer) || categoryIds.length === 0 || isNaN(parsedPayment) || isNaN(parsedZone) || isNaN(parsedStatus) || !body.inchargeId) {
             return NextResponse.json({ error: "Please ensure all dropdowns (Customer, Category, Payment, Zone, Status, Account Manager) are actively selected." }, { status: 400 });
         }
 
@@ -89,13 +89,15 @@ export async function POST(req: Request) {
                     date: dateObj,
                     opportunityName: body.opportunityName,
                     customerId: parsedCustomer,
-                    categoryId: parsedCategory,
                     value: parseFloat(body.value) || 0,
                     paymentTypeId: parsedPayment,
                     zoneId: parsedZone,
                     statusId: parsedStatus,
                     inchargeId: body.inchargeId,
                     remarks: body.remarks || null,
+                    categories: {
+                        connect: categoryIds.map((id: number) => ({ slno: id }))
+                    }
                 }
             });
 
@@ -230,19 +232,23 @@ export async function PUT(req: Request) {
                 }
             }
 
+            const categoryIds = Array.isArray(body.categoryIds) ? body.categoryIds.map((id: any) => parseInt(id)).filter((id: number) => !isNaN(id)) : [];
+
             const updatedOpp = await tx.opportunity.update({
                 where: { id: existing.id },
                 data: {
                     date: dateObj,
                     opportunityName: body.opportunityName,
                     customerId: parseInt(body.customerId),
-                    categoryId: parseInt(body.categoryId),
                     value: parseFloat(body.value),
                     paymentTypeId: parseInt(body.paymentTypeId),
                     zoneId: parseInt(body.zoneId),
                     statusId: newStatusId,
                     inchargeId: body.inchargeId,
                     remarks: body.remarks || null,
+                    categories: {
+                        set: categoryIds.map((id: number) => ({ slno: id }))
+                    }
                 }
             });
 

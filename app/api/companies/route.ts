@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { name, code, address, registrationNumber, contactEmail, contactPhone } = body;
+        const { name, code, address, registrationNumber, contactEmail, contactPhone, colorIndicator, contactPerson, description } = body;
 
         const company = await prisma.company.create({
             data: {
@@ -24,7 +24,10 @@ export async function POST(req: NextRequest) {
                 address,
                 registrationNumber,
                 contactEmail,
-                contactPhone
+                contactPhone,
+                colorIndicator,
+                contactPerson,
+                description
             },
         });
 
@@ -45,5 +48,34 @@ export async function DELETE(req: NextRequest) {
         return NextResponse.json({ success: true });
     } catch (error) {
         return NextResponse.json({ error: "Failed to delete company" }, { status: 500 });
+    }
+}
+
+export async function PUT(req: NextRequest) {
+    try {
+        const body = await req.json();
+        const { id, name, code, address, registrationNumber, contactEmail, contactPhone, colorIndicator, contactPerson, description, isBlocked } = body;
+
+        if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
+
+        const company = await prisma.company.update({
+            where: { id },
+            data: {
+                name,
+                code,
+                address,
+                registrationNumber,
+                contactEmail,
+                contactPhone,
+                colorIndicator,
+                contactPerson,
+                description,
+                isBlocked
+            },
+        });
+
+        return NextResponse.json(company);
+    } catch (error) {
+        return NextResponse.json({ error: "Failed to update company" }, { status: 500 });
     }
 }

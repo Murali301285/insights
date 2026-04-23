@@ -7,6 +7,14 @@ import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import * as XLSX from "xlsx"
 import { useHeader } from "@/components/providers/HeaderProvider"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 export default function ChatPage() {
     const { setHeaderInfo } = useHeader()
@@ -17,6 +25,9 @@ export default function ChatPage() {
     const [loading, setLoading] = useState(false)
     const [isRecording, setIsRecording] = useState(false)
     const [showCommands, setShowCommands] = useState(false)
+    const [pendingFile, setPendingFile] = useState<File | null>(null)
+    const [pendingFileData, setPendingFileData] = useState<any>(null)
+    const [isDialogOpen, setIsDialogOpen] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const endOfMessagesRef = useRef<HTMLDivElement>(null)
 
@@ -100,6 +111,14 @@ export default function ChatPage() {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        setPendingFile(file);
+
+        if (file.name.toLowerCase().endsWith('.pdf')) {
+            setPendingFileData(null);
+            setIsDialogOpen(true);
+            return;
+        }
+
         const reader = new FileReader();
         reader.onload = (evt) => {
             try {
@@ -109,14 +128,37 @@ export default function ChatPage() {
                 const ws = wb.Sheets[wsname];
                 const data = XLSX.utils.sheet_to_json(ws);
                 
-                toast.success(`Attached ${file.name}`);
-                setMessages(prev => [...prev, { role: 'user', content: `[User attached file: ${file.name}]` }]);
-                handleSend(`Please validate the attached Excel data for import.`, data);
+                setPendingFileData(data);
+                setIsDialogOpen(true);
             } catch (err) {
                 toast.error("Failed to parse Excel file.");
+                setPendingFile(null);
             }
         };
         reader.readAsBinaryString(file);
+    };
+
+    const confirmUpload = () => {
+        if (!pendingFile) return;
+        setIsDialogOpen(false);
+        toast.success(`Attached ${pendingFile.name}`);
+        setMessages(prev => [...prev, { role: 'user', content: `[User attached file: ${pendingFile.name}]` }]);
+        
+        if (pendingFile.name.toLowerCase().endsWith('.pdf')) {
+            handleSend(`I have attached a PDF file: ${pendingFile.name}. Please see the attached context.`, null);
+        } else {
+            handleSend(`Please validate the attached Excel data for import.`, pendingFileData);
+        }
+        
+        setPendingFile(null);
+        setPendingFileData(null);
+    };
+
+    const cancelUpload = () => {
+        setIsDialogOpen(false);
+        setPendingFile(null);
+        setPendingFileData(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
     const handleRevoke = async () => {
@@ -260,7 +302,7 @@ export default function ChatPage() {
                 >
                     <input 
                         type="file" 
-                        accept=".xlsx,.xls,.csv" 
+                        accept=".xlsx,.xls,.csv,.pdf" 
                         className="hidden" 
                         ref={fileInputRef}
                         onChange={handleFileUpload}
@@ -328,6 +370,55 @@ export default function ChatPage() {
                     </Button>
                 </form>
             </div>
+
+            {/* Upload Confirmation Modal */}
+            <Dialog open={isDialogOpen} onOpenChange={(open) => !open && cancelUpload()}>
+                <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle>Confirm File Upload</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to upload this file to the system?
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="py-4 flex flex-col gap-4">
+                        {pendingFile && (
+                            <div className="flex items-center gap-3 p-3 bg-zinc-50 rounded-lg border border-zinc-200">
+                                <div className="w-10 h-10 rounded bg-violet-100 flex items-center justify-center text-violet-600 shrink-0">
+                                    <Paperclip className="w-5 h-5" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-semibold text-zinc-900 truncate">{pendingFile.name}</p>
+                                    <p className="text-xs text-zinc-500">{(pendingFile.size / 1024).toFixed(1)} KB</p>
+                                </div>
+                            </div>
+                        )}
+                        
+                        {pendingFile?.name.toLowerCase().endsWith('.pdf') && (
+                            <div className="w-full h-[300px] border border-zinc-200 rounded-lg overflow-hidden bg-zinc-50">
+                                <object 
+                                    data={URL.createObjectURL(pendingFile)} 
+                                    type="application/pdf" 
+                                    className="w-full h-full"
+                                >
+                                    <p className="text-center p-4 text-sm text-zinc-500">Preview not available. PDF will be uploaded.</p>
+                                </object>
+                            </div>
+                        )}
+                        {!pendingFile?.name.toLowerCase().endsWith('.pdf') && pendingFileData && (
+                            <div className="text-sm text-zinc-600 bg-emerald-50 text-emerald-800 p-3 rounded-lg border border-emerald-200">
+                                <CheckCircle2 className="w-4 h-4 inline-block mr-2 text-emerald-600" />
+                                Successfully parsed {pendingFileData.length} rows of data.
+                            </div>
+                        )}
+                    </div>
+                    
+                    <DialogFooter>
+                        <Button variant="outline" onClick={cancelUpload}>Cancel</Button>
+                        <Button onClick={confirmUpload} className="bg-violet-600 hover:bg-violet-700">Confirm & Upload</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

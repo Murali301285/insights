@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, usePathname } from "next/navigation"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -22,7 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { User as UserIcon, LogOut, Settings, Lock } from "lucide-react"
+import { User as UserIcon, LogOut, Settings, Lock, MessageSquare } from "lucide-react"
 
 interface UserProfileProps {
     user?: {
@@ -34,7 +34,30 @@ interface UserProfileProps {
 
 export function UserProfile({ user }: UserProfileProps) {
     const router = useRouter()
+    const pathname = usePathname()
     const [open, setOpen] = useState(false) // Edit Profile Modal
+    const [unread, setUnread] = useState(0)
+
+    useEffect(() => {
+        if (!user) return;
+        
+        const fetchUnread = async () => {
+            try {
+                const res = await fetch('/api/chat/unread');
+                if (res.ok) {
+                    const data = await res.json();
+                    setUnread(data.unread || 0);
+                }
+            } catch (error) {
+                // Ignore network errors on polling
+            }
+        };
+
+        // Fetch immediately and then every 10 seconds globally
+        fetchUnread();
+        const interval = setInterval(fetchUnread, 10000);
+        return () => clearInterval(interval);
+    }, [user, pathname]);
 
     // Helpers
     const initials = user?.name
@@ -51,15 +74,31 @@ export function UserProfile({ user }: UserProfileProps) {
 
     return (
         <>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-9 w-9 rounded-full ring-2 ring-emerald-500/20 hover:ring-emerald-500/40 transition-all" suppressHydrationWarning>
-                        <Avatar className="h-9 w-9">
-                            <AvatarImage src={user.image} alt={user.name} />
-                            <AvatarFallback className="bg-emerald-100 text-emerald-700 font-bold">{initials}</AvatarFallback>
-                        </Avatar>
-                    </Button>
-                </DropdownMenuTrigger>
+            <div className="flex items-center gap-3">
+                <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="relative text-zinc-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-full h-9 w-9"
+                    onClick={() => router.push('/messages')}
+                >
+                    <MessageSquare className="h-5 w-5" />
+                    {unread > 0 && (
+                        <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 border border-white"></span>
+                        </span>
+                    )}
+                </Button>
+
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="relative h-9 w-9 rounded-full ring-2 ring-emerald-500/20 hover:ring-emerald-500/40 transition-all" suppressHydrationWarning>
+                            <Avatar className="h-9 w-9">
+                                <AvatarImage src={user.image} alt={user.name} />
+                                <AvatarFallback className="bg-emerald-100 text-emerald-700 font-bold">{initials}</AvatarFallback>
+                            </Avatar>
+                        </Button>
+                    </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56" align="end" forceMount>
                     <DropdownMenuLabel className="font-normal">
                         <div className="flex flex-col space-y-1">
@@ -114,6 +153,7 @@ export function UserProfile({ user }: UserProfileProps) {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            </div>
         </>
     )
 }

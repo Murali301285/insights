@@ -50,6 +50,7 @@ export function DashboardContent({ user, data }: DashboardContentProps) {
     const { setHeaderInfo } = useHeader()
     const { openDetailView } = useDetailView()
     const [greeting, setGreeting] = useState("Good Morning")
+    const [salesToggle, setSalesToggle] = useState<"value" | "nos">("nos")
 
     // AI Insights State
     const [currentInsightIndex, setCurrentInsightIndex] = useState(0)
@@ -113,8 +114,7 @@ export function DashboardContent({ user, data }: DashboardContentProps) {
         { id: 5, title: "New Compliance Policy", desc: "Q3 Safety Standards updated.", type: "info" },
     ]
 
-    // Duplicate alerts for infinite scroll effect
-    const marqueeAlerts = [...alerts, ...alerts]
+
 
     // Vertical Funnel Data
     const funnelData = [
@@ -195,38 +195,53 @@ export function DashboardContent({ user, data }: DashboardContentProps) {
                             <div className="h-full w-full bg-white rounded-3xl p-6 border border-zinc-200 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:border-blue-200 relative overflow-hidden flex flex-col justify-between">
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full blur-2xl -mr-8 -mt-8 pointer-events-none" />
 
-                                <div className="flex items-center gap-4 relative z-10 mb-4">
-                                    <div className="p-3 bg-blue-50 rounded-2xl w-fit">
-                                        <Users className="w-6 h-6 text-blue-600" />
+                                <div className="flex items-center justify-between relative z-10 mb-4">
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-3 bg-blue-50 rounded-2xl w-fit">
+                                            <Users className="w-6 h-6 text-blue-600" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-bold text-zinc-900 leading-tight">Business Acquisition</h3>
+                                            <p className="text-sm text-zinc-500 mt-0.5">Track leads and conversion rates.</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h3 className="text-xl font-bold text-zinc-900 leading-tight">Business Acquisition</h3>
-                                        <p className="text-sm text-zinc-500 mt-0.5">Track leads and conversion rates.</p>
+                                    <div className="flex bg-zinc-100 p-1 rounded-lg">
+                                        <button 
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSalesToggle("value"); }}
+                                            className={cn("px-3 py-1 text-xs font-bold rounded-md transition-all", salesToggle === 'value' ? 'bg-white shadow-sm text-blue-700' : 'text-zinc-500')}
+                                        >Value</button>
+                                        <button 
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSalesToggle("nos"); }}
+                                            className={cn("px-3 py-1 text-xs font-bold rounded-md transition-all", salesToggle === 'nos' ? 'bg-white shadow-sm text-blue-700' : 'text-zinc-500')}
+                                        >Nos</button>
                                     </div>
                                 </div>
 
-                                <div className="space-y-4 flex-1 flex flex-col justify-end relative z-10">
-
-                                    {/* Recharts Funnel Viz */}
-                                    <div className="h-56 w-full mt-2">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <FunnelChart margin={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                                                <Tooltip
-                                                    contentStyle={{ backgroundColor: '#18181b', border: 'none', borderRadius: '8px', color: '#fff' }}
-                                                    itemStyle={{ color: '#fff' }}
-                                                    cursor={{ fill: 'transparent' }}
-                                                />
-                                                <Funnel
-                                                    dataKey="value"
-                                                    data={funnelData}
-                                                    isAnimationActive
-                                                >
-                                                    <LabelList position="inside" fill="#fff" stroke="none" dataKey="label" className="font-bold drop-shadow-md text-xs" />
-                                                </Funnel>
-                                            </FunnelChart>
-                                        </ResponsiveContainer>
+                                <div className="grid grid-cols-2 gap-3 relative z-10 h-full">
+                                    <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-100 flex flex-col justify-center text-center">
+                                        <div className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-1">Leads</div>
+                                        <div className="text-xl lg:text-2xl font-black text-zinc-800">
+                                            {salesToggle === 'nos' ? ((data?.salesFunnel.quotation || 0) + (data?.salesFunnel.negotiation || 0) + (data?.salesFunnel.orderWin || 0)) : '₹0.0Cr'}
+                                        </div>
                                     </div>
-                                    <div className="text-xs text-zinc-400 text-right mt-1">Pipeline Health: Strong</div>
+                                    <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 flex flex-col justify-center text-center">
+                                        <div className="text-[10px] uppercase font-bold text-blue-600/80 tracking-wider mb-1">Quotations</div>
+                                        <div className="text-xl lg:text-2xl font-black text-blue-700">
+                                            {salesToggle === 'nos' ? (data?.salesFunnel.quotation || 0) : '₹0.0Cr'}
+                                        </div>
+                                    </div>
+                                    <div className="bg-amber-50 rounded-xl p-3 border border-amber-100 flex flex-col justify-center text-center">
+                                        <div className="text-[10px] uppercase font-bold text-amber-600/80 tracking-wider mb-1">Negotiation</div>
+                                        <div className="text-xl lg:text-2xl font-black text-amber-700">
+                                            {salesToggle === 'nos' ? (data?.salesFunnel.negotiation || 0) : '₹0.0Cr'}
+                                        </div>
+                                    </div>
+                                    <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100 flex flex-col justify-center text-center">
+                                        <div className="text-[10px] uppercase font-bold text-emerald-600/80 tracking-wider mb-1">Orders</div>
+                                        <div className="text-xl lg:text-2xl font-black text-emerald-700">
+                                            {salesToggle === 'nos' ? (data?.salesFunnel.orderWin || 0) : '₹0.0Cr'}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </Link>
@@ -252,11 +267,11 @@ export function DashboardContent({ user, data }: DashboardContentProps) {
                                     </div>
                                     <div className="flex gap-5 md:gap-8 justify-center text-center">
                                         <div className="flex flex-col items-center">
-                                            <div className="text-2xl font-black text-emerald-600">{data?.manufacturing.onTrack || 98}</div>
+                                            <div className="text-2xl font-black text-emerald-600">{data?.manufacturing.onTrack || 0}</div>
                                             <div className="text-[9px] uppercase font-bold text-emerald-600/90 tracking-widest mt-0.5">On Track</div>
                                         </div>
                                         <div className="flex flex-col items-center">
-                                            <div className="text-2xl font-black text-rose-600">{data?.manufacturing.critical || 5}</div>
+                                            <div className="text-2xl font-black text-rose-600">{data?.manufacturing.critical || 0}</div>
                                             <div className="text-[9px] uppercase font-bold text-rose-600/90 tracking-widest mt-0.5">Critical</div>
                                         </div>
                                     </div>
@@ -284,12 +299,12 @@ export function DashboardContent({ user, data }: DashboardContentProps) {
                                     </div>
                                     <div className="flex gap-5 md:gap-8 justify-center text-center">
                                         <div className="flex flex-col items-center">
-                                            <div className="text-2xl font-black text-zinc-900">{data?.supplyChain.suppliers || 45}</div>
+                                            <div className="text-2xl font-black text-zinc-900">{data?.supplyChain.suppliers || 0}</div>
                                             <div className="text-[9px] uppercase font-bold text-zinc-500 tracking-widest mt-0.5">Suppliers</div>
                                         </div>
                                         <div className="flex flex-col items-center">
-                                            <div className="text-2xl font-black text-indigo-600">{data?.supplyChain.credit || 32}</div>
-                                            <div className="text-[9px] uppercase font-bold text-indigo-600/90 tracking-widest mt-0.5">Credit</div>
+                                            <div className="text-2xl font-black text-indigo-600">{data?.supplyChain.credit || 0}</div>
+                                            <div className="text-[9px] uppercase font-bold text-indigo-600/90 tracking-widest mt-0.5">New</div>
                                         </div>
                                     </div>
                                 </div>
@@ -316,11 +331,11 @@ export function DashboardContent({ user, data }: DashboardContentProps) {
                                     </div>
                                     <div className="flex gap-5 md:gap-8 justify-center text-center">
                                         <div className="flex flex-col items-center">
-                                            <div className="text-2xl font-black text-rose-700">{data?.support.internal || 12}</div>
+                                            <div className="text-2xl font-black text-rose-700">{data?.support.internal || 0}</div>
                                             <div className="text-[9px] uppercase font-bold text-rose-600/90 tracking-widest mt-0.5">Internal</div>
                                         </div>
                                         <div className="flex flex-col items-center">
-                                            <div className="text-2xl font-black text-rose-700">{data?.support.external || 30}</div>
+                                            <div className="text-2xl font-black text-rose-700">{data?.support.external || 0}</div>
                                             <div className="text-[9px] uppercase font-bold text-rose-600/90 tracking-widest mt-0.5">External</div>
                                         </div>
                                     </div>
@@ -348,12 +363,12 @@ export function DashboardContent({ user, data }: DashboardContentProps) {
                                     </div>
                                     <div className="flex gap-5 md:gap-8 justify-center text-center">
                                         <div className="flex flex-col items-center">
-                                            <div className="text-2xl font-black text-purple-700">{data?.hr.open || 6}</div>
+                                            <div className="text-2xl font-black text-purple-700">{data?.hr.open || 0}</div>
                                             <div className="text-[9px] uppercase font-bold text-purple-600/90 tracking-widest mt-0.5">Open</div>
                                         </div>
                                         <div className="flex flex-col items-center">
-                                            <div className="text-2xl font-black text-purple-700">{data?.hr.hires || 12}</div>
-                                            <div className="text-[9px] uppercase font-bold text-purple-600/90 tracking-widest mt-0.5">Hires</div>
+                                            <div className="text-2xl font-black text-purple-700">{data?.hr.hires || 0}</div>
+                                            <div className="text-[9px] uppercase font-bold text-purple-600/90 tracking-widest mt-0.5">Total</div>
                                         </div>
                                     </div>
                                 </div>
@@ -425,7 +440,7 @@ export function DashboardContent({ user, data }: DashboardContentProps) {
                 {/* Right Column: Smart Alerts Ticker - Spans 3 cols */}
                 <div className="col-span-12 lg:col-span-3 h-[400px] lg:h-full min-h-[500px]">
                     <div className="h-full w-full bg-zinc-900 rounded-3xl p-6 flex flex-col relative overflow-hidden shadow-2xl">
-                        <div className="flex items-center justify-between mb-6 z-10">
+                        <div className="flex items-center justify-between z-20 relative bg-zinc-900 pb-4 pt-2 border-b border-zinc-800">
                             <div className="flex items-center gap-2">
                                 <Activity className="w-5 h-5 text-emerald-400 animate-pulse" />
                                 <h3 className="font-bold text-white tracking-wide">Smart Alerts</h3>
@@ -433,14 +448,10 @@ export function DashboardContent({ user, data }: DashboardContentProps) {
                             <span className="text-xs text-zinc-400 bg-zinc-800 px-2 py-1 rounded">Last 7 Days</span>
                         </div>
 
-                        {/* Gradient Masks for scrolling effect */}
-                        <div className="absolute top-16 left-0 right-0 h-8 bg-gradient-to-b from-zinc-900 to-transparent z-10" />
-                        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-zinc-900 to-transparent z-10" />
-
-                        {/* Vertical Marquee Container */}
-                        <div className="flex-1 overflow-hidden relative">
-                            <div className="animate-marquee-y flex flex-col gap-4 absolute w-full top-0">
-                                {marqueeAlerts.map((alert, index) => (
+                        {/* Alerts Container */}
+                        <div className="flex-1 overflow-visible relative pr-2 hover-scroll group mt-4">
+                            <div className="flex flex-col gap-4 w-full pb-4">
+                                {alerts.map((alert, index) => (
                                     <div
                                         key={`${alert.id}-${index}`}
                                         className={`p-4 rounded-xl border backdrop-blur-sm transition-transform hover:scale-[1.02] ${alert.type === 'critical' ? 'bg-red-500/10 border-red-500/30' :

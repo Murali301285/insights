@@ -4,160 +4,119 @@ import { useState, useEffect } from "react"
 import { useHeader } from "@/components/providers/HeaderProvider"
 import { DataTable } from "@/components/ui/data-table"
 import { Button } from "@/components/ui/button"
-import { Plus, MoreHorizontal, Pencil, Trash, Ban, ArrowUpDown } from "lucide-react"
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Plus, MoreHorizontal, Pencil, Trash, ArrowUpDown } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ColumnDef } from "@tanstack/react-table"
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
-
-// Types
-type Contact = {
-    contactPerson: string
-    contactEmail: string
-    contactNumber: string
-}
-
-type Address = {
-    addressName: string
-    address: string
-}
+import { CreatableCategorySelect } from "@/components/ui/creatable-category-select"
 
 type Supplier = {
-    slno: number
-    companyId: string | null
-    supplierName: string
-    remarks: string | null
-    usb: string | null
-    isActive: boolean
-    paymentTypeId: number | null
-    paymentType?: { paymentType: string } | null
-    categories: { slno: number; categoryName: string }[]
-    contacts: Contact[]
-    addresses: Address[]
+    slno: number;
+    companyId: string | null;
+    supplierName: string;
+    paymentType?: { slno: number, paymentType: string };
+    paymentTypeId?: number;
+    categories: any[];
+    isActive: boolean;
+    remarks: string;
+    usb: string;
+    company?: { name: string };
+    contacts: any[];
+    addresses: any[];
 }
 
-type CategoryItem = { slno: number, categoryName: string }
-type PaymentItem = { slno: number, paymentType: string }
-
-export default function SupplierMasterPage() {
+export default function SupplierConfigPage() {
     const { setHeaderInfo } = useHeader()
     const [data, setData] = useState<Supplier[]>([])
-    const [categories, setCategories] = useState<CategoryItem[]>([])
-    const [paymentTypes, setPaymentTypes] = useState<PaymentItem[]>([])
+    const [loading, setLoading] = useState(true)
     const [companies, setCompanies] = useState<any[]>([])
+    const [categoriesMaster, setCategoriesMaster] = useState<{ slno: number, categoryName: string }[]>([])
+    const [paymentTypes, setPaymentTypes] = useState<{ slno: number, paymentType: string }[]>([])
     const [selectedCompanyId, setSelectedCompanyId] = useState<string>("all")
-
-    // Form States
     const [isAddOpen, setIsAddOpen] = useState(false)
     const [editItem, setEditItem] = useState<Supplier | null>(null)
-    const [contacts, setContacts] = useState<Contact[]>([{ contactPerson: "", contactEmail: "", contactNumber: "" }])
-    const [addresses, setAddresses] = useState<Address[]>([{ addressName: "", address: "" }])
+
+    // Dynamic arrays
+    const [contacts, setContacts] = useState<any[]>([{ id: Date.now(), contactPerson: "", contactEmail: "", contactNumber: "" }])
+    const [addresses, setAddresses] = useState<any[]>([{ id: Date.now(), addressName: "", address: "" }])
     const [selectedCategories, setSelectedCategories] = useState<number[]>([])
+    const [selectedPaymentType, setSelectedPaymentType] = useState<string>("")
 
     useEffect(() => {
         setHeaderInfo("Supplier Master", "Configure and manage suppliers.")
-
-        fetchLookups()
     }, [setHeaderInfo])
 
     useEffect(() => {
-        async function loadCompanies() {
+        async function loadLookups() {
             try {
-                const res = await fetch("/api/companies")
-                if (res.ok) { const data = await res.json(); setCompanies(data); if (data.length > 0) { setSelectedCompanyId(data[0].id); } }
+                const [compRes, pmtRes] = await Promise.all([
+                    fetch("/api/companies").then(res => res.json()),
+                    fetch("/api/config/payment-type").then(res => res.json())
+                ])
+                setCompanies(compRes || [])
+                setPaymentTypes(pmtRes || [])
             } catch (e) { }
         }
-        loadCompanies()
+        loadLookups()
     }, [])
 
     useEffect(() => {
         fetchData()
+        fetchCategories()
     }, [selectedCompanyId])
 
-    async function fetchLookups() {
+    async function fetchCategories() {
         try {
-            const [catRes, payRes] = await Promise.all([
-                fetch("/api/config/category"),
-                fetch("/api/config/payment-type")
-            ])
-            if (catRes.ok) setCategories(await catRes.json())
-            if (payRes.ok) setPaymentTypes(await payRes.json())
-        } catch (e) {
-            console.error(e)
-        }
+            const qs = selectedCompanyId !== 'all' ? '?companyId=' + selectedCompanyId : '';
+            // Map with the newly created Customer Category (CustomerCategoryMaster)
+            const res = await fetch(`/api/config/customer-category${qs}`)
+            if (res.ok) {
+                const items = await res.json()
+                setCategoriesMaster(items)
+            }
+        } catch (e) { }
     }
 
     async function fetchData() {
+        setLoading(true)
         try {
             const qs = selectedCompanyId !== 'all' ? '?companyId=' + selectedCompanyId : '';
             const res = await fetch(`/api/config/supplier${qs}`)
-            if (res.ok) setData(await res.json())
+            if (res.ok) {
+                const items = await res.json()
+                setData(items)
+            }
         } catch (error) {
             toast.error("Failed to fetch data")
+        } finally {
+            setLoading(false)
         }
     }
 
-    // Handlers
-    const addContact = () => setContacts([...contacts, { contactPerson: "", contactEmail: "", contactNumber: "" }])
-    const removeContact = (index: number) => setContacts(contacts.filter((_, i) => i !== index))
-    const updateContact = (index: number, field: keyof Contact, value: string) => {
-        const newContacts = [...contacts]
-        newContacts[index][field] = value
-        setContacts(newContacts)
-    }
-
-    const addAddress = () => setAddresses([...addresses, { addressName: "", address: "" }])
-    const removeAddress = (index: number) => setAddresses(addresses.filter((_, i) => i !== index))
-    const updateAddress = (index: number, field: keyof Address, value: string) => {
-        const newAddrs = [...addresses]
-        newAddrs[index][field] = value
-        setAddresses(newAddrs)
-    }
-
-    const toggleCategory = (slno: number) => {
-        if (selectedCategories.includes(slno)) setSelectedCategories(selectedCategories.filter(id => id !== slno))
-        else setSelectedCategories([...selectedCategories, slno])
-    }
-
-    const openEdit = (item: Supplier) => {
-        setEditItem(item)
-        setContacts(item.contacts.length ? item.contacts : [{ contactPerson: "", contactEmail: "", contactNumber: "" }])
-        setAddresses(item.addresses.length ? item.addresses : [{ addressName: "", address: "" }])
-        setSelectedCategories(item.categories.map(c => c.slno))
-        setIsAddOpen(true)
-    }
-
-    const resetForm = () => {
-        setEditItem(null)
-        setContacts([{ contactPerson: "", contactEmail: "", contactNumber: "" }])
-        setAddresses([{ addressName: "", address: "" }])
-        setSelectedCategories([])
-    }
+    // Init form state when editing
+    useEffect(() => {
+        if (editItem) {
+            setContacts(editItem.contacts?.length ? editItem.contacts.map(c => ({ ...c, id: Math.random() })) : [{ id: Date.now(), contactPerson: "", contactEmail: "", contactNumber: "" }])
+            setAddresses(editItem.addresses?.length ? editItem.addresses.map(a => ({ ...a, id: Math.random() })) : [{ id: Date.now(), addressName: "", address: "" }])
+            setSelectedCategories(editItem.categories.map(c => c.slno))
+            setSelectedPaymentType(editItem.paymentTypeId ? editItem.paymentTypeId.toString() : "none")
+        } else {
+            setContacts([{ id: Date.now(), contactPerson: "", contactEmail: "", contactNumber: "" }])
+            setAddresses([{ id: Date.now(), addressName: "", address: "" }])
+            setSelectedCategories([])
+            setSelectedPaymentType("none")
+        }
+    }, [editItem, isAddOpen])
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
         const formData = new FormData(e.currentTarget)
-
         const payload = {
             slno: editItem ? editItem.slno : undefined,
             supplierName: formData.get("supplierName"),
@@ -165,10 +124,10 @@ export default function SupplierMasterPage() {
             usb: formData.get("usb"),
             isActive: formData.get("isActive") === "on",
             companyId: formData.get("companyId") === "global" ? null : (formData.get("companyId") || null),
-            paymentTypeId: formData.get("paymentTypeId") ? parseInt(formData.get("paymentTypeId") as string) : null,
+            paymentTypeId: selectedPaymentType && selectedPaymentType !== "none" ? parseInt(selectedPaymentType) : null,
             categories: selectedCategories,
-            contacts: contacts.filter(c => c.contactPerson.trim() !== ""),
-            addresses: addresses.filter(a => a.addressName.trim() !== "" && a.address.trim() !== "")
+            contacts: contacts.filter(c => c.contactPerson),
+            addresses: addresses.filter(a => a.addressName)
         }
 
         try {
@@ -180,6 +139,7 @@ export default function SupplierMasterPage() {
             if (res.ok) {
                 toast.success(editItem ? "Supplier updated" : "Supplier created")
                 setIsAddOpen(false)
+                setEditItem(null)
                 fetchData()
             } else {
                 const err = await res.json()
@@ -204,159 +164,63 @@ export default function SupplierMasterPage() {
     }
 
     const columns: ColumnDef<Supplier>[] = [
-        {
-            id: "index",
-            header: "Sl No.",
-            cell: ({ row }) => row.index + 1,
-        },
+        { id: "index", header: "Sl No.", cell: ({ row }) => row.index + 1 },
         {
             accessorKey: "companyId",
             header: "Company",
             cell: ({ row }) => {
-                const item = row.original as any;
-                const companyName = item.company?.name;
+                const companyName = row.original.company?.name;
                 if (!companyName) return <span className="text-zinc-700 bg-zinc-100 px-2 py-1 rounded text-xs font-medium border border-zinc-200">Global</span>;
-                const colors = [
-                    "bg-blue-100 text-blue-700 border-blue-200",
-                    "bg-purple-100 text-purple-700 border-purple-200",
-                    "bg-amber-100 text-amber-700 border-amber-200",
-                    "bg-emerald-100 text-emerald-700 border-emerald-200",
-                    "bg-rose-100 text-rose-700 border-rose-200",
-                    "bg-indigo-100 text-indigo-700 border-indigo-200",
-                    "bg-cyan-100 text-cyan-700 border-cyan-200"
-                ];
-                let hash = 0;
-                for (let i = 0; i < companyName.length; i++) hash = companyName.charCodeAt(i) + ((hash << 5) - hash);
-                const colorClass = colors[Math.abs(hash) % colors.length];
-                return <span className={`px-2 py-1 rounded text-xs font-medium border ${colorClass}`}>{companyName}</span>
+                return <span className="text-slate-700 font-medium">{companyName}</span>;
             }
         },
         {
             accessorKey: "supplierName",
-            header: ({ column }) => {
-                return (
-                    <Button variant="ghost" className="-ml-3 h-8 data-[state=open]:bg-accent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-                        Supplier Name
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                    </Button>
-                )
-            },
-            cell: ({ row }) => {
-                const item = row.original;
-                return (
-                    <HoverCard>
-                        <HoverCardTrigger asChild>
-                            <span className="cursor-pointer font-medium hover:underline text-emerald-700">{item.supplierName}</span>
-                        </HoverCardTrigger>
-                        <HoverCardContent className="w-80" side="right">
-                            <div className="space-y-2">
-                                <h4 className="text-sm font-semibold">{item.supplierName}</h4>
-                                <div className="text-xs text-muted-foreground">
-                                    <p><span className="font-semibold text-zinc-700">USB:</span> {item.usb || "N/A"}</p>
-                                    <p><span className="font-semibold text-zinc-700">Remarks:</span> {item.remarks || "N/A"}</p>
-                                </div>
-                                {item.contacts.length > 0 && (
-                                    <div className="pt-2 border-t text-xs">
-                                        <span className="font-semibold text-zinc-700 block mb-1">Contacts:</span>
-                                        {item.contacts.map((c, i) => (
-                                            <div key={i} className="mb-1 text-muted-foreground">{c.contactPerson} ({c.contactNumber || "N/A"})</div>
-                                        ))}
-                                    </div>
-                                )}
-                                {item.addresses.length > 0 && (
-                                    <div className="pt-2 border-t text-xs">
-                                        <span className="font-semibold text-zinc-700 block mb-1">Addresses:</span>
-                                        {item.addresses.map((a, i) => (
-                                            <div key={i} className="mb-1 text-muted-foreground"><span className="font-medium">{a.addressName}:</span> {a.address}</div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </HoverCardContent>
-                    </HoverCard>
-                )
-            }
+            header: ({ column }) => (<Button variant="ghost" className="-ml-3 h-8" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>Supplier Name <ArrowUpDown className="ml-2 h-4 w-4" /></Button>),
+            cell: ({ row }) => <span className="font-semibold text-emerald-700">{row.original.supplierName}</span>
         },
         {
             id: "categories",
-            header: ({ column }) => {
-                return (
-                    <Button variant="ghost" className="-ml-3 h-8 data-[state=open]:bg-accent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-                        Categories
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                    </Button>
-                )
-            },
-            accessorFn: (row) => row.categories.map(c => c.categoryName).join(", "),
+            header: "Categories",
             cell: ({ row }) => {
-                const cats = row.original.categories.map(c => c.categoryName).join(", ")
-                return <span className="truncate max-w-[200px] block">{cats || "-"}</span>
+                const cats = row.original.categories.map(c => c.categoryName).join(", ");
+                return <span className="text-sm">{cats || "-"}</span>
             }
         },
         {
-            id: "paymentType",
-            accessorFn: (row) => row.paymentType?.paymentType || "-",
-            header: ({ column }) => {
-                return (
-                    <Button variant="ghost" className="-ml-3 h-8 data-[state=open]:bg-accent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-                        Payment Type
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                    </Button>
-                )
-            },
-            cell: ({ row }) => row.original.paymentType?.paymentType || "-"
+            accessorKey: "paymentType",
+            header: "Payment Type",
+            cell: ({ row }) => <span className="text-sm">{row.original.paymentType?.paymentType || "-"}</span>
         },
         {
             accessorKey: "isActive",
-            header: ({ column }) => {
-                return (
-                    <Button variant="ghost" className="-ml-3 h-8 data-[state=open]:bg-accent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-                        Status
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                    </Button>
-                )
-            },
-            cell: ({ row }) => (
-                <span className={row.original.isActive ? "text-emerald-500 font-medium" : "text-zinc-500 font-medium"}>
-                    {row.original.isActive ? "Active" : "Inactive"}
-                </span>
-            )
+            header: "Status",
+            cell: ({ row }) => <span className={row.original.isActive ? "text-emerald-500 font-medium" : "text-red-500 font-medium"}>{row.original.isActive ? "Active" : "Inactive"}</span>
         },
         {
             id: "actions",
-            cell: ({ row }) => {
-                const item = row.original
-                return (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Open menu</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem className="text-zinc-700" onClick={() => openEdit(item)}>
-                                <Pencil className="mr-2 h-4 w-4" /> Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDelete(item.slno)} className="text-red-600">
-                                <Trash className="mr-2 h-4 w-4" /> Delete
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                )
-            },
-        },
+            cell: ({ row }) => (
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => { setEditItem(row.original); setIsAddOpen(true); }}><Pencil className="mr-2 h-4 w-4" /> Edit</DropdownMenuItem>
+                        <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(row.original.slno)}><Trash className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            )
+        }
     ]
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
+            <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-zinc-200 shadow-sm relative">
                 <div className="flex items-center gap-4">
-                    <h2 className="text-lg font-bold text-zinc-800">Configuration</h2>
+                    <span className="font-semibold text-zinc-900 border-r pr-4 border-zinc-200">Configuration</span>
                     <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
-                        <SelectTrigger className="w-[200px] h-9 bg-zinc-50 border-zinc-200">
-                            <SelectValue placeholder="All Companies" />
+                        <SelectTrigger className="w-[200px] border-none bg-zinc-50 font-medium">
+                            <SelectValue placeholder="Select Company" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">Global / All Companies</SelectItem>
@@ -366,148 +230,103 @@ export default function SupplierMasterPage() {
                         </SelectContent>
                     </Select>
                 </div>
-                <h2 className="text-lg font-medium">Suppliers</h2>
-                <Dialog open={isAddOpen} onOpenChange={(open) => {
-                    setIsAddOpen(open)
-                    if (!open) resetForm()
-                }}>
+                <Dialog open={isAddOpen} onOpenChange={(v) => { setIsAddOpen(v); if (!v) setEditItem(null); }}>
                     <DialogTrigger asChild>
-                        <Button className="bg-emerald-600 hover:bg-emerald-700">
-                            <Plus className="mr-2 h-4 w-4" /> Add Supplier
-                        </Button>
+                        <Button size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all font-semibold rounded-lg"><Plus className="w-4 h-4" /> Entry</Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                            <DialogTitle>{editItem ? "Edit Supplier" : "Add New Supplier"}</DialogTitle>
-                        </DialogHeader>
-                        <form onSubmit={handleSubmit} className="space-y-6">
-
-                            <div className="space-y-2 mb-4">
-                                <Label htmlFor="companyId">Company Context</Label>
-                                <Select name="companyId" defaultValue={editItem?.companyId || (selectedCompanyId !== "all" ? selectedCompanyId : "global")}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Global (All Companies)" />
-                                    </SelectTrigger>
+                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto hidden-scrollbar">
+                        <DialogHeader><DialogTitle className="text-xl">{editItem ? "Edit Supplier" : "Add New Supplier"}</DialogTitle></DialogHeader>
+                        <form onSubmit={handleSubmit} className="space-y-6 py-4">
+                            <div className="space-y-2"><Label>Company Context <span className="text-red-500">*</span></Label>
+                                <Select name="companyId" defaultValue={editItem?.companyId || "global"}>
+                                    <SelectTrigger><SelectValue placeholder="Global Mapping" /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="global">Global (All Companies)</SelectItem>
-                                        {companies.map(c => (
-                                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                        ))}
+                                        {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             </div>
-
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="supplierName">Supplier Name</Label>
-                                    <Input id="supplierName" name="supplierName" defaultValue={editItem?.supplierName} required />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="paymentTypeId">Payment Type</Label>
-                                    <select name="paymentTypeId" defaultValue={editItem?.paymentTypeId || ""} className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-                                        <option value="">Select Payment Type...</option>
-                                        {paymentTypes.map(pt => (
-                                            <option key={pt.slno} value={pt.slno}>{pt.paymentType}</option>
-                                        ))}
-                                    </select>
+                                <div className="space-y-2"><Label>Supplier Name <span className="text-red-500">*</span></Label><Input name="supplierName" defaultValue={editItem?.supplierName} required /></div>
+                                <div className="space-y-2"><Label>Payment Type</Label>
+                                    <Select value={selectedPaymentType} onValueChange={setSelectedPaymentType}>
+                                        <SelectTrigger><SelectValue placeholder="Select Payment Type..." /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none">None</SelectItem>
+                                            {paymentTypes.map(p => <SelectItem key={p.slno} value={p.slno.toString()}>{p.paymentType}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
-
-                            <div className="space-y-2">
-                                <Label>Categories</Label>
-                                <div className="p-3 border rounded-md max-h-32 overflow-y-auto grid grid-cols-2 gap-2">
-                                    {categories.map(cat => (
-                                        <label key={cat.slno} className="flex items-center gap-2 text-sm">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedCategories.includes(cat.slno)}
-                                                onChange={() => toggleCategory(cat.slno)}
-                                                className="rounded border-gray-300 text-emerald-600"
-                                            />
-                                            {cat.categoryName}
-                                        </label>
-                                    ))}
-                                </div>
+                            <div className="space-y-2 relative z-50">
+                                <Label>Categories <span className="text-red-500">*</span></Label>
+                                <CreatableCategorySelect
+                                    categories={categoriesMaster}
+                                    selectedIds={selectedCategories}
+                                    onChange={setSelectedCategories}
+                                    onCategoryCreated={(newCat) => setCategoriesMaster(prev => [newCat, ...prev])}
+                                    companyId={null}
+                                />
                             </div>
 
-                            {/* Contacts Section */}
-                            <div className="space-y-3">
-                                <div className="flex justify-between items-center">
-                                    <Label className="text-base font-semibold border-b pb-1">Contact Details</Label>
-                                    <Button type="button" size="sm" variant="outline" onClick={addContact}><Plus className="w-4 h-4 mr-1" /> Add Contact</Button>
+                            {/* Contact Details */}
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center border-b pb-2">
+                                    <h3 className="font-semibold text-zinc-900 underline underline-offset-4 decoration-2 decoration-emerald-500">Contact Details</h3>
+                                    <Button type="button" variant="outline" size="sm" onClick={() => setContacts([...contacts, { id: Date.now(), contactPerson: "", contactEmail: "", contactNumber: "" }])}><Plus className="mr-2 h-3 w-3" /> Add Contact</Button>
                                 </div>
-                                {contacts.map((contact, i) => (
-                                    <div key={i} className="flex items-end gap-2 bg-zinc-50 p-3 rounded-lg border border-zinc-100">
-                                        <div className="flex-1 space-y-1">
-                                            <Label className="text-xs">Person Name</Label>
-                                            <Input value={contact.contactPerson} onChange={e => updateContact(i, 'contactPerson', e.target.value)} required />
+                                {contacts.map((c, i) => (
+                                    <div key={c.id} className="grid grid-cols-3 gap-4 bg-zinc-50 p-4 border border-zinc-100 rounded-xl relative group">
+                                        <div className="space-y-2"><Label className="text-xs">Person Name <span className="text-red-500">*</span></Label>
+                                            <Input required value={c.contactPerson} onChange={e => setContacts(contacts.map(x => x.id === c.id ? { ...x, contactPerson: e.target.value } : x))} className="h-9" />
                                         </div>
-                                        <div className="flex-1 space-y-1">
-                                            <Label className="text-xs">Email</Label>
-                                            <Input type="email" value={contact.contactEmail} onChange={e => updateContact(i, 'contactEmail', e.target.value)} />
+                                        <div className="space-y-2"><Label className="text-xs">Email</Label>
+                                            <Input type="email" value={c.contactEmail} onChange={e => setContacts(contacts.map(x => x.id === c.id ? { ...x, contactEmail: e.target.value } : x))} className="h-9" />
                                         </div>
-                                        <div className="flex-1 space-y-1">
-                                            <Label className="text-xs">Number</Label>
-                                            <Input value={contact.contactNumber} onChange={e => updateContact(i, 'contactNumber', e.target.value)} />
+                                        <div className="space-y-2"><Label className="text-xs">Number</Label>
+                                            <Input type="tel" value={c.contactNumber} onChange={e => setContacts(contacts.map(x => x.id === c.id ? { ...x, contactNumber: e.target.value } : x))} className="h-9" />
                                         </div>
                                         {contacts.length > 1 && (
-                                            <Button type="button" variant="ghost" size="icon" className="text-red-500 hover:text-red-700" onClick={() => removeContact(i)}><Trash className="w-4 h-4" /></Button>
+                                            <button type="button" onClick={() => setContacts(contacts.filter(item => item.id !== c.id))} className="absolute -top-2 -right-2 bg-red-100 text-red-600 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Trash className="w-4 h-4" /></button>
                                         )}
                                     </div>
                                 ))}
                             </div>
 
-                            {/* Address Section */}
-                            <div className="space-y-3">
-                                <div className="flex justify-between items-center">
-                                    <Label className="text-base font-semibold border-b pb-1">Addresses</Label>
-                                    <Button type="button" size="sm" variant="outline" onClick={addAddress}><Plus className="w-4 h-4 mr-1" /> Add Address</Button>
+                            {/* Addresses */}
+                            <div className="space-y-4 mt-6">
+                                <div className="flex justify-between items-center border-b pb-2">
+                                    <h3 className="font-semibold text-zinc-900 underline underline-offset-4 decoration-2 decoration-emerald-500">Addresses</h3>
+                                    <Button type="button" variant="outline" size="sm" onClick={() => setAddresses([...addresses, { id: Date.now(), addressName: "", address: "" }])}><Plus className="mr-2 h-3 w-3" /> Add Address</Button>
                                 </div>
-                                {addresses.map((address, i) => (
-                                    <div key={i} className="flex flex-col gap-2 bg-zinc-50 p-3 rounded-lg border border-zinc-100 relative">
+                                {addresses.map((a, i) => (
+                                    <div key={a.id} className="space-y-4 bg-zinc-50 p-4 border border-zinc-100 rounded-xl relative group">
+                                        <div className="space-y-2"><Label className="text-xs">Address Name (e.g. Shipping) <span className="text-red-500">*</span></Label>
+                                            <Input required value={a.addressName} onChange={e => setAddresses(addresses.map(x => x.id === a.id ? { ...x, addressName: e.target.value } : x))} className="h-9" />
+                                        </div>
+                                        <div className="space-y-2"><Label className="text-xs">Full Address <span className="text-red-500">*</span></Label>
+                                            <Textarea required value={a.address} onChange={e => setAddresses(addresses.map(x => x.id === a.id ? { ...x, address: e.target.value } : x))} className="resize-none" rows={3} />
+                                        </div>
                                         {addresses.length > 1 && (
-                                            <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 text-red-500 hover:text-red-700 h-6 w-6" onClick={() => removeAddress(i)}><Trash className="w-3 h-3" /></Button>
+                                            <button type="button" onClick={() => setAddresses(addresses.filter(item => item.id !== a.id))} className="absolute -top-2 -right-2 bg-red-100 text-red-600 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Trash className="w-4 h-4" /></button>
                                         )}
-                                        <div className="space-y-1 w-2/3">
-                                            <Label className="text-xs">Address Name (e.g. Shipping)</Label>
-                                            <Input value={address.addressName} onChange={e => updateAddress(i, 'addressName', e.target.value)} required />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-xs">Full Address</Label>
-                                            <Textarea value={address.address} onChange={e => updateAddress(i, 'address', e.target.value)} required />
-                                        </div>
                                     </div>
                                 ))}
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="usb">USB (Unique Selling Proposition)</Label>
-                                    <Input id="usb" name="usb" defaultValue={editItem?.usb || ''} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="remarks">Remarks</Label>
-                                    <Input id="remarks" name="remarks" defaultValue={editItem?.remarks || ''} />
-                                </div>
+                                <div className="space-y-2"><Label>USB (Unique Selling Proposition)</Label><Input name="usb" defaultValue={editItem?.usb} /></div>
+                                <div className="space-y-2"><Label>Remarks</Label><Input name="remarks" defaultValue={editItem?.remarks} /></div>
                             </div>
-
-                            <div className="flex items-center justify-between border-t pt-4">
-                                <Label htmlFor="isActive">Active Status</Label>
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" name="isActive" className="sr-only peer" defaultChecked={editItem ? editItem.isActive : true} />
-                                    <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                                </label>
-                            </div>
-
-                            <DialogFooter>
-                                <Button type="submit">{editItem ? "Update" : "Create"} Supplier</Button>
-                            </DialogFooter>
+                            <div className="flex items-center justify-between border-t pt-4"><Label className="font-semibold text-sm">Active Status</Label><Switch name="isActive" defaultChecked={editItem ? editItem.isActive : true} /></div>
+                            <div className="flex justify-end pt-4"><Button type="submit" className="bg-zinc-900 text-white hover:bg-zinc-800">{editItem ? "Update Supplier" : "Create Supplier"}</Button></div>
                         </form>
                     </DialogContent>
                 </Dialog>
             </div>
-
-            <DataTable columns={columns} data={data} searchKey="supplierName" />
+            <div className="bg-white rounded-xl border border-zinc-200 p-2 shadow-sm">
+                <DataTable columns={columns} data={data} searchKey="supplierName" />
+            </div>
         </div>
     )
 }

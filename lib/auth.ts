@@ -33,8 +33,8 @@ export async function getSession() {
     return await decrypt(session);
 }
 
-export async function login(userData: { id: string; email: string; name: string; image?: string; role: string }) {
-    const maxAge = 5 * 60; // 5 Minutes strict
+export async function login(userData: { id: string; email: string; name: string; image?: string; role: string; roleId?: string }) {
+    const maxAge = 30 * 60; // 30 Minutes strict
     const expires = new Date(Date.now() + maxAge * 1000);
     const session = await encrypt({ user: userData, expires });
 
@@ -58,7 +58,7 @@ export async function updateSession(request: NextRequest) {
     // Prevent token bloat by stripping previous JWT metadata
     const { iat, exp, ...cleanPayload } = parsed;
 
-    const maxAge = 5 * 60; // 5 Minutes strict
+    const maxAge = 30 * 60; // 30 Minutes strict
     cleanPayload.expires = new Date(Date.now() + maxAge * 1000);
 
     const res = NextResponse.next();

@@ -112,7 +112,7 @@ export default function SupplyChainPage() {
                 </div>
                 <Button onClick={() => setIsEntryOpen(true)} size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all h-9 rounded-full px-5">
                     <Plus className="w-4 h-4" />
-                    New Request
+                    Entry
                 </Button>
             </div>
 
