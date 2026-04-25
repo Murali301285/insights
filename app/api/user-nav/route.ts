@@ -101,7 +101,9 @@ export async function GET() {
             }
         });
 
-        const sortedNav = Array.from(navMap.values()).sort((a: any, b: any) => a.orderIndex - b.orderIndex);
+        const sortedNav = Array.from(navMap.values())
+            .filter((a: any) => a.title !== 'Inventory')
+            .sort((a: any, b: any) => a.orderIndex - b.orderIndex);
 
         return NextResponse.json(sortedNav);
     } catch (error: any) {

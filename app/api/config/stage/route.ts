@@ -10,7 +10,7 @@ export async function GET(req: Request) {
         const items = await prisma.stageMaster.findMany({
             where: {
                 isDelete: false,
-                ...(companyId ? { companyId } : {})
+                ...(companyId ? { OR: [{ companyId }, { companyId: null }] } : {})
             },
             include: { company: true },
             orderBy: { order: 'asc' }

@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
+import { CreatableCategorySelect } from "@/components/ui/creatable-category-select"
 
 type MasterData = {
     customers: any[]
@@ -197,6 +198,7 @@ export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () 
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [opportunities, setOpportunities] = useState<any[]>([])
+    const [weeklyItems, setWeeklyItems] = useState<string[]>([])
     const [masters, setMasters] = useState<MasterData>({
         customers: [], categories: [], paymentTypes: [], zones: [], statuses: [], users: []
     })
@@ -253,22 +255,24 @@ export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () 
         setLoading(true)
         try {
             const qs = `?companyId=${activeCompanyId}`;
-            const [custRes, catRes, payRes, zoneRes, statRes, usrRes, oppRes] = await Promise.all([
+            const [custRes, catRes, payRes, zoneRes, statRes, usrRes, oppRes, wrRes] = await Promise.all([
                 fetch(`/api/config/customer${qs}`),
                 fetch("/api/config/category"),
                 fetch("/api/config/payment-type"),
                 fetch(`/api/config/zone${qs}`),
                 fetch(`/api/config/status${qs}`),
                 fetch("/api/config/user"),
-                fetch(`/api/sales/opportunities${qs}`)
+                fetch(`/api/sales/opportunities${qs}`),
+                fetch('/api/weekly-review?type=items')
             ])
 
-            const [customers, categories, paymentTypes, zones, statuses, users, opps] = await Promise.all([
-                custRes.json(), catRes.json(), payRes.json(), zoneRes.json(), statRes.json(), usrRes.json(), oppRes.json()
+            const [customers, categories, paymentTypes, zones, statuses, users, opps, wrItems] = await Promise.all([
+                custRes.json(), catRes.json(), payRes.json(), zoneRes.json(), statRes.json(), usrRes.json(), oppRes.json(), wrRes.json()
             ])
 
             setMasters({ customers, categories, paymentTypes, zones, statuses, users })
             setOpportunities(Array.isArray(opps) ? opps : [])
+            setWeeklyItems(Array.isArray(wrItems) ? wrItems.filter((i: any) => i.module === 'sales').map((i: any) => i.itemId) : [])
 
             // Auto select initial status if available
             if (Array.isArray(statuses) && statuses.length > 0 && !newEntry.statusId) {
@@ -345,9 +349,15 @@ export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () 
 
     const fetchOpportunities = async () => {
         try {
-            const res = await fetch(`/api/sales/opportunities?companyId=${activeCompanyId}`)
+            const [res, wrRes] = await Promise.all([
+                fetch(`/api/sales/opportunities?companyId=${activeCompanyId}`),
+                fetch('/api/weekly-review?type=items')
+            ])
             const opps = await res.json()
+            const wrItems = await wrRes.json()
+            
             setOpportunities(Array.isArray(opps) ? opps : [])
+            setWeeklyItems(Array.isArray(wrItems) ? wrItems.filter((i: any) => i.module === 'sales').map((i: any) => i.itemId) : [])
 
             // Update viewOpp if it's currently open
             if (viewOpp) {
@@ -355,6 +365,27 @@ export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () 
                 if (updated) setViewOpp(updated)
             }
         } catch (e) { }
+    }
+
+    const toggleWeeklyReview = async (id: string) => {
+        try {
+            const res = await fetch("/api/weekly-review", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "toggle_item", module: "sales", itemId: id })
+            })
+            if (res.ok) {
+                if (weeklyItems.includes(id)) {
+                    setWeeklyItems(weeklyItems.filter(i => i !== id))
+                    toast.success("Removed from Weekly Review")
+                } else {
+                    setWeeklyItems([...weeklyItems, id])
+                    toast.success("Added to Weekly Review")
+                }
+            }
+        } catch (e) {
+            toast.error("Failed to update weekly review status")
+        }
     }
 
     const handleDelete = async (id: string) => {
@@ -648,13 +679,17 @@ export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () 
                             else if (statusLower.includes('loss') || statusLower.includes('lost') || statusLower.includes('cancel')) statusColor = "bg-rose-100 text-rose-700 border-rose-200";
 
                             const isClosed = statusLower.includes('win') || statusLower.includes('order') || statusLower.includes('loss') || statusLower.includes('lost') || statusLower.includes('cancel');
+                            const isWeekly = weeklyItems.includes(opp.id);
 
                             return (
-                                <tr key={opp.id} className="hover:bg-zinc-50/80 group transition-colors">
-                                    <td className="p-3 border-zinc-50 font-medium text-zinc-400 sticky left-0 z-10 bg-white group-hover:bg-zinc-50/80">
-                                        {(currentPage - 1) * (pageSize === -1 ? sortedOpportunities.length : pageSize) + idx + 1}
+                                <tr key={opp.id} className={cn("group transition-colors", isWeekly ? "bg-violet-50/60 hover:bg-violet-100/60" : "hover:bg-zinc-50/80")}>
+                                    <td className={cn("p-3 border-zinc-50 font-medium sticky left-0 z-10 transition-colors shadow-[1px_0_0_0_#e4e4e7]", isWeekly ? "text-violet-800 bg-violet-50/60 group-hover:bg-violet-100/60" : "text-zinc-400 bg-white group-hover:bg-zinc-50/80")}>
+                                        <div className="flex items-center gap-2">
+                                            {isWeekly && <div className="w-1.5 h-1.5 rounded-full bg-violet-600 animate-pulse" title="Marked for Weekly Review" />}
+                                            {(currentPage - 1) * (pageSize === -1 ? sortedOpportunities.length : pageSize) + idx + 1}
+                                        </div>
                                     </td>
-                                    <td className="p-3 border-zinc-50 font-bold text-emerald-700 tracking-wider bg-white group-hover:bg-zinc-50/80">
+                                    <td className={cn("p-3 border-zinc-50 font-bold tracking-wider transition-colors", isWeekly ? "text-violet-900 bg-violet-50/60 group-hover:bg-violet-100/60" : "text-emerald-700 bg-white group-hover:bg-zinc-50/80")}>
                                         {opp.oppNumber || opp.slno}
                                     </td>
                                     <td className="p-3 border-zinc-50 text-zinc-600">{formatDisplayDate(opp.date)}</td>
@@ -668,8 +703,17 @@ export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () 
                                         </span>
                                     </td>
                                     <td className="p-3 text-zinc-600">{opp.incharge?.profileName || opp.incharge?.email || '-'}</td>
-                                    <td className="p-2 sticky right-0 z-10 bg-white shadow-[-1px_0_0_0_#e4e4e7] border-l border-zinc-200 text-center group-hover:bg-zinc-50/80">
-                                        <div className="flex justify-center gap-1">
+                                    <td className={cn("p-2 sticky right-0 z-10 shadow-[-1px_0_0_0_#e4e4e7] border-l border-zinc-200 text-center transition-colors", isWeekly ? "bg-violet-50/60 group-hover:bg-violet-100/60" : "bg-white group-hover:bg-zinc-50/80")}>
+                                        <div className="flex justify-center gap-1 items-center">
+                                            <button 
+                                                onClick={() => toggleWeeklyReview(opp.id)}
+                                                className="p-1 hover:bg-zinc-200/50 rounded text-zinc-400 hover:text-violet-600 transition-colors"
+                                                title={isWeekly ? "Remove from Weekly Review" : "Add for Weekly Review"}
+                                            >
+                                                <div className={cn("w-4 h-4 border rounded flex items-center justify-center", isWeekly ? "bg-violet-600 border-violet-600" : "border-zinc-300")}>
+                                                    {isWeekly && <Check className="w-3 h-3 text-white" />}
+                                                </div>
+                                            </button>
                                             {!isClosed && new Date(opp.createdAt || opp.date).toDateString() === new Date().toDateString() && (
                                                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => handleEditClick(opp)}>
                                                     <Pencil className="w-4 h-4" />
@@ -925,13 +969,13 @@ export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () 
                         </div>
                         <div className="space-y-1.5">
                             <Label className="text-xs font-bold text-zinc-700 uppercase tracking-widest">Category <span className="text-rose-500">*</span></Label>
-                            <CreatableMultiSelect 
-                                items={categoryOpts} 
-                                values={newEntry.categoryIds} 
-                                onChange={(v: any) => setNewEntry({ ...newEntry, categoryIds: v })} 
-                                placeholder="Select Categories"
-                                activeCompanyId={activeCompanyId}
-                                onOptionCreated={(newCat: any) => {
+                            <CreatableCategorySelect 
+                                categories={masters.categories} 
+                                selectedIds={newEntry.categoryIds.map(Number)} 
+                                onChange={(v: number[]) => setNewEntry({ ...newEntry, categoryIds: v.map(String) })} 
+                                companyId={activeCompanyId}
+                                apiEndpoint="/api/config/category"
+                                onCategoryCreated={(newCat: any) => {
                                     setMasters(prev => ({
                                         ...prev,
                                         categories: [newCat, ...prev.categories]

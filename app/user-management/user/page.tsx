@@ -61,6 +61,19 @@ export default function UserManagementPage() {
     const [hasGlobalAccess, setHasGlobalAccess] = useState<boolean>(false)
     const [hasVaultAccess, setHasVaultAccess] = useState<boolean>(false)
 
+    const [generatedPassword, setGeneratedPassword] = useState("")
+    const [isTempPassword, setIsTempPassword] = useState(false)
+
+    const generateTempPassword = () => {
+        const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'
+        let pass = ''
+        for (let i = 0; i < 8; i++) {
+            pass += chars.charAt(Math.floor(Math.random() * chars.length))
+        }
+        setGeneratedPassword(pass)
+        setIsTempPassword(true)
+    }
+
     const toggleCompany = (id: string) => {
         if (selectedCompanyIds.includes(id)) setSelectedCompanyIds(selectedCompanyIds.filter(c => c !== id))
         else setSelectedCompanyIds([...selectedCompanyIds, id])
@@ -71,6 +84,8 @@ export default function UserManagementPage() {
         setSelectedCompanyIds([])
         setHasGlobalAccess(false)
         setHasVaultAccess(false)
+        setGeneratedPassword("")
+        setIsTempPassword(false)
     }
 
     const openEdit = (user: User) => {
@@ -117,7 +132,8 @@ export default function UserManagementPage() {
             companyIds: selectedCompanyIds,
             hasGlobalAccess,
             hasVaultAccess,
-            isBlocked: formData.get("isBlocked") === "on"
+            isBlocked: formData.get("isBlocked") === "on",
+            isTempPassword
         }
 
         try {
@@ -351,8 +367,31 @@ export default function UserManagementPage() {
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="password">Password</Label>
-                                    <Input id="password" name="password" type="password" required autoComplete="new-password" />
+                                    <div className="flex justify-between items-center">
+                                        <Label htmlFor="password">Password</Label>
+                                        <button 
+                                            type="button" 
+                                            onClick={generateTempPassword}
+                                            className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 hover:bg-indigo-100 transition-colors"
+                                        >
+                                            Generate
+                                        </button>
+                                    </div>
+                                    <Input 
+                                        id="password" 
+                                        name="password" 
+                                        type="text" 
+                                        required 
+                                        autoComplete="new-password" 
+                                        value={generatedPassword}
+                                        onChange={(e) => {
+                                            setGeneratedPassword(e.target.value)
+                                            setIsTempPassword(false) // User is typing custom password
+                                        }}
+                                    />
+                                    {isTempPassword && (
+                                        <p className="text-[10px] text-emerald-600 font-medium mt-1">Temp password generated. They will be asked to reset it on first login.</p>
+                                    )}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="roleId">Role</Label>

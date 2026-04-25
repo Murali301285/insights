@@ -44,12 +44,14 @@ interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[]
     data: TData[]
     searchKey?: string
+    rowClassName?: (row: TData) => string
 }
 
 export function DataTable<TData, TValue>({
     columns,
     data,
     searchKey = "name",
+    rowClassName,
 }: DataTableProps<TData, TValue>) {
     const [sorting, setSorting] = React.useState<SortingState>([])
     const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -201,6 +203,7 @@ export function DataTable<TData, TValue>({
                                 <TableRow
                                     key={row.id}
                                     data-state={row.getIsSelected() && "selected"}
+                                    className={rowClassName ? rowClassName(row.original) : undefined}
                                 >
                                     {row.getVisibleCells().map((cell, index) => {
                                         const isFirst = index === 0;

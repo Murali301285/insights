@@ -340,13 +340,58 @@ export default function TasksPage() {
                                             <SelectContent>
                                                 {projectList.map(p => (
                                                     <SelectItem key={p.id} value={p.id}>
-                                                        {projectType === "acquisition" ? `${p.oppNumber} - ${p.opportunityName}` : `${p.orderNo} - ${p.opportunity?.opportunityName || ''}`}
+                                                        {projectType === "acquisition" ? `${p.oppNumber || p.slno} - ${p.opportunityName}` : `${p.orderNo} - ${p.opportunity?.opportunityName || ''}`}
                                                     </SelectItem>
                                                 ))}
                                                 {projectList.length === 0 && <SelectItem value="none" disabled>No items found</SelectItem>}
                                             </SelectContent>
                                         </Select>
                                     </div>
+                                    
+                                    {selectedProject && selectedProject !== 'none' && (
+                                        <div className="col-span-3 mt-2">
+                                            {projectType === "fulfillment" && (() => {
+                                                const matchedOrder = projectList.find(p => p.id === selectedProject);
+                                                if (!matchedOrder) return null;
+                                                return (
+                                                    <div className="bg-indigo-50/50 border border-indigo-100 p-4 rounded-xl text-xs leading-relaxed text-indigo-900 grid grid-cols-2 gap-y-3 gap-x-4 uppercase font-semibold">
+                                                        <div className="col-span-2">
+                                                            <span className="text-indigo-950 font-bold">PROJECT BRIEF:</span> <span className="italic font-medium text-indigo-700 normal-case">{matchedOrder.opportunity?.opportunityName || 'No project metadata recorded.'}</span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-indigo-950 font-bold">CUSTOMER NAME:</span> <span className="italic font-medium text-indigo-700 normal-case">{matchedOrder.opportunity?.customer?.customerName || '-'}</span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-indigo-950 font-bold">CURRENT STAGE:</span> <span className="italic font-medium text-indigo-700 normal-case">{matchedOrder.currentStage?.stageName || 'Unassigned'}</span>
+                                                        </div>
+                                                        <div className="col-span-2">
+                                                            <span className="text-indigo-950 font-bold">INCHARGE:</span> <span className="italic font-medium text-indigo-700 normal-case">{matchedOrder.incharge?.profileName || matchedOrder.incharge?.name || 'Unassigned'}</span>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })()}
+                                            {projectType === "acquisition" && (() => {
+                                                const matchedOpp = projectList.find(p => p.id === selectedProject);
+                                                if (!matchedOpp) return null;
+                                                return (
+                                                    <div className="bg-indigo-50/50 border border-indigo-100 p-4 rounded-xl text-xs leading-relaxed text-indigo-900 grid grid-cols-2 gap-y-3 gap-x-4 uppercase font-semibold">
+                                                        <div className="col-span-2">
+                                                            <span className="text-indigo-950 font-bold">PROJECT BRIEF:</span> <span className="italic font-medium text-indigo-700 normal-case">{matchedOpp.opportunityName || 'App'}</span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-indigo-950 font-bold">CUSTOMER NAME:</span> <span className="italic font-medium text-indigo-700 normal-case">{matchedOpp.customer?.customerName || 'SiloTech'}</span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-indigo-950 font-bold">CURRENT STAGE:</span> <span className="italic font-medium text-indigo-700 normal-case">{matchedOpp.status?.statusName || 'Unassigned'}</span>
+                                                        </div>
+                                                        <div className="col-span-2">
+                                                            <span className="text-indigo-950 font-bold">INCHARGE:</span> <span className="italic font-medium text-indigo-700 normal-case">{matchedOpp.incharge?.profileName || matchedOpp.incharge?.name || 'Murali K'}</span>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })()}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">

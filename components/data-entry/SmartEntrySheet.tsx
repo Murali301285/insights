@@ -214,10 +214,16 @@ export function SmartEntrySheet({ isOpen, onClose, category }: SmartEntrySheetPr
                 setLogs(data)
             } else {
                 setLogs([])
-                console.error("Fetched records is not an array:", data)
+                if (data && data.error) {
+                    toast.error(`Error: ${data.error}`)
+                    console.error("API returned error:", data.error)
+                } else {
+                    console.error("Fetched records is not an array:", JSON.stringify(data))
+                }
             }
         } catch (e) {
-            console.error("Failed to fetch records")
+            setLogs([])
+            console.error("Failed to fetch records:", e)
         }
     }
 

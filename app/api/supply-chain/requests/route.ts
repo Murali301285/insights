@@ -114,6 +114,8 @@ export async function PUT(req: NextRequest) {
                 updatedBy: session.user.name || 'System'
             };
 
+            if (!existing) return NextResponse.json({ error: "Request not found" }, { status: 404 });
+            
             const history = Array.isArray(existing.stageHistory) ? existing.stageHistory : [];
 
             // @ts-ignore

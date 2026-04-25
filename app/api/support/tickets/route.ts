@@ -20,7 +20,17 @@ export async function GET(req: NextRequest) {
             orderBy: { createdAt: 'desc' }
         });
 
-        return NextResponse.json(tickets);
+        const mappedTickets = tickets.map((t: any) => {
+            if (t.incharge) {
+                t.incharge.name = t.incharge.profileName || (t.incharge.firstName && t.incharge.lastName ? `${t.incharge.firstName} ${t.incharge.lastName}`.trim() : null) || t.incharge.username || t.incharge.email;
+            }
+            if (t.opportunity?.incharge) {
+                t.opportunity.incharge.name = t.opportunity.incharge.profileName || (t.opportunity.incharge.firstName && t.opportunity.incharge.lastName ? `${t.opportunity.incharge.firstName} ${t.opportunity.incharge.lastName}`.trim() : null) || t.opportunity.incharge.username || t.opportunity.incharge.email;
+            }
+            return t;
+        });
+
+        return NextResponse.json(mappedTickets);
     } catch (error) {
         console.error("SupportTicket GET Error:", error);
         return NextResponse.json({ error: "Failed to fetch tickets" }, { status: 500 });

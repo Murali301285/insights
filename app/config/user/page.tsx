@@ -50,6 +50,19 @@ export default function UserConfigPage() {
     const [selectedPrimaryManager, setSelectedPrimaryManager] = useState<string>("none")
     const [selectedSecondaryManager, setSelectedSecondaryManager] = useState<string>("none")
 
+    const [generatedPassword, setGeneratedPassword] = useState("")
+    const [isTempPassword, setIsTempPassword] = useState(false)
+
+    const generateTempPassword = () => {
+        const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'
+        let pass = ''
+        for (let i = 0; i < 8; i++) {
+            pass += chars.charAt(Math.floor(Math.random() * chars.length))
+        }
+        setGeneratedPassword(pass)
+        setIsTempPassword(true)
+    }
+
     useEffect(() => {
         setHeaderInfo("User Management", "Configure and manage employee accounts and RBAC.")
         fetchInitialData()
@@ -82,6 +95,8 @@ export default function UserConfigPage() {
         setSelectedRole("")
         setSelectedPrimaryManager("none")
         setSelectedSecondaryManager("none")
+        setGeneratedPassword("")
+        setIsTempPassword(false)
         setIsAddOpen(true)
     }
 
@@ -128,6 +143,7 @@ export default function UserConfigPage() {
         payload.primaryManagerId = selectedPrimaryManager === 'none' ? null : selectedPrimaryManager
         payload.secondaryManagerId = selectedSecondaryManager === 'none' ? null : selectedSecondaryManager
         payload.isBlocked = payload.isActive !== 'on'
+        payload.isTempPassword = isTempPassword
         delete payload.isActive
         delete payload.confirmPassword
 
@@ -226,12 +242,44 @@ export default function UserConfigPage() {
             {/* Passwords */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label>Password {defaultData ? "" : <span className="text-red-500">*</span>}</Label>
-                    <Input name="password" type="password" required={!defaultData} placeholder={defaultData ? "Leave blank to keep current" : ""} autoComplete="new-password" />
+                    <div className="flex justify-between items-center">
+                        <Label>Password {defaultData ? "" : <span className="text-red-500">*</span>}</Label>
+                        {!defaultData && (
+                            <button 
+                                type="button" 
+                                onClick={generateTempPassword}
+                                className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                            >
+                                Generate
+                            </button>
+                        )}
+                    </div>
+                    <Input 
+                        name="password" 
+                        type="text" 
+                        required={!defaultData} 
+                        placeholder={defaultData ? "Leave blank to keep current" : ""} 
+                        autoComplete="new-password"
+                        defaultValue={!defaultData ? generatedPassword : undefined}
+                        key={`pass-${generatedPassword}`}
+                        onChange={(e) => {
+                            if (!defaultData) setIsTempPassword(false)
+                        }}
+                    />
+                    {!defaultData && isTempPassword && (
+                        <p className="text-[10px] text-emerald-600 font-medium mt-1">Temp password generated. They will be asked to reset it.</p>
+                    )}
                 </div>
                 <div className="space-y-2">
                     <Label>Confirm Password {defaultData ? "" : <span className="text-red-500">*</span>}</Label>
-                    <Input name="confirmPassword" type="password" required={!defaultData} autoComplete="new-password" />
+                    <Input 
+                        name="confirmPassword" 
+                        type="text" 
+                        required={!defaultData} 
+                        autoComplete="new-password" 
+                        defaultValue={!defaultData ? generatedPassword : undefined}
+                        key={`cpass-${generatedPassword}`}
+                    />
                 </div>
             </div>
 

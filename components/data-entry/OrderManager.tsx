@@ -27,6 +27,7 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
     const [orders, setOrders] = useState<any[]>([])
     const [stages, setStages] = useState<any[]>([])
     const [users, setUsers] = useState<any[]>([])
+    const [weeklyItems, setWeeklyItems] = useState<string[]>([])
     const [loading, setLoading] = useState(true)
 
     const [viewOrder, setViewOrder] = useState<any>(null)
@@ -45,18 +46,44 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
         setLoading(true)
         try {
             const url = activeCompanyId ? `/api/manufacturing/orders?companyId=${activeCompanyId}` : `/api/manufacturing/orders`;
-            const [ordersRes, stageRes, userRes] = await Promise.all([
+            const [ordersRes, stageRes, userRes, wrRes] = await Promise.all([
                 fetch(url),
                 fetch("/api/config/stage"),
-                fetch("/api/users")
+                fetch("/api/users"),
+                fetch("/api/weekly-review?type=items")
             ]);
             if (ordersRes.ok) setOrders(await ordersRes.json());
             if (stageRes.ok) setStages(await stageRes.json());
             if (userRes.ok) setUsers(await userRes.json());
+            if (wrRes.ok) {
+                const wrItems = await wrRes.json();
+                setWeeklyItems(Array.isArray(wrItems) ? wrItems.filter((i: any) => i.module === 'manufacturing').map((i: any) => i.itemId) : []);
+            }
         } catch (error) {
             toast.error("Failed to load Orders")
         } finally {
             setLoading(false)
+        }
+    }
+
+    const toggleWeeklyReview = async (id: string) => {
+        try {
+            const res = await fetch("/api/weekly-review", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "toggle_item", module: "manufacturing", itemId: id })
+            });
+            if (res.ok) {
+                if (weeklyItems.includes(id)) {
+                    setWeeklyItems(weeklyItems.filter(i => i !== id));
+                    toast.success("Removed from Weekly Review");
+                } else {
+                    setWeeklyItems([...weeklyItems, id]);
+                    toast.success("Added to Weekly Review");
+                }
+            }
+        } catch (e) {
+            toast.error("Failed to update weekly review status");
         }
     }
 
@@ -246,11 +273,17 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
         {
             accessorKey: "orderNo",
             header: "Order No.",
-            cell: ({ row }) => (
-                <div className="font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100/50 inline-block shadow-sm">
-                    {row.original.orderNo}
-                </div>
-            )
+            cell: ({ row }) => {
+                const isWeekly = weeklyItems.includes(row.original.id);
+                return (
+                    <div className="flex items-center gap-2">
+                        {isWeekly && <div className="w-1.5 h-1.5 rounded-full bg-violet-600 animate-pulse" title="Marked for Weekly Review" />}
+                        <div className={cn("font-bold px-2.5 py-1 rounded-md border inline-block shadow-sm", isWeekly ? "text-violet-900 bg-violet-100 border-violet-200/50" : "text-emerald-700 bg-emerald-50 border-emerald-100/50")}>
+                            {row.original.orderNo}
+                        </div>
+                    </div>
+                );
+            }
         },
         {
             id: "customer",
@@ -379,8 +412,18 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
             header: "Action",
             cell: ({ row }) => {
                 const item = row.original;
+                const isWeekly = weeklyItems.includes(item.id);
                 return (
-                    <div className="flex gap-2 items-center">
+                    <div className="flex gap-1.5 items-center">
+                        <button 
+                            onClick={() => toggleWeeklyReview(item.id)}
+                            className="p-1 hover:bg-zinc-200/50 rounded text-zinc-400 hover:text-violet-600 transition-colors"
+                            title={isWeekly ? "Remove from Weekly Review" : "Add for Weekly Review"}
+                        >
+                            <div className={cn("w-4 h-4 border rounded flex items-center justify-center", isWeekly ? "bg-violet-600 border-violet-600" : "border-zinc-300")}>
+                                {isWeekly && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                        </button>
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" onClick={() => setViewOrder(item)}>
                             <Eye className="w-4 h-4" />
                         </Button>
@@ -434,7 +477,12 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
                         <span className="text-sm font-medium text-zinc-500 animate-pulse">Fetching orders...</span>
                     </div>
                 ) : (
-                    <DataTable columns={columns} data={displayedOrders} searchKey="orderNo" />
+                    <DataTable 
+                        columns={columns} 
+                        data={displayedOrders} 
+                        searchKey="orderNo" 
+                        rowClassName={(row) => weeklyItems.includes(row.id) ? "[&>td]:!bg-violet-50/60 hover:[&>td]:!bg-violet-100/60" : ""}
+                    />
                 )}
             </div>
 

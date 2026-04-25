@@ -80,7 +80,7 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json();
-        const { companyId, description, assignedToId, function: funcName, projectId, otherProject, dueDate, priority } = body;
+        const { companyId, title, description, assignedToId, function: funcName, projectId, otherProject, startDate, dueDate, priority, estimatedHrs } = body;
 
         const actualCompanyId = companyId || (dbUser.companies && dbUser.companies[0]?.id);
 
@@ -91,13 +91,16 @@ export async function POST(req: Request) {
         const task = await prisma.task.create({
             data: {
                 companyId: actualCompanyId,
+                title: title || null,
                 description,
                 assignedById: dbUser.id,
                 assignedToId,
                 function: funcName,
                 projectId: projectId || null,
                 otherProject: otherProject || null,
+                startDate: startDate ? new Date(startDate) : null,
                 dueDate: new Date(dueDate),
+                estimatedHrs: estimatedHrs || null,
                 priority: priority || 'medium',
                 status: 'Pending'
             }

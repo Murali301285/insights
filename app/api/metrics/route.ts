@@ -254,7 +254,7 @@ export async function GET(request: NextRequest) {
                 oppName: h.opportunity.opportunityName,
                 customerName: h.opportunity.customer?.customerName || '-',
                 value: h.opportunity.value,
-                statusName: h.status.statusName,
+                statusName: h.status?.statusName || 'Unknown',
                 date: h.startDate,
             }));
             

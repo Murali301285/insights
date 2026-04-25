@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
         const data = await prisma.customerCategoryMaster.findMany({
             where: {
                 isDelete: false,
-                ...(companyId ? { companyId } : {})
+                ...(companyId ? { OR: [{ companyId }, { companyId: null }] } : {})
             },
             include: { company: true },
             orderBy: { slno: 'desc' }

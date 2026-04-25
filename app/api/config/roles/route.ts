@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
 
         const roles = await prisma.role.findMany({
             where: {
-                ...(companyId ? { companyId } : {})
+                ...(companyId ? { OR: [{ companyId }, { companyId: null }] } : {})
             },
             include: { company: true },
             orderBy: { name: 'asc' }

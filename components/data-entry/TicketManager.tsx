@@ -24,6 +24,7 @@ interface TicketManagerProps {
 export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
     const [loading, setLoading] = useState(false)
     const [tickets, setTickets] = useState<any[]>([])
+    const [weeklyItems, setWeeklyItems] = useState<string[]>([])
     const [viewTab, setViewTab] = useState<'INTERNAL' | 'EXTERNAL'>('INTERNAL')
     const [statusTab, setStatusTab] = useState<'OPEN' | 'CLOSED'>('OPEN')
     const [searchQuery, setSearchQuery] = useState('')
@@ -143,17 +144,45 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
     const fetchTickets = async () => {
         setLoading(true)
         try {
-            const res = await fetch(`/api/support/tickets?companyId=${activeCompanyId}&type=${viewTab}`)
+            const [res, wrRes] = await Promise.all([
+                fetch(`/api/support/tickets?companyId=${activeCompanyId}&type=${viewTab}`),
+                fetch('/api/weekly-review?type=items')
+            ])
             if (!res.ok || res.redirected || res.url.includes('/login')) {
                 setTickets([])
-                return
+            } else {
+                const data = await res.json()
+                setTickets(Array.isArray(data) ? data : [])
             }
-            const data = await res.json()
-            setTickets(Array.isArray(data) ? data : [])
+            if (wrRes.ok) {
+                const wrItems = await wrRes.json()
+                setWeeklyItems(Array.isArray(wrItems) ? wrItems.filter((i: any) => i.module === 'support').map((i: any) => i.itemId) : [])
+            }
         } catch (error) {
             console.error("Failed to fetch tickets:", error)
         } finally {
             setLoading(false)
+        }
+    }
+
+    const toggleWeeklyReview = async (id: string) => {
+        try {
+            const res = await fetch("/api/weekly-review", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "toggle_item", module: "support", itemId: id })
+            });
+            if (res.ok) {
+                if (weeklyItems.includes(id)) {
+                    setWeeklyItems(weeklyItems.filter(i => i !== id));
+                    toast.success("Removed from Weekly Review");
+                } else {
+                    setWeeklyItems([...weeklyItems, id]);
+                    toast.success("Added to Weekly Review");
+                }
+            }
+        } catch (e) {
+            toast.error("Failed to update weekly review status");
         }
     }
 
@@ -583,10 +612,17 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
                                             <tr>
                                                 <td colSpan={10} className="p-12 text-center text-zinc-400 font-medium">No tickets found for this registry.</td>
                                             </tr>
-                                        ) : paginatedTickets.map((t) => (
-                                            <tr key={t.id} className="hover:bg-zinc-50/50 transition-colors group">
-                                                <td className="p-3 font-bold text-emerald-700">{t.ticketNo}</td>
-                                                <td className="p-3 text-zinc-600">{formatDate(t.date)}</td>
+                                        ) : paginatedTickets.map((t) => {
+                                            const isWeekly = weeklyItems.includes(t.id);
+                                            return (
+                                            <tr key={t.id} className={cn("transition-colors group", isWeekly ? "bg-violet-50/60 hover:bg-violet-100/60" : "hover:bg-zinc-50/50")}>
+                                                <td className="p-3">
+                                                    <div className="flex items-center gap-2">
+                                                        {isWeekly && <div className="w-1.5 h-1.5 rounded-full bg-violet-600 animate-pulse shrink-0" title="Marked for Weekly Review" />}
+                                                        <span className={cn("font-bold", isWeekly ? "text-violet-900" : "text-emerald-700")}>{t.ticketNo}</span>
+                                                    </div>
+                                                </td>
+                                                <td className={cn("p-3", isWeekly ? "text-violet-800" : "text-zinc-600")}>{formatDate(t.date)}</td>
                                                 {viewTab === 'EXTERNAL' && <td className="p-3 font-bold text-indigo-700">{t.order?.orderNo || '-'}</td>}
                                                 <td className="p-3 text-zinc-800 max-w-[200px] truncate" title={t.details}>{t.details}</td>
                                                 <td className="p-3 text-zinc-600">{formatDate(t.targetDate)}</td>
@@ -599,6 +635,15 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
                                                 </td>
                                                 <td className="p-3 text-right">
                                                     <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button 
+                                                            onClick={() => toggleWeeklyReview(t.id)}
+                                                            className="p-1 hover:bg-zinc-200/50 rounded text-zinc-400 hover:text-violet-600 transition-colors"
+                                                            title={isWeekly ? "Remove from Weekly Review" : "Add for Weekly Review"}
+                                                        >
+                                                            <div className={cn("w-4 h-4 border rounded flex items-center justify-center", isWeekly ? "bg-violet-600 border-violet-600" : "border-zinc-300")}>
+                                                                {isWeekly && <CheckCircle2 className="w-3 h-3 text-white" />}
+                                                            </div>
+                                                        </button>
                                                         <Button variant="ghost" size="sm" onClick={() => { setActiveTicket(t); setViewDetailModalOpen(true); }} className="h-7 w-7 p-0 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border border-indigo-200" title="View details">
                                                             <Eye className="w-3.5 h-3.5" />
                                                         </Button>
@@ -615,7 +660,8 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
                                                     </div>
                                                 </td>
                                             </tr>
-                                        ))}
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
@@ -808,7 +854,7 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
                                                 <strong className="text-indigo-950 uppercase tracking-wider text-[10px]">Current Stage: </strong> <span className="italic">{matchedOrder.currentStage?.stageName || 'Unassigned'}</span>
                                             </div>
                                             <div className="col-span-2">
-                                                <strong className="text-indigo-950 uppercase tracking-wider text-[10px]">Incharge: </strong> <span className="italic">{matchedOrder.orderIncharge || 'Unassigned'}</span>
+                                                <strong className="text-indigo-950 uppercase tracking-wider text-[10px]">Incharge: </strong> <span className="italic">{users.find(u => u.id === matchedOrder.orderIncharge)?.name || 'Unassigned'}</span>
                                             </div>
                                         </div>
                                     )

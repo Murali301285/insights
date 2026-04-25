@@ -30,6 +30,14 @@ export async function middleware(request: NextRequest) {
         return response;
     }
 
+    // Force password change for temporary passwords
+    if (parsed.user?.isTempPassword && path !== "/change-password" && !path.startsWith("/api/auth")) {
+        if (request.nextUrl.pathname.startsWith("/api")) {
+            return NextResponse.json({ error: "Password change required", redirect: "/change-password" }, { status: 403 });
+        }
+        return NextResponse.redirect(new URL("/change-password", request.url));
+    }
+
     return await updateSession(request);
 }
 

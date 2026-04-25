@@ -24,6 +24,7 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
     const [loading, setLoading] = useState(false)
     const [requests, setRequests] = useState<any[]>([])
     const [stages, setStages] = useState<any[]>([])
+    const [weeklyItems, setWeeklyItems] = useState<string[]>([])
 
     const [viewTab, setViewTab] = useState<'INTERNAL' | 'EXTERNAL'>('INTERNAL')
     const [statusTab, setStatusTab] = useState<'OPEN' | 'CLOSED'>('OPEN')
@@ -127,13 +128,42 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
     const fetchRequests = async () => {
         setLoading(true)
         try {
-            const res = await fetch(`/api/supply-chain/requests?companyId=${activeCompanyId}`)
+            const [res, wrRes] = await Promise.all([
+                fetch(`/api/supply-chain/requests?companyId=${activeCompanyId}`),
+                fetch('/api/weekly-review?type=items')
+            ])
             const data = await res.json()
             if (Array.isArray(data)) setRequests(data)
+            
+            if (wrRes.ok) {
+                const wrItems = await wrRes.json()
+                setWeeklyItems(Array.isArray(wrItems) ? wrItems.filter((i: any) => i.module === 'supply-chain').map((i: any) => i.itemId) : [])
+            }
         } catch (error) {
             toast.error("Failed to load requests")
         }
         setLoading(false)
+    }
+
+    const toggleWeeklyReview = async (id: string) => {
+        try {
+            const res = await fetch("/api/weekly-review", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "toggle_item", module: "supply-chain", itemId: id })
+            });
+            if (res.ok) {
+                if (weeklyItems.includes(id)) {
+                    setWeeklyItems(weeklyItems.filter(i => i !== id));
+                    toast.success("Removed from Weekly Review");
+                } else {
+                    setWeeklyItems([...weeklyItems, id]);
+                    toast.success("Added to Weekly Review");
+                }
+            }
+        } catch (e) {
+            toast.error("Failed to update weekly review status");
+        }
     }
 
     const handleCreateNew = () => {
@@ -373,12 +403,17 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
                                                     </tr>
                                                 </thead>
                                     <tbody className="divide-y divide-zinc-100">
-                                        {paginatedRequests.map((req, idx) => (
-                                            <tr key={req.id} className="hover:bg-emerald-50/30 transition-colors group">
+                                        {paginatedRequests.map((req, idx) => {
+                                            const isWeekly = weeklyItems.includes(req.id);
+                                            return (
+                                            <tr key={req.id} className={cn("transition-colors group", isWeekly ? "bg-violet-50/60 hover:bg-violet-100/60" : "hover:bg-emerald-50/30")}>
                                                 <td className="px-6 py-4 font-bold text-zinc-500 text-sm">
-                                                    {(currentPage - 1) * pageSize + idx + 1}
+                                                    <div className="flex items-center gap-2">
+                                                        {isWeekly && <div className="w-1.5 h-1.5 rounded-full bg-violet-600 animate-pulse shrink-0" title="Marked for Weekly Review" />}
+                                                        {(currentPage - 1) * pageSize + idx + 1}
+                                                    </div>
                                                 </td>
-                                                <td className="px-6 py-4 font-black text-emerald-700 text-sm whitespace-nowrap">{req.requestNo}</td>
+                                                <td className={cn("px-6 py-4 font-black text-sm whitespace-nowrap", isWeekly ? "text-violet-900" : "text-emerald-700")}>{req.requestNo}</td>
                                                 <td className="px-6 py-4 font-semibold text-zinc-700 text-sm whitespace-nowrap">
                                                     {new Date(req.date).toLocaleDateString('en-GB')}
                                                 </td>
@@ -418,7 +453,16 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
                                                     )}
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
-                                                    <div className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button 
+                                                            onClick={() => toggleWeeklyReview(req.id)}
+                                                            className="p-1 hover:bg-zinc-200/50 rounded text-zinc-400 hover:text-violet-600 transition-colors"
+                                                            title={isWeekly ? "Remove from Weekly Review" : "Add for Weekly Review"}
+                                                        >
+                                                            <div className={cn("w-4 h-4 border rounded flex items-center justify-center", isWeekly ? "bg-violet-600 border-violet-600" : "border-zinc-300")}>
+                                                                {isWeekly && <CheckCircle2 className="w-3 h-3 text-white" />}
+                                                            </div>
+                                                        </button>
                                                         {statusTab === 'OPEN' && (
                                                             <Button variant="ghost" size="sm" onClick={() => handleEditRequest(req)} title="Edit Request" className="h-8 w-8 p-0 text-zinc-500 hover:text-emerald-700 hover:bg-emerald-50">
                                                                 <Pencil className="w-4 h-4" />
@@ -430,7 +474,7 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
                                                     </div>
                                                 </td>
                                             </tr>
-                                        ))}
+                                            )})}
                                     </tbody>
                                 </table>
                                 </div>
@@ -662,7 +706,7 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
                                                     <strong className="text-indigo-950 uppercase tracking-wider text-[10px]">Current Stage: </strong> <span className="italic">{matchedOrder.currentStage?.stageName || 'Unassigned'}</span>
                                                 </div>
                                                 <div className="col-span-2">
-                                                    <strong className="text-indigo-950 uppercase tracking-wider text-[10px]">Incharge: </strong> <span className="italic">{matchedOrder.orderIncharge || 'Unassigned'}</span>
+                                                    <strong className="text-indigo-950 uppercase tracking-wider text-[10px]">Incharge: </strong> <span className="italic">{users.find(u => u.id === matchedOrder.orderIncharge)?.name || 'Unassigned'}</span>
                                                 </div>
                                             </div>
                                         )

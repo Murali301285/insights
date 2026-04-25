@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { logAction } from "@/lib/audit";
 import { getSession } from "@/lib/auth";
+import { sendEmail, getWelcomeEmailTemplate } from "@/lib/email";
 
 export async function GET(req: NextRequest) {
     try {
@@ -10,7 +11,13 @@ export async function GET(req: NextRequest) {
             orderBy: { createdAt: 'desc' },
             include: { companies: true, role: true }
         });
-        return NextResponse.json(users);
+        
+        const mappedUsers = users.map(user => ({
+            ...user,
+            name: user.profileName || (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}`.trim() : null) || user.username || user.email
+        }));
+        
+        return NextResponse.json(mappedUsers);
     } catch (error) {
         return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
     }
@@ -21,15 +28,15 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { email, password, firstName, lastName, roleId, phoneNumber, isBlocked, companyIds, hasGlobalAccess, hasVaultAccess } = body;
+        const { email, password, firstName, lastName, profileName: incomingProfileName, username: incomingUsername, roleId, phoneNumber, isBlocked, companyIds, hasGlobalAccess, hasVaultAccess, isTempPassword } = body;
 
         // Basic Validation
-        if (!email || !password || !firstName || !lastName) {
+        if (!email || !password) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
         }
 
-        const username = email.toLowerCase();
-        const profileName = `${firstName} ${lastName}`.trim();
+        const username = incomingUsername || email.toLowerCase();
+        const profileName = incomingProfileName || (firstName && lastName ? `${firstName} ${lastName}`.trim() : email.split('@')[0]);
 
         // Check if user exists
         const existingUser = await prisma.user.findFirst({
@@ -53,16 +60,26 @@ export async function POST(req: NextRequest) {
                 password: hashedPassword,
                 username,
                 profileName,
-                firstName,
-                lastName,
+                firstName: firstName || null,
+                lastName: lastName || null,
                 roleId: roleId || null,
                 phoneNumber: phoneNumber || null,
                 isBlocked: isBlocked || false,
                 hasGlobalAccess: hasGlobalAccess || false,
                 hasVaultAccess: hasVaultAccess || false,
+                isTempPassword: isTempPassword || false,
                 companies: companyIds?.length > 0 ? { connect: companyIds.map((id: string) => ({ id })) } : undefined
             },
         });
+
+        if (isTempPassword) {
+            const html = getWelcomeEmailTemplate(profileName, email, password);
+            await sendEmail({
+                to: email,
+                subject: "Welcome to InSight ERP - Your Login Details",
+                html
+            });
+        }
 
         if (session) {
             await logAction({

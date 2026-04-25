@@ -123,6 +123,11 @@ model User {
   roleId          String?
   role            Role?     @relation(fields: [roleId], references: [id])
   isBlocked       Boolean   @default(false)
+  
+  isTempPassword   Boolean   @default(false)
+  resetToken       String?
+  resetTokenExpiry DateTime?
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

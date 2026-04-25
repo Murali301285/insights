@@ -88,12 +88,12 @@ export async function POST(req: Request) {
                     oppNumber,
                     date: dateObj,
                     opportunityName: body.opportunityName,
-                    customerId: parsedCustomer,
+                    customer: { connect: { slno: parsedCustomer } },
                     value: parseFloat(body.value) || 0,
-                    paymentTypeId: parsedPayment,
-                    zoneId: parsedZone,
-                    statusId: parsedStatus,
-                    inchargeId: body.inchargeId,
+                    paymentType: { connect: { slno: parsedPayment } },
+                    zone: { connect: { slno: parsedZone } },
+                    status: { connect: { slno: parsedStatus } },
+                    incharge: { connect: { id: body.inchargeId } },
                     remarks: body.remarks || null,
                     categories: {
                         connect: categoryIds.map((id: number) => ({ slno: id }))
@@ -239,12 +239,12 @@ export async function PUT(req: Request) {
                 data: {
                     date: dateObj,
                     opportunityName: body.opportunityName,
-                    customerId: parseInt(body.customerId),
+                    customer: { connect: { slno: parseInt(body.customerId) } },
                     value: parseFloat(body.value),
-                    paymentTypeId: parseInt(body.paymentTypeId),
-                    zoneId: parseInt(body.zoneId),
-                    statusId: newStatusId,
-                    inchargeId: body.inchargeId,
+                    paymentType: { connect: { slno: parseInt(body.paymentTypeId) } },
+                    zone: { connect: { slno: parseInt(body.zoneId) } },
+                    status: { connect: { slno: newStatusId } },
+                    incharge: { connect: { id: body.inchargeId } },
                     remarks: body.remarks || null,
                     categories: {
                         set: categoryIds.map((id: number) => ({ slno: id }))

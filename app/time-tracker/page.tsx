@@ -10,8 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { ColumnDef } from "@tanstack/react-table"
-import { Plus, Clock, Calendar, CheckSquare, Activity, FileText, PieChart as PieChartIcon } from "lucide-react"
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
+import { Plus, Clock, Calendar, CheckSquare, Activity, FileText, BarChart2, Download } from "lucide-react"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts"
 
 export default function TimeTrackerPage() {
     const { setHeaderInfo } = useHeader()
@@ -21,7 +21,6 @@ export default function TimeTrackerPage() {
 
     // Modals
     const [isAddOpen, setIsAddOpen] = useState(false)
-    const [isExpanded, setIsExpanded] = useState(false)
 
     // Project Dropdown State
     const [projectType, setProjectType] = useState<"na" | "acquisition" | "fulfillment">("na")
@@ -88,11 +87,11 @@ export default function TimeTrackerPage() {
         }
     }, [entries])
 
-    const pieData = [
-        { name: 'Documentation', value: 3, color: '#3b82f6' },
-        { name: 'Meeting', value: 2, color: '#f59e0b' },
-        { name: 'Support', value: 1.5, color: '#ec4899' },
-        { name: 'Deployment', value: 1.5, color: '#10b981' }
+    const chartData = [
+        { name: 'Documentation', value: 3, fill: '#3b82f6' },
+        { name: 'Meeting', value: 2, fill: '#f59e0b' },
+        { name: 'Support', value: 1.5, fill: '#ec4899' },
+        { name: 'Deployment', value: 1.5, fill: '#10b981' }
     ]
 
     const columns: ColumnDef<any>[] = [
@@ -156,6 +155,22 @@ export default function TimeTrackerPage() {
         },
     ]
 
+    const handleGenerateReport = () => {
+        alert("Generating report PDF...")
+    }
+
+    const selectedProjectDetails = useMemo(() => {
+        if (!selectedProject || projectType === "na") return null;
+        const project = projectList.find(p => p.id === selectedProject);
+        if (!project) return null;
+
+        if (projectType === "acquisition") {
+            return `Opp No: ${project.oppNumber || 'N/A'} | Customer: ${project.customer?.customerName || 'N/A'} | Stage: ${project.status?.statusName || 'N/A'} | Incharge: ${project.incharge?.profileName || 'N/A'}`;
+        } else {
+            return `Order No: ${project.orderNo || 'N/A'} | Customer: ${project.opportunity?.customer?.customerName || 'N/A'} | Stage: ${project.currentStage?.stageName || 'N/A'} | Incharge: ${project.orderIncharge || project.opportunity?.incharge?.profileName || 'N/A'}`;
+        }
+    }, [selectedProject, projectList, projectType]);
+
     return (
         <div className="space-y-6">
             {/* Filter Section */}
@@ -199,148 +214,145 @@ export default function TimeTrackerPage() {
                 </div>
             </div>
 
-            {/* Dashboard Visualizer */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 transition-all duration-300">
-                {!isExpanded && (
-                <div className="lg:col-span-1 bg-white rounded-xl border border-zinc-200 p-5 shadow-sm flex flex-col items-center justify-center transition-all duration-300">
-                   <h3 className="text-lg font-bold w-full text-left mb-4 flex items-center gap-2">
-                     <PieChartIcon className="w-5 h-5 text-indigo-500"/> Activity Split Up
-                   </h3>
-                   <div className="w-full h-[250px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                                    {pieData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} />
-                                    ))}
-                                </Pie>
-                                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                   </div>
-                   <div className="grid grid-cols-2 gap-4 w-full mt-2">
-                       {pieData.map(d => (
-                           <div key={d.name} className="flex items-center gap-2 text-xs font-medium text-zinc-600">
-                               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }}></div>
-                               {d.name}
-                           </div>
-                       ))}
-                   </div>
-                </div>
-                )}
-                <div className={`transition-all duration-300 space-y-6 ${isExpanded ? "lg:col-span-3" : "lg:col-span-2"}`}>
-                    <div className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm relative">
-                        <div className="absolute top-4 right-4 z-10 flex gap-4">
-                            <Button variant="outline" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="h-8 shadow-sm">
-                                {isExpanded ? "Show Chart" : "Expand Table"}
-                            </Button>
-                            <div className="flex items-center gap-2 hidden md:flex">
-                                <span className="text-sm font-medium text-zinc-600">Log Date:</span>
-                                <Input type="date" defaultValue={new Date().toISOString().split('T')[0]} className="h-8 text-sm py-0 w-[140px]" />
-                            </div>
-                            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-                                <DialogTrigger asChild>
-                                    <Button size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all h-9 rounded-full px-5">
-                                        <Plus className="w-4 h-4" />
-                                        Entry
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto hidden-scrollbar">
-                                    <DialogHeader>
-                                        <DialogTitle className="text-xl font-bold">Log Activity</DialogTitle>
-                                        <p className="text-zinc-500 text-sm">Record what you worked on today</p>
-                                    </DialogHeader>
-                                    <form className="space-y-5 mt-4">
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-1.5">
-                                                <Label>Date <span className="text-rose-500">*</span></Label>
-                                                <Input type="date" required />
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <Label>Category / Activity <span className="text-rose-500">*</span></Label>
-                                                <Select><SelectTrigger><SelectValue placeholder="Select category..." /></SelectTrigger><SelectContent><SelectItem value="meeting">Meeting</SelectItem><SelectItem value="documentation">Documentation</SelectItem><SelectItem value="support">Support</SelectItem></SelectContent></Select>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-1.5">
-                                                <Label>From Time <span className="text-rose-500">*</span></Label>
-                                                <Input type="time" required />
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <Label>To Time <span className="text-rose-500">*</span></Label>
-                                                <Input type="time" required />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <Label>Title <span className="text-rose-500">*</span></Label>
-                                            <Input placeholder="What did you work on?" required />
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <Label>Description</Label>
-                                            <textarea className="w-full min-h-[80px] p-3 border border-zinc-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Additional details..."></textarea>
-                                        </div>
-                                        <div className="grid grid-cols-3 gap-4">
-                                            <div className="space-y-1.5">
-                                                <Label>Status</Label>
-                                                <Select defaultValue="completed"><SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger><SelectContent><SelectItem value="completed">Completed</SelectItem></SelectContent></Select>
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <Label>Project <span className="text-rose-500">*</span></Label>
-                                                <Select value={projectType} onValueChange={(val: any) => { setProjectType(val); setSelectedProject(""); }}>
-                                                    <SelectTrigger><SelectValue placeholder="Select project type" /></SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="na">Na</SelectItem>
-                                                        <SelectItem value="acquisition">Business Acquisition</SelectItem>
-                                                        <SelectItem value="fulfillment">Order Fulfillment</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <Label>Project Reference {projectType !== "na" && <span className="text-rose-500">*</span>}</Label>
-                                                <Select 
-                                                    value={selectedProject} 
-                                                    onValueChange={setSelectedProject}
-                                                    disabled={projectType === "na" || projectsLoading}
-                                                    required={projectType !== "na"}
-                                                >
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder={projectsLoading ? "Loading..." : projectType === "na" ? "Disabled" : "Select reference..."} />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {projectList.map(p => (
-                                                            <SelectItem key={p.id} value={p.id}>
-                                                                {projectType === "acquisition" ? `${p.oppNumber} - ${p.opportunityName}` : `${p.orderNo} - ${p.opportunity?.opportunityName || ''}`}
-                                                            </SelectItem>
-                                                        ))}
-                                                        {projectList.length === 0 && <SelectItem value="none" disabled>No items found</SelectItem>}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <Label>Attachments <span className="text-zinc-500 text-xs">(max 5 files, 5MB each)</span></Label>
-                                            <div className="border-2 border-dashed border-zinc-200 rounded-xl p-6 flex flex-col items-center justify-center text-zinc-500 bg-zinc-50 hover:bg-zinc-100 cursor-pointer transition-colors">
-                                                <FileText className="w-6 h-6 mb-2 text-zinc-400" />
-                                                <span className="text-sm font-medium">Click to attach files</span>
-                                            </div>
-                                        </div>
-                                        <div className="flex justify-end gap-3 pt-4 border-t border-zinc-200">
-                                            <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-                                            <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 px-8">Save Activity</Button>
-                                        </div>
-                                    </form>
-                                </DialogContent>
-                            </Dialog>
-                        </div>
-                        <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-zinc-800">
-                            <Clock className="w-5 h-5 text-indigo-500" /> Recent Logs
-                        </h3>
-                        {/* A tiny snippet/datatable of recent. Wait, user said "in the tracker near recent logs add date filter, section 3 data table" We just show the main datatable below */}
-                        <div className="text-sm text-zinc-500 mb-4 bg-zinc-50 p-2 rounded max-w-fit">
-                            Last logged on: {new Date().toLocaleString('en-GB')}
-                        </div>
-                        <DataTable columns={columns} data={entries} searchKey="activity" />
+            {/* Data Table */}
+            <div className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm relative w-full">
+                <div className="absolute top-4 right-4 z-10 flex gap-4">
+                    <Button onClick={handleGenerateReport} variant="outline" size="sm" className="h-9 gap-2 shadow-sm font-semibold">
+                        <Download className="w-4 h-4" />
+                        Generate Report
+                    </Button>
+                    <div className="flex items-center gap-2 hidden md:flex">
+                        <span className="text-sm font-medium text-zinc-600">Log Date:</span>
+                        <Input type="date" defaultValue={new Date().toISOString().split('T')[0]} className="h-9 text-sm py-0 w-[140px]" />
                     </div>
+                    <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+                        <DialogTrigger asChild>
+                            <Button size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all h-9 rounded-full px-5">
+                                <Plus className="w-4 h-4" />
+                                Log Activity
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto hidden-scrollbar">
+                            <DialogHeader>
+                                <DialogTitle className="text-xl font-bold">Log Activity</DialogTitle>
+                                <p className="text-zinc-500 text-sm">Record what you worked on today</p>
+                            </DialogHeader>
+                            <form className="space-y-5 mt-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <Label>Date <span className="text-rose-500">*</span></Label>
+                                        <Input type="date" required />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label>Category / Activity <span className="text-rose-500">*</span></Label>
+                                        <Select><SelectTrigger><SelectValue placeholder="Select category..." /></SelectTrigger><SelectContent><SelectItem value="meeting">Meeting</SelectItem><SelectItem value="documentation">Documentation</SelectItem><SelectItem value="support">Support</SelectItem></SelectContent></Select>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <Label>From Time <span className="text-rose-500">*</span></Label>
+                                        <Input type="time" required />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label>To Time <span className="text-rose-500">*</span></Label>
+                                        <Input type="time" required />
+                                    </div>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label>Title <span className="text-rose-500">*</span></Label>
+                                    <Input placeholder="What did you work on?" required />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label>Description</Label>
+                                    <textarea className="w-full min-h-[80px] p-3 border border-zinc-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Additional details..."></textarea>
+                                </div>
+                                
+                                <div className="space-y-4 border rounded-xl p-4 bg-zinc-50/50">
+                                    <div className="space-y-1.5">
+                                        <Label>Project <span className="text-rose-500">*</span></Label>
+                                        <Select value={projectType} onValueChange={(val: any) => { setProjectType(val); setSelectedProject(""); }}>
+                                            <SelectTrigger><SelectValue placeholder="Select project type" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="na">Na</SelectItem>
+                                                <SelectItem value="acquisition">Business Acquisition</SelectItem>
+                                                <SelectItem value="fulfillment">Order Fulfillment</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    {projectType !== "na" && (
+                                        <div className="space-y-1.5">
+                                            <Label>Project Reference <span className="text-rose-500">*</span></Label>
+                                            <Select 
+                                                value={selectedProject} 
+                                                onValueChange={setSelectedProject}
+                                                disabled={projectsLoading}
+                                                required
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder={projectsLoading ? "Loading..." : "Select reference..."} />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {projectList.map(p => {
+                                                        const label = projectType === "acquisition" ? `${p.oppNumber || 'No# '} - ${p.opportunityName} - ${p.customer?.customerName || ''}` : `${p.orderNo} - ${p.opportunity?.customer?.customerName || ''}`;
+                                                        return (
+                                                            <SelectItem key={p.id} value={p.id} title={label}>
+                                                                {label}
+                                                            </SelectItem>
+                                                        )
+                                                    })}
+                                                    {projectList.length === 0 && <SelectItem value="none" disabled>No items found</SelectItem>}
+                                                </SelectContent>
+                                            </Select>
+                                            {selectedProjectDetails && (
+                                                <p className="text-xs text-zinc-500 italic mt-1 bg-white p-2 rounded border">{selectedProjectDetails}</p>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label>Attachments <span className="text-zinc-500 text-xs">(max 5 files, 5MB each)</span></Label>
+                                    <div className="border-2 border-dashed border-zinc-200 rounded-xl p-6 flex flex-col items-center justify-center text-zinc-500 bg-zinc-50 hover:bg-zinc-100 cursor-pointer transition-colors">
+                                        <FileText className="w-6 h-6 mb-2 text-zinc-400" />
+                                        <span className="text-sm font-medium">Click to attach files</span>
+                                    </div>
+                                </div>
+                                <div className="flex justify-end gap-3 pt-4 border-t border-zinc-200">
+                                    <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+                                    <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 px-8">Save Activity</Button>
+                                </div>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
+                </div>
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-zinc-800">
+                    <Clock className="w-5 h-5 text-indigo-500" /> Recent Logs
+                </h3>
+                <div className="text-sm text-zinc-500 mb-4 bg-zinc-50 p-2 rounded max-w-fit">
+                    Last logged on: {new Date().toLocaleString('en-GB')}
+                </div>
+                <DataTable columns={columns} data={entries} searchKey="activity" />
+            </div>
+
+            {/* Dashboard Visualizer (Bar Chart) */}
+            <div className="w-full bg-white rounded-xl border border-zinc-200 p-5 shadow-sm flex flex-col">
+                <h3 className="text-lg font-bold w-full text-left mb-4 flex items-center gap-2">
+                    <BarChart2 className="w-5 h-5 text-indigo-500"/> Activity Split Up
+                </h3>
+                <div className="w-full h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" />
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#71717a'}} />
+                            <YAxis axisLine={false} tickLine={false} tick={{fill: '#71717a'}} />
+                            <Tooltip cursor={{fill: '#f4f4f5'}} contentStyle={{ borderRadius: '8px', border: '1px solid #e4e4e7', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                                {chartData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
                 </div>
             </div>
         </div>

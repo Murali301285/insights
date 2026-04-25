@@ -16,10 +16,11 @@ interface CreatableCategorySelectProps {
     onChange: (ids: number[]) => void;
     onCategoryCreated: (newCat: Category) => void;
     companyId: string | null;
+    apiEndpoint?: string;
 }
 
 export function CreatableCategorySelect({
-    categories, selectedIds, onChange, onCategoryCreated, companyId
+    categories, selectedIds, onChange, onCategoryCreated, companyId, apiEndpoint = "/api/config/customer-category"
 }: CreatableCategorySelectProps) {
     const [open, setOpen] = useState(false);
     const [inputValue, setInputValue] = useState("");
@@ -62,7 +63,7 @@ export function CreatableCategorySelect({
             return;
         }
 
-        const res = await fetch("/api/config/customer-category", {
+        const res = await fetch(apiEndpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ categoryName: val, companyId })
