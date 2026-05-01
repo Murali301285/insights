@@ -14,7 +14,20 @@ export async function GET() {
         // Base fetch: Get user's role accesses where canView = true
         let roleAccesses: any[] = [];
 
-        if (session.user.role === 'admin') {
+        if (session.user.userType === 'Group') {
+            // Group users see ALL active pages, but in read-only mode (frontend checks `canAdd`)
+            const allPages = await prisma.appPage.findMany({
+                where: { isActive: true },
+                orderBy: { orderIndex: 'asc' }
+            });
+            roleAccesses = allPages.map(p => ({
+                page: p,
+                canView: true,
+                canAdd: false,
+                canEdit: false,
+                canDelete: false
+            }));
+        } else if (session.user.role === 'admin') {
             // Super admins see ALL active pages
             const allPages = await prisma.appPage.findMany({
                 where: { isActive: true },
@@ -102,10 +115,16 @@ export async function GET() {
         });
 
         const sortedNav = Array.from(navMap.values())
-            .filter((a: any) => a.title !== 'Inventory')
+            .filter((a: any) => a.title !== 'Inventory' && a.title !== 'Utilities' && !(session.user.userType === 'Group' && a.title === 'Config'))
             .sort((a: any, b: any) => a.orderIndex - b.orderIndex);
 
-        return NextResponse.json(sortedNav);
+        const utilitiesParent = Array.from(navMap.values()).find((a: any) => a.title === 'Utilities');
+        const allowedUtilities = utilitiesParent?.children?.map((c: any) => c.title) || [];
+
+        return NextResponse.json({
+            nav: sortedNav,
+            utilities: allowedUtilities
+        });
     } catch (error: any) {
         console.error("GET User Nav Error:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });

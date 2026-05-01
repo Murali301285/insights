@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { category, data, date, period, companyId, isTarget } = await request.json();
+    const { id, category, data, date, period, companyId, isTarget } = await request.json();
 
     try {
         if (isTarget) {
@@ -43,6 +43,48 @@ export async function POST(request: NextRequest) {
                 });
                 return NextResponse.json({ success: true, data: result });
             }
+        }
+
+        if (category && category.startsWith("summary_")) {
+            let result;
+            let action = "CREATE";
+            if (id) {
+                result = await prisma.kpiEntry.update({
+                    where: { id },
+                    data: {
+                        date: new Date(date),
+                        period,
+                        companyId: companyId && companyId !== 'general' ? companyId : null,
+                        meta: data
+                    }
+                });
+                action = "UPDATE";
+            } else {
+                result = await prisma.kpiEntry.create({
+                    data: {
+                        category,
+                        metric: "summary",
+                        value: 0,
+                        date: new Date(date),
+                        period,
+                        companyId: companyId && companyId !== 'general' ? companyId : null,
+                        meta: data
+                    }
+                });
+            }
+
+            await prisma.auditLog.create({
+                data: {
+                    entity: category,
+                    entityId: result.id,
+                    action,
+                    userId: session.user.id || "unknown",
+                    userEmail: session.user.email,
+                    details: { ...data }
+                }
+            });
+
+            return NextResponse.json({ success: true, data: result });
         }
 
         let model: any;
@@ -162,6 +204,26 @@ export async function GET(request: NextRequest) {
             return NextResponse.json(targets);
         }
 
+        if (category && category.startsWith("summary_")) {
+            const rawData = await prisma.kpiEntry.findMany({
+                where: {
+                    category,
+                    ...(companiesStr ? { companyId: { in: companiesStr.split(',') } } : companyId && companyId !== 'general' ? { companyId } : {})
+                },
+                orderBy: { date: 'desc' }
+            });
+            
+            const formatted = rawData.map(d => ({
+                id: d.id,
+                date: d.date,
+                period: d.period,
+                createdAt: d.createdAt,
+                ...(typeof d.meta === 'object' && d.meta !== null ? d.meta : {})
+            }));
+            
+            return NextResponse.json(formatted);
+        }
+
         if (category === "sales") {
             const oppWhere: any = { isDelete: false };
             if (companiesStr) {
@@ -223,9 +285,27 @@ export async function GET(request: NextRequest) {
                 } else if (sName.includes('rfq')) {
                     rfqCount++;
                 } else {
-                    // Everything else mapped to Lead
                     leadsCount++;
                 }
+            }
+
+            // OVERRIDE WITH MANUAL SUMMARY DATA
+            const rawSummary = await prisma.kpiEntry.findFirst({
+                where: {
+                    category: "summary_sales",
+                    ...(companiesStr ? { companyId: { in: companiesStr.split(',') } } : companyId && companyId !== 'general' ? { companyId } : {})
+                },
+                orderBy: { date: 'desc' }
+            });
+            if (rawSummary && rawSummary.meta) {
+                 const meta: any = rawSummary.meta;
+                 if (meta['Lead_nos'] !== undefined) leadsCount = Number(meta['Lead_nos'].toString().replace(/,/g, ''));
+                 if (meta['Quotation_nos'] !== undefined) quotesCount = Number(meta['Quotation_nos'].toString().replace(/,/g, ''));
+                 if (meta['Order - Win_nos'] !== undefined) orderCount = Number(meta['Order - Win_nos'].toString().replace(/,/g, ''));
+                 
+                 if (meta['Quotation_values'] !== undefined) quotesValue = Number(meta['Quotation_values'].toString().replace(/,/g, ''));
+                 if (meta['Order - Win_values'] !== undefined) winValue = Number(meta['Order - Win_values'].toString().replace(/,/g, ''));
+                 if (meta['Order - Loss_values'] !== undefined) lossValue = Number(meta['Order - Loss_values'].toString().replace(/,/g, ''));
             }
 
             const ordersYtdPct = annualTarget > 0 ? Math.round((winValue / annualTarget) * 100) : 0;
@@ -400,6 +480,44 @@ export async function GET(request: NextRequest) {
                 { name: "Net 90+", value: termsMap["Net 90+"], color: "#f43f5e" }
             ];
 
+            // OVERRIDE WITH MANUAL SUMMARY DATA
+            const rawSummaryInternal = await prisma.kpiEntry.findFirst({
+                where: {
+                    category: "summary_request_internal",
+                    ...(companiesStr ? { companyId: { in: companiesStr.split(',') } } : companyId && companyId !== 'general' ? { companyId } : {})
+                },
+                orderBy: { date: 'desc' }
+            });
+            const rawSummaryExternal = await prisma.kpiEntry.findFirst({
+                where: {
+                    category: "summary_request_external",
+                    ...(companiesStr ? { companyId: { in: companiesStr.split(',') } } : companyId && companyId !== 'general' ? { companyId } : {})
+                },
+                orderBy: { date: 'desc' }
+            });
+
+            let internalOpenSC = 0, externalOpenSC = 0;
+            let internalClosedSC = 0, externalClosedSC = 0;
+            let hasOverrideSC = false;
+
+            if (rawSummaryInternal && rawSummaryInternal.meta) {
+                 const meta: any = rawSummaryInternal.meta;
+                 if (meta['open'] !== undefined) internalOpenSC = Number(meta['open'].toString().replace(/,/g, ''));
+                 if (meta['closed'] !== undefined) internalClosedSC = Number(meta['closed'].toString().replace(/,/g, ''));
+                 hasOverrideSC = true;
+            }
+            if (rawSummaryExternal && rawSummaryExternal.meta) {
+                 const meta: any = rawSummaryExternal.meta;
+                 if (meta['open'] !== undefined) externalOpenSC = Number(meta['open'].toString().replace(/,/g, ''));
+                 if (meta['closed'] !== undefined) externalClosedSC = Number(meta['closed'].toString().replace(/,/g, ''));
+                 hasOverrideSC = true;
+            }
+
+            if (hasOverrideSC) {
+                 inTransitShipments = internalOpenSC + externalOpenSC;
+                 totalShipments = inTransitShipments + internalClosedSC + externalClosedSC;
+            }
+
             const liveSnapshot = {
                 id: 'real-sc-data',
                 date: new Date(),
@@ -484,6 +602,44 @@ export async function GET(request: NextRequest) {
             const resolutionTime = resolvedCount > 0 ? (totalResolutionDays / resolvedCount).toFixed(1) : "0";
             const avgTicketAge = openTickets > 0 ? (totalOpenDays / openTickets).toFixed(1) : "0";
             
+            // OVERRIDE WITH MANUAL SUMMARY DATA
+            const rawSummaryInternalSupp = await prisma.kpiEntry.findFirst({
+                where: {
+                    category: "summary_ticket_internal",
+                    ...(companiesStr ? { companyId: { in: companiesStr.split(',') } } : companyId && companyId !== 'general' ? { companyId } : {})
+                },
+                orderBy: { date: 'desc' }
+            });
+            const rawSummaryExternalSupp = await prisma.kpiEntry.findFirst({
+                where: {
+                    category: "summary_ticket_external",
+                    ...(companiesStr ? { companyId: { in: companiesStr.split(',') } } : companyId && companyId !== 'general' ? { companyId } : {})
+                },
+                orderBy: { date: 'desc' }
+            });
+
+            let intClosedSupp = 0, extClosedSupp = 0;
+            let hasOverrideSupp = false;
+
+            if (rawSummaryInternalSupp && rawSummaryInternalSupp.meta) {
+                 const meta: any = rawSummaryInternalSupp.meta;
+                 if (meta['open'] !== undefined) internalOpen = Number(meta['open'].toString().replace(/,/g, ''));
+                 if (meta['closed'] !== undefined) intClosedSupp = Number(meta['closed'].toString().replace(/,/g, ''));
+                 hasOverrideSupp = true;
+            }
+            if (rawSummaryExternalSupp && rawSummaryExternalSupp.meta) {
+                 const meta: any = rawSummaryExternalSupp.meta;
+                 if (meta['open'] !== undefined) externalOpen = Number(meta['open'].toString().replace(/,/g, ''));
+                 if (meta['closed'] !== undefined) extClosedSupp = Number(meta['closed'].toString().replace(/,/g, ''));
+                 hasOverrideSupp = true;
+            }
+
+            if (hasOverrideSupp) {
+                 openTickets = internalOpen + externalOpen;
+                 resolvedTickets = intClosedSupp + extClosedSupp;
+                 totalTickets = openTickets + resolvedTickets;
+            }
+
             // Sort activeTickets by age descending (longest pending tickets)
             activeTicketsList.sort((a,b) => b.age - a.age);
 
@@ -607,7 +763,7 @@ export async function GET(request: NextRequest) {
             });
 
             const colors = ['#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#f43f5e', '#14b8a6', '#06b6d4'];
-            const stageData = activeStages.map((stage, idx) => {
+            let stageData = activeStages.map((stage, idx) => {
                 const count = activeOrders.filter(o => o.currentStageId === stage.slno).length;
                 return {
                     name: stage.stageName,
@@ -615,6 +771,22 @@ export async function GET(request: NextRequest) {
                     color: colors[idx % colors.length]
                 };
             });
+
+            // OVERRIDE WITH MANUAL SUMMARY DATA
+            const rawSummary = await prisma.kpiEntry.findFirst({
+                where: {
+                    category: "summary_manufacturing",
+                    ...(companiesStr ? { companyId: { in: companiesStr.split(',') } } : companyId && companyId !== 'general' ? { companyId } : {})
+                },
+                orderBy: { date: 'desc' }
+            });
+            if (rawSummary && rawSummary.meta) {
+                 const meta: any = rawSummary.meta;
+                 stageData = stageData.map(sd => ({
+                     ...sd,
+                     value: meta[`${sd.name}_nos`] !== undefined ? Number(meta[`${sd.name}_nos`].toString().replace(/,/g, '')) : sd.value
+                 }));
+            }
 
             let salesWinValue = 0;
             let salesOrderCount = activeOrders.length;
@@ -755,6 +927,22 @@ export async function DELETE(request: NextRequest) {
     }
 
     try {
+        if (category.startsWith("summary_")) {
+            await prisma.kpiEntry.delete({ where: { id } });
+            
+            await prisma.auditLog.create({
+                data: {
+                    entity: category,
+                    entityId: id,
+                    action: "DELETE",
+                    userId: session.user.id || "unknown",
+                    userEmail: session.user.email,
+                    details: { deletedRecordId: id }
+                }
+            });
+            return NextResponse.json({ success: true });
+        }
+
         let model: any;
         switch (category) {
             case "finance": model = prisma.financeMetrics; break;

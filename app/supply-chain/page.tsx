@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { PremiumCard } from "@/components/design/PremiumCard"
 import { useHeader } from "@/components/providers/HeaderProvider"
 import { useFilter } from "@/components/providers/FilterProvider"
+import { useUser } from "@/components/providers/UserProvider"
 import { formatCurrency } from "@/lib/utils"
 import {
     Truck, CheckCircle2, Package, Globe, Plus, AlertCircle,
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils"
 export default function SupplyChainPage() {
     const { setHeaderInfo } = useHeader()
     const { period: globalPeriod, currency, selectedCompanyIds } = useFilter()
+    const user = useUser()
 
     useEffect(() => {
         setHeaderInfo("Supply Chain Management", "Monitor supplier payments, terms, and inventory health.")
@@ -110,10 +112,12 @@ export default function SupplyChainPage() {
                         </button>
                     ))}
                 </div>
-                <Button onClick={() => setIsEntryOpen(true)} size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all h-9 rounded-full px-5">
-                    <Plus className="w-4 h-4" />
-                    Entry
-                </Button>
+                {user?.userType !== 'Group' && (
+                    <Button onClick={() => setIsEntryOpen(true)} size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all h-9 rounded-full px-5">
+                        <Plus className="w-4 h-4" />
+                        Entry
+                    </Button>
+                )}
             </div>
 
             <div className="grid grid-cols-12 gap-6 h-auto">

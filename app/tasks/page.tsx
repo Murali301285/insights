@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { useHeader } from "@/components/providers/HeaderProvider"
 import { useFilter } from "@/components/providers/FilterProvider"
+import { useUser } from "@/components/providers/UserProvider"
 // No next-auth import
 import { DataTable } from "@/components/ui/data-table"
 import { Button } from "@/components/ui/button"
@@ -17,6 +18,7 @@ import { MoreHorizontal, Plus, FileText, CheckCircle, Clock, AlertTriangle, Aler
 export default function TasksPage() {
     const { setHeaderInfo } = useHeader()
     const { selectedCompanyIds } = useFilter()
+    const user = useUser()
     const [tasks, setTasks] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
 
@@ -283,15 +285,16 @@ export default function TasksPage() {
 
             {/* Data Table Section */}
             <div className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm relative">
-                <div className="absolute top-4 right-4 z-10">
-                    <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-                        <DialogTrigger asChild>
-                            <Button size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all h-9 rounded-full px-5">
-                                <Plus className="w-4 h-4" />
-                                Entry
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto hidden-scrollbar">
+                {user?.userType !== 'Group' && (
+                    <div className="absolute top-4 right-4 z-10">
+                        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+                            <DialogTrigger asChild>
+                                <Button size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all h-9 rounded-full px-5">
+                                    <Plus className="w-4 h-4" />
+                                    Entry
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto hidden-scrollbar">
                             <DialogHeader>
                                 <DialogTitle className="text-xl font-bold">Assign New Task</DialogTitle>
                             </DialogHeader>
@@ -437,6 +440,7 @@ export default function TasksPage() {
                         </DialogContent>
                     </Dialog>
                 </div>
+                )}
                 
                 <DataTable columns={columns} data={filteredTasks} searchKey="title" />
             </div>

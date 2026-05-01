@@ -14,6 +14,7 @@ import { toast } from "sonner"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, Plus, Table as TableIcon, Pencil, Trash, Building2, Ticket, Search, Upload, Download, CheckCircle2, MessageSquare, Lock, Edit3, X, Eye, FileText, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Activity } from "lucide-react"
 import { cn, formatCurrency } from "@/lib/utils"
+import { SmartSummaryGrid } from "@/components/data-entry/SmartSummaryGrid"
 
 interface RequestManagerProps {
     isOpen: boolean
@@ -27,6 +28,7 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
     const [weeklyItems, setWeeklyItems] = useState<string[]>([])
 
     const [viewTab, setViewTab] = useState<'INTERNAL' | 'EXTERNAL'>('INTERNAL')
+    const [subTab, setSubTab] = useState<'Summary' | 'Entry'>('Summary')
     const [statusTab, setStatusTab] = useState<'OPEN' | 'CLOSED'>('OPEN')
     const [searchQuery, setSearchQuery] = useState('')
     
@@ -309,10 +311,26 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
                         <h2 className="text-xl font-black text-zinc-800 tracking-tight">Request Management</h2>
                     </div>
 
-                    <div className="flex flex-1 max-w-sm mx-10 justify-center">
+                    <div className="flex flex-1 max-w-sm mx-10 justify-center gap-4">
                         <div className="flex bg-zinc-100 p-1 rounded-xl shadow-inner border border-zinc-200">
                             <button onClick={() => setViewTab('INTERNAL')} className={cn("px-6 py-1.5 text-sm font-bold rounded-lg transition-all", viewTab === 'INTERNAL' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-700")}>INTERNAL</button>
                             <button onClick={() => setViewTab('EXTERNAL')} className={cn("px-6 py-1.5 text-sm font-bold rounded-lg transition-all", viewTab === 'EXTERNAL' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-700")}>EXTERNAL</button>
+                        </div>
+                        <div className="flex bg-zinc-100 p-1 rounded-xl shadow-inner border border-zinc-200">
+                            {['Summary', 'Entry'].map((tab) => (
+                                <button
+                                    key={tab}
+                                    onClick={() => setSubTab(tab as any)}
+                                    className={cn(
+                                        "px-6 py-1.5 text-sm font-bold rounded-lg transition-all",
+                                        subTab === tab
+                                            ? "bg-emerald-600 text-white shadow-sm"
+                                            : "text-zinc-500 hover:text-zinc-700"
+                                    )}
+                                >
+                                    {tab}
+                                </button>
+                            ))}
                         </div>
                     </div>
 
@@ -335,8 +353,12 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
                 </div>
 
                 {/* Main Content Area */}
-                <div className="flex-1 overflow-auto p-6 relative">
-
+                <div className="flex-1 overflow-auto p-6 flex flex-col">
+                    {subTab === 'Summary' ? (
+                        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-zinc-200 overflow-hidden">
+                            <SmartSummaryGrid module={viewTab === 'INTERNAL' ? 'request_internal' : 'request_external'} activeCompanyId={activeCompanyId} />
+                        </div>
+                    ) : (
                     <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 overflow-hidden min-h-[500px] flex flex-col">
                         <div className="px-6 py-4 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
                             <div className="flex items-center gap-6">
@@ -530,6 +552,7 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
                     })()}
                         </div>
                     </div>
+                    )}
                 </div>
 
                 {/* Edit / View Modal - Either Form (if creating) or Stage Tracking (if tracking) */}

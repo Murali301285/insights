@@ -23,9 +23,9 @@ import { Badge } from "@/components/ui/badge"
 import { useFilter } from "@/components/providers/FilterProvider"
 
 
-import { IndianRupee, DollarSign } from "lucide-react"
+import { IndianRupee, DollarSign, Search as SearchIcon } from "lucide-react"
 
-export function FilterBar() {
+export function FilterBar({ navContext }: { navContext?: any }) {
     const { selectedCompanyIds, setSelectedCompanyIds, currency, setCurrency } = useFilter()
     const [open, setOpen] = React.useState(false)
     const [isAIReportOpen, setIsAIReportOpen] = React.useState(false)
@@ -148,14 +148,27 @@ export function FilterBar() {
                 <span className="hidden sm:inline text-xs font-semibold">{currency}</span>
             </Button>
 
+            {/* Search Button */}
+            {navContext?.utilities?.includes('Search') && (
+                <Button
+                    variant="outline"
+                    size="icon"
+                    className="ml-2 h-8 w-8 bg-zinc-50 border-zinc-200 text-zinc-700 hover:bg-zinc-100 shadow-sm"
+                >
+                    <SearchIcon className="w-4 h-4" />
+                </Button>
+            )}
+
             {/* AI Report Button */}
-            <Button
-                onClick={() => setIsAIReportOpen(true)}
-                className="bg-purple-600 hover:bg-purple-700 text-white gap-2 h-8 shadow-sm hover:shadow transition-all ml-2"
-            >
-                <BrainCircuit className="w-4 h-4" />
-                <span className="hidden md:inline">Generate Report</span>
-            </Button>
+            {navContext?.utilities?.includes('Generate Report') && (
+                <Button
+                    onClick={() => setIsAIReportOpen(true)}
+                    className="bg-purple-600 hover:bg-purple-700 text-white gap-2 h-8 shadow-sm hover:shadow transition-all ml-2"
+                >
+                    <BrainCircuit className="w-4 h-4" />
+                    <span className="hidden md:inline">Generate Report</span>
+                </Button>
+            )}
 
             <AIReportModal isOpen={isAIReportOpen} onClose={() => setIsAIReportOpen(false)} />
         </div>

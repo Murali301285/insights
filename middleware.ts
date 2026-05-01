@@ -38,7 +38,12 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL("/change-password", request.url));
     }
 
-    return await updateSession(request);
+    const response = await updateSession(request) || NextResponse.next();
+    
+    // Add no-store cache control to prevent back-button showing cached authenticated pages after logout
+    response.headers.set('Cache-Control', 'no-store, max-age=0, must-revalidate');
+    
+    return response;
 }
 
 export const config = {

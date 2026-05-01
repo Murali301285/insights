@@ -66,8 +66,7 @@ export function UserProfile({ user }: UserProfileProps) {
 
     async function handleLogout() {
         await fetch("/api/auth/logout", { method: "POST" })
-        router.push("/login")
-        router.refresh()
+        window.location.replace("/login")
     }
 
     if (!user) return null;

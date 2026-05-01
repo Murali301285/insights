@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import { PremiumCard } from "@/components/design/PremiumCard"
 import { useHeader } from "@/components/providers/HeaderProvider"
 import { useFilter } from "@/components/providers/FilterProvider"
+import { useUser } from "@/components/providers/UserProvider"
 import {
     Settings, AlertCircle, Clock, CheckCircle2,
     ArrowUpRight, ArrowDownRight, TrendingUp, TrendingDown, Plus, Eye,
@@ -22,6 +23,7 @@ import { KpiInsightModal } from "@/components/modals/KpiInsightModal"
 export default function ManufacturingPage() {
     const { setHeaderInfo } = useHeader()
     const { period: globalPeriod, currency, selectedCompanyIds } = useFilter()
+    const user = useUser()
 
     useEffect(() => {
         setHeaderInfo("Order Fulfilment", "Track RFQ volumes, production efficiency, and win order fulfillment.")
@@ -239,10 +241,12 @@ export default function ManufacturingPage() {
                         </button>
                     ))}
                 </div>
-                <Button onClick={() => setIsEntryOpen(true)} size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all h-9 rounded-full px-5">
-                    <Plus className="w-4 h-4" />
-                    Entry
-                </Button>
+                {user?.userType !== 'Group' && (
+                    <Button onClick={() => setIsEntryOpen(true)} size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all h-9 rounded-full px-5">
+                        <Plus className="w-4 h-4" />
+                        Entry
+                    </Button>
+                )}
             </div>
 
             <div className="grid grid-cols-12 gap-6 h-auto">
@@ -481,7 +485,7 @@ export default function ManufacturingPage() {
                             {activeWorkOrders.map((order, i) => (
                                 <div key={i} className="flex flex-col gap-2 p-4 rounded-xl bg-zinc-50 border border-zinc-100">
                                     <div className="flex justify-between items-center">
-                                        <h4 className="text-xs font-bold text-zinc-900">{order.id}</h4>
+                                        <h4 className="text-xs font-bold text-zinc-900">{order.orderNo}</h4>
                                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${order.calculatedStatus === 'On Track' ? 'bg-emerald-100 text-emerald-700' :
                                             order.calculatedStatus === 'Critical' ? 'bg-rose-100 text-rose-700' :
                                                 'bg-amber-100 text-amber-700'
@@ -563,7 +567,7 @@ export default function ManufacturingPage() {
                                     <tbody className="divide-y divide-zinc-100">
                                         {activeProjects.map((p, i) => (
                                             <tr key={i} className="bg-white hover:bg-zinc-50 transition-colors">
-                                                <td className="px-4 py-3 font-bold text-[11px] text-zinc-900">{p.id}</td>
+                                                <td className="px-4 py-3 font-bold text-[11px] text-zinc-900">{p.orderNo}</td>
                                                 <td className="px-4 py-3 text-zinc-700 font-medium">{p.opportunity?.customer?.customerName || "Unknown"}</td>
                                                 <td className="px-4 py-3 text-zinc-600 text-[11px]">{p.currentStage?.name || "Not Started"}</td>
                                                 <td className="px-4 py-3 text-zinc-700">{p.targetDate ? new Date(p.targetDate).toLocaleDateString('en-GB') : "Not Set"}</td>

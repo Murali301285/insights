@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils"
 import { OpportunityManager } from "@/components/data-entry/OpportunityManager"
 import { OrderManager } from "@/components/data-entry/OrderManager"
 import { FundValueManager } from "@/components/data-entry/FundValueManager"
+import { SmartSummaryGrid } from "@/components/data-entry/SmartSummaryGrid"
 
 // Schema Definitions
 type FieldDef = { label: string, key: string, type: string, width?: string, groupTitle?: string, bgColor?: string, tab?: string };
@@ -119,7 +120,7 @@ export function SmartEntrySheet({ isOpen, onClose, category }: SmartEntrySheetPr
     const availableTabs = useMemo(() => {
         let tabs = Array.from(new Set(fields.map((f: any) => f.tab).filter(Boolean))) as string[];
         if (category === "sales") {
-            tabs = ["Entry", "Targets"];
+            tabs = ["Summary", "Entry", "Targets"];
         } else if (category === "finance") {
             tabs = ["Cash Statement", "Fund Value"];
         }
@@ -378,6 +379,10 @@ export function SmartEntrySheet({ isOpen, onClose, category }: SmartEntrySheetPr
                     {companiesLoading ? (
                         <div className="flex-1 flex items-center justify-center">
                             <Loader2 className="w-8 h-8 animate-spin text-zinc-300" />
+                        </div>
+                    ) : activeTab === "Summary" && category === "sales" ? (
+                        <div className="flex-1 overflow-auto rounded-lg shadow-sm border border-zinc-200">
+                            <SmartSummaryGrid module="sales" activeCompanyId={activeCompanyId} />
                         </div>
                     ) : activeTab === "Entry" ? (
                         <OpportunityManager onClose={onClose} activeCompanyId={activeCompanyId} />

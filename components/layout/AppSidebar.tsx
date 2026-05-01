@@ -38,10 +38,12 @@ interface AppSidebarProps {
         name: string;
         email: string;
         role: string;
+        userType?: string;
     } | null;
+    navContext?: any;
 }
 
-export function AppSidebar({ user }: AppSidebarProps) {
+export function AppSidebar({ user, navContext }: AppSidebarProps) {
     const [collapsed, setCollapsed] = React.useState(false)
     const [openMenu, setOpenMenu] = React.useState<string | null>(null)
     const [parseNav, setParseNav] = React.useState<NavItem[]>([])
@@ -49,14 +51,10 @@ export function AppSidebar({ user }: AppSidebarProps) {
     const router = useRouter()
 
     React.useEffect(() => {
-        // Fetch User Authorized Navigation Structure
-        fetch('/api/user-nav')
-            .then(res => res.json())
-            .then(data => {
-                if (Array.isArray(data)) setParseNav(data);
-            })
-            .catch(console.error)
-    }, [])
+        if (navContext && navContext.nav) {
+            setParseNav(navContext.nav)
+        }
+    }, [navContext])
 
     // Auto-close menus if navigating away
     React.useEffect(() => {
@@ -79,7 +77,14 @@ export function AppSidebar({ user }: AppSidebarProps) {
             {/* Header */}
             <div className="flex items-center h-16 px-4 border-b border-zinc-100 relative justify-end">
                 <div className={cn("absolute flex flex-col items-center justify-center left-1/2 -translate-x-1/2 transition-all duration-300", collapsed ? "scale-75" : "scale-100")}>
-                    <InsightLogo className={cn("text-xl transition-all duration-300", collapsed ? "!text-[0px] [&_span]:hidden" : "")} />
+                    <div className="flex items-center gap-1.5">
+                        {user?.userType === 'Group' ? (
+                            <Icons.Users className={cn("w-6 h-6 text-purple-600 transition-all duration-300", collapsed ? "hidden" : "block")} strokeWidth={2.5} />
+                        ) : (
+                            <Icons.User className={cn("w-6 h-6 text-emerald-600 transition-all duration-300", collapsed ? "hidden" : "block")} strokeWidth={2.5} />
+                        )}
+                        <InsightLogo className={cn("text-xl transition-all duration-300", collapsed ? "!text-[0px] [&_span]:hidden" : "")} />
+                    </div>
                     <span className={cn("text-emerald-600 font-bold tracking-[0.15em] text-[8px] -mt-0.5 uppercase transition-all duration-300", collapsed ? "opacity-0 hidden" : "opacity-100")}>Intelligence</span>
                 </div>
 
@@ -180,70 +185,76 @@ export function AppSidebar({ user }: AppSidebarProps) {
             <div className="p-3 border-t border-zinc-100 bg-white space-y-2">
 
                 {/* Email Button */}
-                <button
-                    className={cn(
-                        "relative flex items-center w-full p-2.5 rounded-xl transition-all duration-200 group text-sm font-semibold justify-center",
-                        pathname === "/email"
-                            ? "bg-violet-600 text-white shadow-md shadow-violet-200"
-                            : "bg-violet-50 text-violet-700 hover:bg-violet-100 hover:text-violet-900 border border-violet-200"
-                    )}
-                    onClick={() => router.push('/email')}
-                >
-                    <div className="relative flex items-center justify-center">
-                        <Icons.Mail className={cn("w-5 h-5 shrink-0 transition-colors", pathname === "/email" ? "text-white" : "text-violet-600")} />
-                    </div>
-                    <span className={cn("ml-3 whitespace-nowrap transition-all duration-300", collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100")}>
-                        Email
-                    </span>
-                </button>
+                {navContext?.utilities?.includes('Email') && (
+                    <button
+                        className={cn(
+                            "relative flex items-center w-full p-2.5 rounded-xl transition-all duration-200 group text-sm font-semibold justify-center",
+                            pathname === "/email"
+                                ? "bg-violet-600 text-white shadow-md shadow-violet-200"
+                                : "bg-violet-50 text-violet-700 hover:bg-violet-100 hover:text-violet-900 border border-violet-200"
+                        )}
+                        onClick={() => router.push('/email')}
+                    >
+                        <div className="relative flex items-center justify-center">
+                            <Icons.Mail className={cn("w-5 h-5 shrink-0 transition-colors", pathname === "/email" ? "text-white" : "text-violet-600")} />
+                        </div>
+                        <span className={cn("ml-3 whitespace-nowrap transition-all duration-300", collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100")}>
+                            Email
+                        </span>
+                    </button>
+                )}
 
                 {/* Weekly Review Button */}
-                <button
-                    className={cn(
-                        "relative flex items-center w-full p-2.5 rounded-xl transition-all duration-200 group text-sm font-semibold justify-center",
-                        pathname === "/weekly-review"
-                            ? "bg-violet-600 text-white shadow-md shadow-violet-200"
-                            : "bg-violet-50 text-violet-700 hover:bg-violet-100 hover:text-violet-900 border border-violet-200"
-                    )}
-                    onClick={() => router.push('/weekly-review')}
-                >
-                    <div className="relative flex items-center justify-center">
-                        <ClipboardList className={cn("w-5 h-5 shrink-0 transition-colors", pathname === "/weekly-review" ? "text-white" : "text-violet-600")} />
-                    </div>
-                    <span className={cn("ml-3 whitespace-nowrap transition-all duration-300", collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100")}>
-                        Weekly Review
-                    </span>
-                </button>
+                {navContext?.utilities?.includes('Weekly Review') && (
+                    <button
+                        className={cn(
+                            "relative flex items-center w-full p-2.5 rounded-xl transition-all duration-200 group text-sm font-semibold justify-center",
+                            pathname === "/weekly-review"
+                                ? "bg-violet-600 text-white shadow-md shadow-violet-200"
+                                : "bg-violet-50 text-violet-700 hover:bg-violet-100 hover:text-violet-900 border border-violet-200"
+                        )}
+                        onClick={() => router.push('/weekly-review')}
+                    >
+                        <div className="relative flex items-center justify-center">
+                            <ClipboardList className={cn("w-5 h-5 shrink-0 transition-colors", pathname === "/weekly-review" ? "text-white" : "text-violet-600")} />
+                        </div>
+                        <span className={cn("ml-3 whitespace-nowrap transition-all duration-300", collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100")}>
+                            Weekly Review
+                        </span>
+                    </button>
+                )}
 
                 {/* Assistance Button */}
-                <button
-                    className={cn(
-                        "relative flex items-center w-full p-2.5 rounded-xl transition-all duration-200 group text-sm font-semibold justify-center",
-                        pathname === "/chat"
-                            ? "bg-violet-600 text-white shadow-md shadow-violet-200"
-                            : "bg-violet-50 text-violet-700 hover:bg-violet-100 hover:text-violet-900 border border-violet-200"
-                    )}
-                    onClick={() => router.push('/chat')}
-                >
-                    <div className="relative flex items-center justify-center">
-                        <MessageSquareText className={cn("w-5 h-5 shrink-0 transition-colors", pathname === "/chat" ? "text-white" : "text-violet-600")} />
-                        {pathname !== "/chat" && !collapsed && (
-                            <span className="absolute top-0 right-0 -mt-1 -mr-1 flex h-2.5 w-2.5">
+                {navContext?.utilities?.includes('Assistant') && (
+                    <button
+                        className={cn(
+                            "relative flex items-center w-full p-2.5 rounded-xl transition-all duration-200 group text-sm font-semibold justify-center",
+                            pathname === "/chat"
+                                ? "bg-violet-600 text-white shadow-md shadow-violet-200"
+                                : "bg-violet-50 text-violet-700 hover:bg-violet-100 hover:text-violet-900 border border-violet-200"
+                        )}
+                        onClick={() => router.push('/chat')}
+                    >
+                        <div className="relative flex items-center justify-center">
+                            <MessageSquareText className={cn("w-5 h-5 shrink-0 transition-colors", pathname === "/chat" ? "text-white" : "text-violet-600")} />
+                            {pathname !== "/chat" && !collapsed && (
+                                <span className="absolute top-0 right-0 -mt-1 -mr-1 flex h-2.5 w-2.5">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-500"></span>
+                                </span>
+                            )}
+                        </div>
+                        <span className={cn("ml-3 whitespace-nowrap transition-all duration-300", collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100")}>
+                            Assistant
+                        </span>
+                        {pathname !== "/chat" && collapsed && (
+                            <span className="absolute top-1 right-2 flex h-2 w-2">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-500"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500"></span>
                             </span>
                         )}
-                    </div>
-                    <span className={cn("ml-3 whitespace-nowrap transition-all duration-300", collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100")}>
-                        Assistant
-                    </span>
-                    {pathname !== "/chat" && collapsed && (
-                        <span className="absolute top-1 right-2 flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500"></span>
-                        </span>
-                    )}
-                </button>
+                    </button>
+                )}
             </div>
         </div>
     )

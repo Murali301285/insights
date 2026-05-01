@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useHeader } from "@/components/providers/HeaderProvider"
 import { DataTable } from "@/components/ui/data-table"
 import { Button } from "@/components/ui/button"
-import { Plus, MoreHorizontal, Pencil, Trash, ArrowUpDown } from "lucide-react"
+import { Plus, MoreHorizontal, Pencil, Trash, ArrowUpDown, Eye, EyeOff } from "lucide-react"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ColumnDef } from "@tanstack/react-table"
@@ -21,6 +21,7 @@ type User = {
     lastName?: string
     profileName?: string
     email: string
+    userType: string
     phoneNumber?: string
     notificationEmails?: string
     primaryManagerId?: string
@@ -45,6 +46,7 @@ export default function UserConfigPage() {
     const [editingUser, setEditingUser] = useState<User | null>(null)
 
     // Form states for complex dropdowns
+    const [selectedUserType, setSelectedUserType] = useState<string>("Entity")
     const [selectedCompany, setSelectedCompany] = useState<string>("")
     const [selectedRole, setSelectedRole] = useState<string>("")
     const [selectedPrimaryManager, setSelectedPrimaryManager] = useState<string>("none")
@@ -52,6 +54,7 @@ export default function UserConfigPage() {
 
     const [generatedPassword, setGeneratedPassword] = useState("")
     const [isTempPassword, setIsTempPassword] = useState(false)
+    const [showPassword, setShowPassword] = useState(false)
 
     const generateTempPassword = () => {
         const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'
@@ -91,6 +94,7 @@ export default function UserConfigPage() {
     }
 
     const openAddDialog = () => {
+        setSelectedUserType("Entity")
         setSelectedCompany("")
         setSelectedRole("")
         setSelectedPrimaryManager("none")
@@ -102,6 +106,7 @@ export default function UserConfigPage() {
 
     const openEditDialog = (user: User) => {
         // Safe defaults if API hasn't mapped properly yet
+        setSelectedUserType(user.userType || "Entity")
         setSelectedCompany(user.companies?.[0]?.id || "")
         setSelectedRole(user.roleId || "")
         setSelectedPrimaryManager(user.primaryManagerId || "none")
@@ -111,14 +116,7 @@ export default function UserConfigPage() {
     }
 
     const validateForm = (formData: FormData): boolean => {
-        const password = formData.get('password') as string
-        const confirmPassword = formData.get('confirmPassword') as string
         const notificationEmails = formData.get('notificationEmails') as string
-
-        if (password && password !== confirmPassword) {
-            toast.error("Passwords do not match!")
-            return false
-        }
 
         if (notificationEmails) {
             const emails = notificationEmails.split(',').map(e => e.trim()).filter(e => e)
@@ -127,6 +125,17 @@ export default function UserConfigPage() {
                 return false
             }
         }
+        if (selectedUserType === "Entity") {
+            if (!selectedCompany) {
+                toast.error("Please select a Company for Entity User.")
+                return false
+            }
+            if (!selectedRole) {
+                toast.error("Please select a Role for Entity User.")
+                return false
+            }
+        }
+
         return true
     }
 
@@ -138,14 +147,23 @@ export default function UserConfigPage() {
 
         const payload: any = Object.fromEntries(formData)
 
-        payload.companyIds = selectedCompany ? [selectedCompany] : []
-        payload.roleId = selectedRole
-        payload.primaryManagerId = selectedPrimaryManager === 'none' ? null : selectedPrimaryManager
-        payload.secondaryManagerId = selectedSecondaryManager === 'none' ? null : selectedSecondaryManager
+        payload.userType = selectedUserType
+        
+        if (selectedUserType === "Group") {
+            payload.companyIds = []
+            payload.roleId = null
+            payload.primaryManagerId = null
+            payload.secondaryManagerId = null
+        } else {
+            payload.companyIds = selectedCompany ? [selectedCompany] : []
+            payload.roleId = selectedRole
+            payload.primaryManagerId = selectedPrimaryManager === 'none' ? null : selectedPrimaryManager
+            payload.secondaryManagerId = selectedSecondaryManager === 'none' ? null : selectedSecondaryManager
+        }
+
         payload.isBlocked = payload.isActive !== 'on'
         payload.isTempPassword = isTempPassword
         delete payload.isActive
-        delete payload.confirmPassword
 
         try {
             const res = await fetch("/api/users", {
@@ -158,7 +176,8 @@ export default function UserConfigPage() {
                 setIsAddOpen(false)
                 fetchInitialData()
             } else {
-                toast.error("Failed to create user (Ensure email is unique)")
+                const errData = await res.json().catch(() => ({}));
+                toast.error(errData.error || "Failed to create user (Ensure email is unique)")
             }
         } catch (error) {
             toast.error("Error creating user")
@@ -173,13 +192,22 @@ export default function UserConfigPage() {
         if (!validateForm(formData)) return;
 
         const payload: any = Object.fromEntries(formData)
-        payload.companyIds = selectedCompany ? [selectedCompany] : []
-        payload.roleId = selectedRole
-        payload.primaryManagerId = selectedPrimaryManager === 'none' ? null : selectedPrimaryManager
-        payload.secondaryManagerId = selectedSecondaryManager === 'none' ? null : selectedSecondaryManager
+        payload.userType = selectedUserType
+        
+        if (selectedUserType === "Group") {
+            payload.companyIds = []
+            payload.roleId = null
+            payload.primaryManagerId = null
+            payload.secondaryManagerId = null
+        } else {
+            payload.companyIds = selectedCompany ? [selectedCompany] : []
+            payload.roleId = selectedRole
+            payload.primaryManagerId = selectedPrimaryManager === 'none' ? null : selectedPrimaryManager
+            payload.secondaryManagerId = selectedSecondaryManager === 'none' ? null : selectedSecondaryManager
+        }
+
         payload.isBlocked = payload.isActive !== 'on'
         delete payload.isActive
-        delete payload.confirmPassword
 
         if (!payload.password) delete payload.password // don't update if empty
 
@@ -195,7 +223,8 @@ export default function UserConfigPage() {
                 setEditingUser(null)
                 fetchInitialData()
             } else {
-                toast.error("Failed to update user")
+                const errData = await res.json().catch(() => ({}));
+                toast.error(errData.error || "Failed to update user")
             }
         } catch (error) {
             toast.error("Error updating user")
@@ -233,6 +262,18 @@ export default function UserConfigPage() {
                     <Label>Email Id <span className="text-zinc-400 text-[10px] lowercase font-normal">(login id)</span> <span className="text-red-500">*</span></Label>
                     <Input name="email" type="email" required defaultValue={defaultData?.email} className="lowercase" autoComplete="off" />
                 </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label>User Type <span className="text-red-500">*</span></Label>
+                    <Select value={selectedUserType} onValueChange={setSelectedUserType} required>
+                        <SelectTrigger><SelectValue placeholder="Select User Type" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Entity">Entity User (Standard)</SelectItem>
+                            <SelectItem value="Group">Group User (Read-Only across companies)</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
                 <div className="space-y-2">
                     <Label>Contact No</Label>
                     <Input name="phoneNumber" type="tel" defaultValue={defaultData?.phoneNumber} autoComplete="off" />
@@ -240,23 +281,23 @@ export default function UserConfigPage() {
             </div>
 
             {/* Passwords */}
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                        <Label>Password {defaultData ? "" : <span className="text-red-500">*</span>}</Label>
-                        {!defaultData && (
-                            <button 
-                                type="button" 
-                                onClick={generateTempPassword}
-                                className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 hover:bg-emerald-100 transition-colors"
-                            >
-                                Generate
-                            </button>
-                        )}
-                    </div>
+            <div className="space-y-2 max-w-md">
+                <div className="flex justify-between items-center">
+                    <Label>Password {defaultData ? "" : <span className="text-red-500">*</span>}</Label>
+                    {!defaultData && (
+                        <button 
+                            type="button" 
+                            onClick={generateTempPassword}
+                            className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                        >
+                            Generate
+                        </button>
+                    )}
+                </div>
+                <div className="relative">
                     <Input 
                         name="password" 
-                        type="text" 
+                        type={showPassword ? "text" : "password"} 
                         required={!defaultData} 
                         placeholder={defaultData ? "Leave blank to keep current" : ""} 
                         autoComplete="new-password"
@@ -266,76 +307,76 @@ export default function UserConfigPage() {
                             if (!defaultData) setIsTempPassword(false)
                         }}
                     />
-                    {!defaultData && isTempPassword && (
-                        <p className="text-[10px] text-emerald-600 font-medium mt-1">Temp password generated. They will be asked to reset it.</p>
-                    )}
+                    <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                    >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                 </div>
-                <div className="space-y-2">
-                    <Label>Confirm Password {defaultData ? "" : <span className="text-red-500">*</span>}</Label>
-                    <Input 
-                        name="confirmPassword" 
-                        type="text" 
-                        required={!defaultData} 
-                        autoComplete="new-password" 
-                        defaultValue={!defaultData ? generatedPassword : undefined}
-                        key={`cpass-${generatedPassword}`}
-                    />
-                </div>
+                {!defaultData && isTempPassword && (
+                    <p className="text-[10px] text-emerald-600 font-medium mt-1">Temp password generated. They will be asked to reset it.</p>
+                )}
             </div>
 
-            {/* Company and Role */}
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label>Company <span className="text-red-500">*</span></Label>
-                    <Select value={selectedCompany} onValueChange={setSelectedCompany} required>
-                        <SelectTrigger><SelectValue placeholder="Select Company" /></SelectTrigger>
-                        <SelectContent>
-                            {companies.map(c => (
-                                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="space-y-2">
-                    <Label>Role <span className="text-red-500">*</span></Label>
-                    <Select value={selectedRole} onValueChange={setSelectedRole} required>
-                        <SelectTrigger><SelectValue placeholder="Select Role" /></SelectTrigger>
-                        <SelectContent>
-                            {roles.map(r => (
-                                <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-            </div>
+            {selectedUserType === "Entity" && (
+                <>
+                    {/* Company and Role */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Company <span className="text-red-500">*</span></Label>
+                            <Select value={selectedCompany} onValueChange={setSelectedCompany} required>
+                                <SelectTrigger><SelectValue placeholder="Select Company" /></SelectTrigger>
+                                <SelectContent>
+                                    {companies.map(c => (
+                                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Role <span className="text-red-500">*</span></Label>
+                            <Select value={selectedRole} onValueChange={setSelectedRole} required>
+                                <SelectTrigger><SelectValue placeholder="Select Role" /></SelectTrigger>
+                                <SelectContent>
+                                    {roles.map(r => (
+                                        <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
 
-            {/* Managers */}
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label>Primary Manager</Label>
-                    <Select value={selectedPrimaryManager} onValueChange={setSelectedPrimaryManager}>
-                        <SelectTrigger><SelectValue placeholder="Select manager" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="none">-- None --</SelectItem>
-                            {data.map(u => (
-                                <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="space-y-2">
-                    <Label>Secondary Manager</Label>
-                    <Select value={selectedSecondaryManager} onValueChange={setSelectedSecondaryManager}>
-                        <SelectTrigger><SelectValue placeholder="Select manager" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="none">-- None --</SelectItem>
-                            {data.map(u => (
-                                <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-            </div>
+                    {/* Managers */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Primary Manager</Label>
+                            <Select value={selectedPrimaryManager} onValueChange={setSelectedPrimaryManager}>
+                                <SelectTrigger><SelectValue placeholder="Select manager" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">-- None --</SelectItem>
+                                    {data.map(u => (
+                                        <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Secondary Manager</Label>
+                            <Select value={selectedSecondaryManager} onValueChange={setSelectedSecondaryManager}>
+                                <SelectTrigger><SelectValue placeholder="Select manager" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">-- None --</SelectItem>
+                                    {data.map(u => (
+                                        <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                </>
+            )}
 
             {/* Notification Email */}
             <div className="space-y-2">
@@ -386,10 +427,20 @@ export default function UserConfigPage() {
             }
         },
         {
+            accessorKey: "userType",
+            header: "User Type",
+            cell: ({ row }) => (
+                <span className={`px-2 py-0.5 rounded text-xs font-semibold ${row.original.userType === 'Group' ? 'bg-purple-100 text-purple-700' : 'bg-zinc-100 text-zinc-700'}`}>
+                    {row.original.userType || "Entity"}
+                </span>
+            )
+        },
+        {
             id: "companyName",
             header: "Company",
             cell: ({ row }) => {
                 const user = row.original as any;
+                if (user.userType === "Group") return <span className="text-zinc-400 italic text-xs">All Companies</span>;
                 const companyName = user.companies && user.companies.length > 0
                     ? user.companies.map((c: any) => c.name).join(", ")
                     : (user.hasGlobalAccess ? "Global" : "N/A");

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { useHeader } from "@/components/providers/HeaderProvider"
 import { useFilter } from "@/components/providers/FilterProvider"
+import { useUser } from "@/components/providers/UserProvider"
 import { DataTable } from "@/components/ui/data-table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,6 +17,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 export default function ExpenseTrackerPage() {
     const { setHeaderInfo } = useHeader()
     const { selectedCompanyIds } = useFilter()
+    const user = useUser()
     const [entries, setEntries] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
 
@@ -257,15 +259,16 @@ export default function ExpenseTrackerPage() {
                         <Download className="w-4 h-4" />
                         Generate Report
                     </Button>
-                    <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-                        <DialogTrigger asChild>
-                            <Button size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all h-9 rounded-full px-5">
-                                <Plus className="w-4 h-4" />
-                                Entry
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto hidden-scrollbar">
-                            <DialogHeader>
+                    {user?.userType !== 'Group' && (
+                        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+                            <DialogTrigger asChild>
+                                <Button size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all h-9 rounded-full px-5">
+                                    <Plus className="w-4 h-4" />
+                                    Entry
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto hidden-scrollbar">
+                                <DialogHeader>
                                 <DialogTitle className="text-xl font-bold">Log New Expense</DialogTitle>
                                 <p className="text-zinc-500 text-sm">Upload receipts and categorize amounts appropriately</p>
                             </DialogHeader>
@@ -354,6 +357,7 @@ export default function ExpenseTrackerPage() {
                             </form>
                         </DialogContent>
                     </Dialog>
+                    )}
                 </div>
                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-zinc-800">
                     <Wallet className="w-5 h-5 text-indigo-500" /> Recent Expenses

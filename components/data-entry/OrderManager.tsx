@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { SmartSummaryGrid } from "@/components/data-entry/SmartSummaryGrid"
 
 const formatDate = (dateString: string | Date | undefined | null) => {
     if (!dateString) return "-";
@@ -33,7 +34,7 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
     const [viewOrder, setViewOrder] = useState<any>(null)
     const [timelineOrder, setTimelineOrder] = useState<any>(null)
     const [updatingStatus, setUpdatingStatus] = useState(false)
-    const [viewTab, setViewTab] = useState<"Ongoing" | "Completed" | "Closed">("Ongoing");
+    const [viewTab, setViewTab] = useState<"Summary" | "Ongoing" | "Completed" | "Closed">("Summary");
     const [closeOrderModal, setCloseOrderModal] = useState(false);
     const [closeReason, setCloseReason] = useState("");
     const [closeFiles, setCloseFiles] = useState<File[]>([]);
@@ -452,7 +453,7 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
         <div className="w-full flex-1 flex flex-col h-full bg-white relative overflow-hidden">
             <div className="px-5 pt-5 pb-2">
                 <div className="flex bg-zinc-100 p-1 rounded-lg w-max shadow-inner">
-                    {["Ongoing", "Completed", "Closed"].map((tab) => (
+                    {["Summary", "Ongoing", "Completed", "Closed"].map((tab) => (
                         <button
                             key={tab}
                             onClick={() => setViewTab(tab as any)}
@@ -463,6 +464,7 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
                                     : "text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200/50"
                             )}
                         >
+                            {tab === "Summary" && "Summary"}
                             {tab === "Ongoing" && `Ongoing (${ongoingCount})`}
                             {tab === "Completed" && `Completed (${completedCount})`}
                             {tab === "Closed" && `Closed (${closedCount})`}
@@ -470,8 +472,12 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
                     ))}
                 </div>
             </div>
-            <div className="flex-1 p-5 pt-0 overflow-auto">
-                {loading ? (
+            <div className="flex-1 p-5 pt-0 overflow-auto flex flex-col">
+                {viewTab === "Summary" ? (
+                    <div className="flex-1 rounded-xl shadow-sm border border-zinc-200 overflow-hidden">
+                        <SmartSummaryGrid module="manufacturing" activeCompanyId={activeCompanyId} />
+                    </div>
+                ) : loading ? (
                     <div className="flex flex-col items-center justify-center h-64 space-y-4">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
                         <span className="text-sm font-medium text-zinc-500 animate-pulse">Fetching orders...</span>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useHeader } from "@/components/providers/HeaderProvider"
 import { useFilter } from "@/components/providers/FilterProvider"
+import { useUser } from "@/components/providers/UserProvider"
 import { formatCurrency } from "@/lib/utils"
 import { Eye, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, DollarSign, Calendar, Plus, Wallet } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -14,6 +15,7 @@ import { KpiInsightModal } from "@/components/modals/KpiInsightModal"
 export default function FinancePage() {
     const { setHeaderInfo } = useHeader()
     const { period, setPeriod, currency, selectedCompanyIds } = useFilter()
+    const user = useUser()
 
     useEffect(() => {
         setHeaderInfo("Finance & Accounting", "Cash flow monitoring and AP/AR aging analysis.")
@@ -123,10 +125,12 @@ export default function FinancePage() {
                         </button>
                     ))}
                 </div>
-                <Button onClick={() => setIsEntryOpen(true)} size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all">
-                    <Plus className="w-4 h-4" />
-                    Entry
-                </Button>
+                {user?.userType !== 'Group' && (
+                    <Button onClick={() => setIsEntryOpen(true)} size="sm" className="gap-2 bg-zinc-900 text-white hover:bg-zinc-800 shadow-lg hover:shadow-xl transition-all">
+                        <Plus className="w-4 h-4" />
+                        Entry
+                    </Button>
+                )}
             </div>
 
             <div className="grid grid-cols-12 gap-6 h-auto">

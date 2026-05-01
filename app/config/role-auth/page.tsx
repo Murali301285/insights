@@ -17,39 +17,98 @@ export default function RoleAuthPage() {
         setHeaderInfo("Role Authentication", "Safely bind roles to module-level functionality grids.")
     }, [setHeaderInfo])
 
-    const modules = [
-        { name: "Dashboard", items: ["System Overview"] },
-        { name: "Insights", items: ["Finance", "Business Acquisition", "Order Fulfillment", "Support", "HR", "Supply Chain"] },
-        { name: "Tasks", items: ["Task Manager"] },
-        { name: "Time Tracker", items: ["Activity Logs"] },
-        { name: "Expense", items: ["Expense Entries"] },
-        { name: "Inventory", items: ["Inventory Orders"] },
-        { name: "Vault", items: ["Documents & Hierarchy"] },
-        { name: "Config", items: ["Zone", "Customer Master", "Supplier Master", "Expense Category", "Company", "Users", "Roles", "Payment Types", "Status", "Request Stages", "System Configuration"] }
-    ]
-
     const [selectedRole, setSelectedRole] = useState<string>("")
     const [roles, setRoles] = useState<{ id: string, name: string }[]>([])
+    const [pages, setPages] = useState<any[]>([])
+    const [roleAccesses, setRoleAccesses] = useState<Record<string, boolean>>({})
+    const [loading, setLoading] = useState(false)
 
     useEffect(() => {
-        const fetchRoles = async () => {
+        const fetchInitialData = async () => {
             try {
-                const res = await fetch("/api/config/roles")
-                if (res.ok) {
-                    const data = await res.json()
-                    setRoles(data)
-                }
+                const [rolesRes, pagesRes] = await Promise.all([
+                    fetch("/api/config/roles"),
+                    fetch("/api/config/pages")
+                ])
+                if (rolesRes.ok) setRoles(await rolesRes.json())
+                if (pagesRes.ok) setPages(await pagesRes.json())
             } catch (error) {
-                console.error("Error fetching roles", error)
+                console.error("Error fetching data", error)
             }
         }
-        fetchRoles()
+        fetchInitialData()
     }, [])
 
-    // We would map module auth dynamically, mocked here natively:
-    const handleSaveMatrix = () => {
-        toast.success("Security permissions committed successfully.")
+    useEffect(() => {
+        if (!selectedRole) {
+            setRoleAccesses({})
+            return
+        }
+        const fetchAccesses = async () => {
+            try {
+                const res = await fetch(`/api/config/role-auth?roleId=${selectedRole}`)
+                if (res.ok) {
+                    const data = await res.json()
+                    const accessMap: Record<string, boolean> = {}
+                    data.forEach((acc: any) => {
+                        accessMap[acc.pageId] = acc.canView
+                    })
+                    setRoleAccesses(accessMap)
+                }
+            } catch (error) {
+                console.error("Error fetching access", error)
+            }
+        }
+        fetchAccesses()
+    }, [selectedRole])
+
+    const handleSaveMatrix = async () => {
+        if (!selectedRole) return
+        setLoading(true)
+        try {
+            const res = await fetch('/api/config/role-auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    roleId: selectedRole,
+                    accesses: roleAccesses
+                })
+            })
+            if (res.ok) {
+                toast.success("Security permissions committed successfully.")
+            } else {
+                toast.error("Failed to save permissions")
+            }
+        } catch (error) {
+            toast.error("An error occurred")
+        } finally {
+            setLoading(false)
+        }
     }
+
+    // Process pages into modules
+    const modules: { name: string; id: string; items: any[] }[] = []
+    
+    // Group by parent
+    const topLevel = pages.filter(p => !p.parentId).sort((a, b) => a.orderIndex - b.orderIndex)
+    
+    topLevel.forEach(parent => {
+        const children = pages.filter(p => p.parentId === parent.id).sort((a, b) => a.orderIndex - b.orderIndex)
+        modules.push({
+            name: parent.pageName,
+            id: parent.id,
+            items: children.length > 0 ? children : [parent] // If no children, the parent is the item
+        })
+    })
+
+    const handleCheckboxChange = (pageId: string, checked: boolean) => {
+        setRoleAccesses(prev => ({
+            ...prev,
+            [pageId]: checked
+        }))
+    }
+
+
 
     return (
         <div className="space-y-6">
@@ -88,9 +147,14 @@ export default function RoleAuthPage() {
                                 <h4 className="font-semibold text-xs text-zinc-500 uppercase tracking-widest border-b border-zinc-100 pb-2 mb-3">Sub-Modules / Pages</h4>
                                 <div className="flex flex-col gap-3">
                                     {m.items.map((item, idx) => (
-                                        <label key={idx} className="flex items-center justify-between cursor-pointer text-sm font-medium hover:bg-zinc-50 p-2 rounded-md -mx-2 transition-colors">
-                                            <span className="text-zinc-700">{item}</span>
-                                            <input type="checkbox" className="accent-indigo-600 w-4 h-4 rounded cursor-pointer" defaultChecked={i === 0 || i === 1} />
+                                        <label key={item.id} className="flex items-center justify-between cursor-pointer text-sm font-medium hover:bg-zinc-50 p-2 rounded-md -mx-2 transition-colors">
+                                            <span className="text-zinc-700">{item.pageName}</span>
+                                            <input 
+                                                type="checkbox" 
+                                                className="accent-indigo-600 w-4 h-4 rounded cursor-pointer" 
+                                                checked={!!roleAccesses[item.id]} 
+                                                onChange={(e) => handleCheckboxChange(item.id, e.target.checked)}
+                                            />
                                         </label>
                                     ))}
                                 </div>

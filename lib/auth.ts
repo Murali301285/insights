@@ -33,7 +33,7 @@ export async function getSession() {
     return await decrypt(session);
 }
 
-export async function login(userData: { id: string; email: string; name: string; image?: string; role: string; roleId?: string; isTempPassword?: boolean }) {
+export async function login(userData: { id: string; email: string; name: string; image?: string; role: string; roleId?: string; isTempPassword?: boolean; userType?: string }) {
     const maxAge = 30 * 60; // 30 Minutes strict
     const expires = new Date(Date.now() + maxAge * 1000);
     const session = await encrypt({ user: userData, expires });

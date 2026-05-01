@@ -41,12 +41,16 @@ export async function POST(req: NextRequest) {
             }
         });
 
-        // We should ideally update the session to remove the `isTempPassword` flag
-        // However, middleware just verifies the current session, the next login will have the correct flag.
-        // It's easiest to just force them to log in again or let the middleware allow them if we update the cookie.
-        // Actually, we can just clear the session to force re-login for security.
+        // Re-issue a new session with isTempPassword = false
+        const { encrypt } = await import('@/lib/auth');
+        const maxAge = 30 * 60; // 30 Minutes
+        const expires = new Date(Date.now() + maxAge * 1000);
+        
+        const newPayload = { ...session.user, isTempPassword: false };
+        const newSession = await encrypt({ user: newPayload, expires });
+        
         const res = NextResponse.json({ success: true });
-        res.cookies.delete("session");
+        res.cookies.set("session", newSession, { maxAge, expires, httpOnly: true, sameSite: "lax" });
         return res;
         
     } catch (error) {

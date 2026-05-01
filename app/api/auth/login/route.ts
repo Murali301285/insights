@@ -72,7 +72,8 @@ export async function POST(request: NextRequest) {
             image: user.image || "",
             role: user.role?.name || "user",
             roleId: user.roleId || "",
-            isTempPassword: user.isTempPassword
+            isTempPassword: user.isTempPassword,
+            userType: user.userType
         });
 
         await logAction({

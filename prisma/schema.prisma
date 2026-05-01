@@ -105,6 +105,7 @@ model KpiEntry {
 
 model User {
   id              String    @id @default(cuid())
+  userType        String    @default("Entity") // "Entity" | "Group"
   hasGlobalAccess Boolean   @default(false)
   hasVaultAccess  Boolean   @default(false)
   companies       Company[]

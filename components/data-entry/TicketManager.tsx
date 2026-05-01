@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Plus, Table as TableIcon, Pencil, Trash, Building2, Ticket, Search, Upload, Download, CheckCircle2, MessageSquare, Lock, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Eye, FileSpreadsheet } from "lucide-react"
 import { cn } from "@/lib/utils"
 import * as xlsx from 'xlsx'
+import { SmartSummaryGrid } from "@/components/data-entry/SmartSummaryGrid"
 
 interface TicketManagerProps {
     isOpen: boolean
@@ -26,6 +27,7 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
     const [tickets, setTickets] = useState<any[]>([])
     const [weeklyItems, setWeeklyItems] = useState<string[]>([])
     const [viewTab, setViewTab] = useState<'INTERNAL' | 'EXTERNAL'>('INTERNAL')
+    const [subTab, setSubTab] = useState<'Summary' | 'Entry'>('Summary')
     const [statusTab, setStatusTab] = useState<'OPEN' | 'CLOSED'>('OPEN')
     const [searchQuery, setSearchQuery] = useState('')
 
@@ -488,6 +490,22 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
                                         </button>
                                     ))}
                                 </div>
+                                <div className="flex bg-zinc-100 p-1 rounded-lg w-max shadow-inner ml-4">
+                                    {['Summary', 'Entry'].map((tab) => (
+                                        <button
+                                            key={tab}
+                                            onClick={() => setSubTab(tab as any)}
+                                            className={cn(
+                                                "px-6 py-1.5 text-sm font-semibold rounded-md transition-all uppercase tracking-wider",
+                                                subTab === tab
+                                                    ? "bg-emerald-600 text-white shadow-sm"
+                                                    : "text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200/50"
+                                            )}
+                                        >
+                                            {tab}
+                                        </button>
+                                    ))}
+                                </div>
 
                                 {/* FY Dropdown */}
                                 <div className="flex items-center bg-white border border-zinc-200 px-3 py-1.5 rounded-lg shadow-sm w-36">
@@ -527,7 +545,12 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
                         </div>
                     </DialogHeader>
 
-                    <div className="flex-1 overflow-auto p-6">
+                    <div className="flex-1 overflow-auto p-6 flex flex-col">
+                        {subTab === 'Summary' ? (
+                            <div className="flex-1 bg-white rounded-xl shadow-sm border border-zinc-200 overflow-hidden">
+                                <SmartSummaryGrid module={viewTab === 'INTERNAL' ? 'ticket_internal' : 'ticket_external'} activeCompanyId={activeCompanyId} />
+                            </div>
+                        ) : (
                         <div className="bg-white rounded-xl shadow-sm border border-zinc-200 overflow-hidden flex flex-col h-full">
                             <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/50 flex-wrap gap-4">
                                 <div className="flex items-center gap-4">
@@ -704,6 +727,7 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
                                 </div>
                             </div>
                         </div>
+                        )}
                     </div>
                 </DialogContent>
             </Dialog>

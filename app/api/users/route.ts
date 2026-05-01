@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { email, password, firstName, lastName, profileName: incomingProfileName, username: incomingUsername, roleId, phoneNumber, isBlocked, companyIds, hasGlobalAccess, hasVaultAccess, isTempPassword } = body;
+        const { email, password, firstName, lastName, profileName: incomingProfileName, username: incomingUsername, roleId, phoneNumber, isBlocked, companyIds, hasGlobalAccess, hasVaultAccess, isTempPassword, userType } = body;
 
         // Basic Validation
         if (!email || !password) {
@@ -62,12 +62,13 @@ export async function POST(req: NextRequest) {
                 profileName,
                 firstName: firstName || null,
                 lastName: lastName || null,
-                roleId: roleId || null,
+                role: roleId ? { connect: { id: roleId } } : undefined,
                 phoneNumber: phoneNumber || null,
                 isBlocked: isBlocked || false,
                 hasGlobalAccess: hasGlobalAccess || false,
                 hasVaultAccess: hasVaultAccess || false,
                 isTempPassword: isTempPassword || false,
+                userType: userType || "Entity",
                 companies: companyIds?.length > 0 ? { connect: companyIds.map((id: string) => ({ id })) } : undefined
             },
         });
@@ -103,7 +104,7 @@ export async function POST(req: NextRequest) {
                 userEmail: session.user.email
             });
         }
-        return NextResponse.json({ error: "Failed to create user." }, { status: 500 });
+        return NextResponse.json({ error: `Failed to create user. ${(error as any).message}` }, { status: 500 });
     }
 }
 
@@ -112,7 +113,7 @@ export async function PUT(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { id, email, password, firstName, lastName, roleId, phoneNumber, isBlocked, companyIds, hasGlobalAccess, hasVaultAccess } = body;
+        const { id, email, password, firstName, lastName, roleId, phoneNumber, isBlocked, companyIds, hasGlobalAccess, hasVaultAccess, userType } = body;
 
         if (!id) return NextResponse.json({ error: "Missing user ID" }, { status: 400 });
 
@@ -125,9 +126,10 @@ export async function PUT(req: NextRequest) {
             profileName,
             firstName,
             lastName,
-            roleId: roleId || null,
+            role: roleId ? { connect: { id: roleId } } : { disconnect: true },
             phoneNumber: phoneNumber || null,
             isBlocked,
+            userType: userType || "Entity",
             hasGlobalAccess: hasGlobalAccess || false,
             hasVaultAccess: hasVaultAccess || false,
         };
