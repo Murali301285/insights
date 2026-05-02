@@ -134,6 +134,7 @@ export default function PaymentTypeMasterPage() {
         },
         {
             accessorKey: "companyId",
+            accessorFn: (row: any) => row.company?.name || "Global",
             header: "Company",
             cell: ({ row }) => {
                 const item = row.original as any;
@@ -197,6 +198,7 @@ export default function PaymentTypeMasterPage() {
         },
         {
             accessorKey: "isActive",
+            accessorFn: (row: any) => row.isActive ? "Active" : "Inactive",
             header: ({ column }) => {
                 return (
                     <Button variant="ghost" className="-ml-3 h-8 data-[state=open]:bg-accent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>

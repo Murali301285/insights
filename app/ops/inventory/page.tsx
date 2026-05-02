@@ -8,30 +8,87 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Upload, X, MinusCircle, Package, Layers, Grid } from "lucide-react"
+import { Plus, Upload, X, MinusCircle, Package, Layers, Grid, ChevronsUpDown, Check, ArrowUpDown, Eye, Pencil, Trash2 } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { cn } from "@/lib/utils"
 import { DataTable } from "@/components/ui/data-table"
 import { ColumnDef } from "@tanstack/react-table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { toast } from "sonner"
 import { CreatableCategorySelect } from "@/components/ui/creatable-category-select"
+import { useFilter } from "@/components/providers/FilterProvider"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export default function InventoryPage() {
     const { setHeaderInfo } = useHeader()
+    const { selectedCompanyIds } = useFilter()
     const [isAddOpen, setIsAddOpen] = useState(false)
     const [isViewOpen, setIsViewOpen] = useState(false)
     const [isEditOpen, setIsEditOpen] = useState(false)
     const [selectedItem, setSelectedItem] = useState<any>(null)
     const [categoriesMaster, setCategoriesMaster] = useState<{ slno: number, categoryName: string }[]>([])
+    const [companies, setCompanies] = useState<any[]>([])
+    const [selectedCompanyId, setSelectedCompanyId] = useState<string>("")
+    const [units, setUnits] = useState<{value: string, label: string}[]>([])
+    const [gstRates, setGstRates] = useState<{value: string, label: string}[]>([])
+    const [igstRates, setIgstRates] = useState<{value: string, label: string}[]>([])
     
-    const [entries, setEntries] = useState<any[]>([
-        { id: "1", name: "Raw Material A", category: "Raw Materials", quantity: 500, unit: "kg", rate: 120.0, type: "Individual Item", hsnCode: "HSN123", gst: "18", igst: "18", description: "Standard raw material." },
-        { id: "2", name: "Sub Assembly Alpha", category: "Assemblies", quantity: 50, unit: "pcs", rate: 1500.0, type: "Sub Assembly", hsnCode: "HSN456", gst: "12", igst: "12", description: "Alpha tier assembly." },
-    ])
+    const [entries, setEntries] = useState<any[]>([])
+    const [isLoading, setIsLoading] = useState(true)
 
     useEffect(() => {
-        setHeaderInfo("Inventory Settings", "Manage individual items and sub assemblies natively")
+        setHeaderInfo("Inventory Management", "Manage individual items and sub assemblies natively")
         fetchCategories()
+        fetchCompanies()
+        fetchLookups()
     }, [setHeaderInfo])
+
+    useEffect(() => {
+        fetchInventory()
+    }, [selectedCompanyIds])
+
+    async function fetchInventory() {
+        setIsLoading(true)
+        try {
+            let url = "/api/inventory"
+            if (selectedCompanyIds.length > 0) {
+                url += `?companyId=${selectedCompanyIds[0]}`
+            }
+            const res = await fetch(url)
+            if (res.ok) {
+                setEntries(await res.json())
+            }
+        } catch (e) {
+            console.error("Failed to fetch inventory")
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    async function fetchLookups() {
+        try {
+            const [uRes, gRes, iRes] = await Promise.all([
+                fetch("/api/config/lookups?type=UNIT&active=true"),
+                fetch("/api/config/lookups?type=GST&active=true"),
+                fetch("/api/config/lookups?type=IGST&active=true")
+            ])
+            if (uRes.ok) setUnits(await uRes.json())
+            if (gRes.ok) setGstRates(await gRes.json())
+            if (iRes.ok) setIgstRates(await iRes.json())
+        } catch (e) {}
+    }
+
+    async function fetchCompanies() {
+        try {
+            const res = await fetch("/api/companies?active=true")
+            if (res.ok) {
+                const data = await res.json()
+                setCompanies(data)
+                if (data.length > 0) setSelectedCompanyId(data[0].id)
+            }
+        } catch (e) {}
+    }
 
     async function fetchCategories() {
         try {
@@ -45,19 +102,26 @@ export default function InventoryPage() {
 
     const handleSuccess = (newItem: any, isEdit: boolean = false) => {
         if (isEdit) {
-            setEntries(entries.map(e => e.id === newItem.id ? newItem : e))
-            setIsEditOpen(false)
             toast.success("Entry updated successfully")
+            setIsEditOpen(false)
         } else {
-            setEntries([newItem, ...entries])
-            setIsAddOpen(false)
             toast.success("Entry added successfully")
+            setIsAddOpen(false)
         }
+        fetchInventory()
     }
 
-    const handleDelete = (id: string) => {
-        setEntries(entries.filter(e => e.id !== id))
-        toast.success("Entry deleted successfully")
+    const handleDelete = async (id: string) => {
+        if (!confirm("Are you sure you want to delete this entry?")) return
+        try {
+            const res = await fetch(`/api/inventory?id=${id}`, { method: 'DELETE' })
+            if (res.ok) {
+                toast.success("Entry deleted successfully")
+                fetchInventory()
+            }
+        } catch (e) {
+            toast.error("Failed to delete entry")
+        }
     }
 
     const columns: ColumnDef<any>[] = [
@@ -67,13 +131,21 @@ export default function InventoryPage() {
             cell: ({ row }) => <span className="text-zinc-500 font-medium">{row.index + 1}</span>,
         },
         {
+            accessorKey: "companyId",
+            header: ({ column }) => <Button variant="ghost" className="-ml-3 h-8" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>Company <ArrowUpDown className="ml-2 h-4 w-4" /></Button>,
+            cell: ({ row }) => <span className="font-medium text-zinc-600">{companies.find(c => c.id === row.original.companyId)?.name || 'Global'}</span>,
+            accessorFn: (row) => companies.find(c => c.id === row.companyId)?.name || 'Global'
+        },
+        {
             accessorKey: "name",
-            header: "Item Name",
+            header: ({ column }) => <Button variant="ghost" className="-ml-3 h-8" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>Item Name <ArrowUpDown className="ml-2 h-4 w-4" /></Button>,
             cell: ({ row }) => <span className="font-bold text-zinc-800">{row.original.name}</span>
         },
         {
-            accessorKey: "category",
+            accessorKey: "categoryId",
             header: "Category",
+            cell: ({ row }) => <span>{categoriesMaster.find(c => c.slno === row.original.categoryId)?.categoryName || '-'}</span>,
+            accessorFn: (row) => categoriesMaster.find(c => c.slno === row.categoryId)?.categoryName || '-'
         },
         {
             accessorKey: "type",
@@ -101,13 +173,38 @@ export default function InventoryPage() {
             id: "actions",
             header: "Actions",
             cell: ({ row }) => (
-                <div className="flex items-center gap-3 text-sm">
-                    <button onClick={() => { setSelectedItem(row.original); setIsViewOpen(true); }} className="text-zinc-600 hover:text-zinc-900 font-medium hover:underline">View</button>
-                    <button onClick={() => { setSelectedItem(row.original); setIsEditOpen(true); }} className="text-indigo-600 hover:underline font-medium">Edit</button>
-                    <button onClick={() => handleDelete(row.original.id)} className="text-rose-600 hover:underline font-medium">Delete</button>
+                <div className="flex items-center gap-1 text-sm">
+                    <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button onClick={() => { setSelectedItem(row.original); setIsViewOpen(true); }} className="text-zinc-500 hover:text-zinc-900 font-medium p-1.5 rounded hover:bg-zinc-100 transition-colors">
+                                    <Eye className="w-4 h-4" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>View Details</TooltipContent>
+                        </Tooltip>
+                        
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button onClick={() => { setSelectedItem(row.original); setIsEditOpen(true); }} className="text-indigo-500 hover:text-indigo-700 font-medium p-1.5 rounded hover:bg-indigo-50 transition-colors">
+                                    <Pencil className="w-4 h-4" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Edit Entry</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button onClick={() => handleDelete(row.original.id)} className="text-red-500 hover:text-red-700 font-medium p-1.5 rounded hover:bg-red-50 transition-colors">
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete Entry</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 </div>
-            ),
-        },
+            )
+        }
     ]
 
     return (
@@ -150,6 +247,20 @@ export default function InventoryPage() {
                                 <p className="text-zinc-500 text-sm">Select the type of entry you want to log.</p>
                             </DialogHeader>
                             
+                            <div className="mt-4 space-y-1.5">
+                                <Label className="text-sm font-medium">Company Name <span className="text-red-500">*</span></Label>
+                                <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+                                    <SelectTrigger className="w-full border-zinc-200 h-10">
+                                        <SelectValue placeholder="Select Company" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {companies.map(c => (
+                                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
                             <Tabs defaultValue="individual" className="w-full mt-4">
                                 <TabsList className="grid grid-cols-2 w-full mb-6 bg-zinc-100">
                                     <TabsTrigger value="individual">Individual item</TabsTrigger>
@@ -158,11 +269,11 @@ export default function InventoryPage() {
 
                                 <div className="relative">
                                     <TabsContent value="individual" className="mt-0 outline-none">
-                                        <NewItemForm onSuccess={(i) => handleSuccess(i, false)} categoriesMaster={categoriesMaster} setCategoriesMaster={setCategoriesMaster} />
+                                        <NewItemForm companyId={selectedCompanyId} onSuccess={(i) => handleSuccess(i, false)} categoriesMaster={categoriesMaster} setCategoriesMaster={setCategoriesMaster} units={units} gstRates={gstRates} igstRates={igstRates} />
                                     </TabsContent>
 
                                     <TabsContent value="sub-assembly" className="mt-0 outline-none">
-                                        <CompositeItemForm title="Add new Sub Assembly" isSubAssembly={true} onSuccess={(i) => handleSuccess(i, false)} categoriesMaster={categoriesMaster} setCategoriesMaster={setCategoriesMaster} />
+                                        <CompositeItemForm companyId={selectedCompanyId} title="Add new Sub Assembly" isSubAssembly={true} onSuccess={(i) => handleSuccess(i, false)} categoriesMaster={categoriesMaster} setCategoriesMaster={setCategoriesMaster} units={units} gstRates={gstRates} igstRates={igstRates} />
                                     </TabsContent>
                                 </div>
                             </Tabs>
@@ -235,20 +346,24 @@ export default function InventoryPage() {
                     </DialogHeader>
                     {selectedItem && selectedItem.type === "Individual Item" && (
                         <NewItemForm 
+                            companyId={selectedCompanyId}
                             initialData={selectedItem} 
                             onSuccess={(i) => handleSuccess(i, true)} 
                             categoriesMaster={categoriesMaster} 
                             setCategoriesMaster={setCategoriesMaster} 
+                            units={units} gstRates={gstRates} igstRates={igstRates}
                         />
                     )}
                     {selectedItem && selectedItem.type === "Sub Assembly" && (
                         <CompositeItemForm 
+                            companyId={selectedCompanyId}
                             initialData={selectedItem} 
                             title="Edit Sub Assembly" 
                             isSubAssembly={true} 
                             onSuccess={(i) => handleSuccess(i, true)} 
                             categoriesMaster={categoriesMaster} 
                             setCategoriesMaster={setCategoriesMaster} 
+                            units={units} gstRates={gstRates} igstRates={igstRates}
                         />
                     )}
                 </DialogContent>
@@ -257,20 +372,28 @@ export default function InventoryPage() {
     )
 }
 
-function NewItemForm({ onSuccess, initialData, categoriesMaster, setCategoriesMaster }: { onSuccess: (item: any) => void, initialData?: any, categoriesMaster: any[], setCategoriesMaster: any }) {
+function NewItemForm({ companyId, onSuccess, initialData, categoriesMaster, setCategoriesMaster, units, gstRates, igstRates }: { companyId: string, onSuccess: (item: any) => void, initialData?: any, categoriesMaster: any[], setCategoriesMaster: any, units: any[], gstRates: any[], igstRates: any[] }) {
     const [selectedCategories, setSelectedCategories] = useState<number[]>(initialData?.categoryId ? [initialData.categoryId] : [])
+    const [annexureFiles, setAnnexureFiles] = useState<File[]>([])
+    const [imageFiles, setImageFiles] = useState<File[]>([])
 
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: React.Dispatch<React.SetStateAction<File[]>>) => {
+        if (e.target.files) {
+            setter(prev => [...prev, ...Array.from(e.target.files!)])
+        }
+    }
+
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
         const formData = new FormData(e.currentTarget)
         const categoryName = selectedCategories.length > 0 
             ? categoriesMaster.find(c => c.slno === selectedCategories[0])?.categoryName || "General"
             : "General"
 
-        const newItem = {
-            id: initialData?.id || Date.now().toString(),
+        const payload = {
+            id: initialData?.id,
+            companyId,
             name: formData.get("name") || "Unknown Item",
-            category: categoryName,
             categoryId: selectedCategories[0],
             hsnCode: formData.get("hsnCode"),
             description: formData.get("description"),
@@ -281,7 +404,24 @@ function NewItemForm({ onSuccess, initialData, categoriesMaster, setCategoriesMa
             igst: formData.get("igst"),
             type: "Individual Item"
         }
-        onSuccess(newItem)
+
+        try {
+            const res = await fetch('/api/inventory', {
+                method: initialData?.id ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+
+            if (res.ok) {
+                const data = await res.json()
+                data.category = categoryName // For UI update
+                onSuccess(data)
+            } else {
+                toast.error("Failed to save entry")
+            }
+        } catch (e) {
+            toast.error("An error occurred")
+        }
     }
 
     return (
@@ -310,9 +450,11 @@ function NewItemForm({ onSuccess, initialData, categoriesMaster, setCategoriesMa
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                     <Label className="text-sm font-medium">Unit</Label>
-                    <Select name="unit" defaultValue={initialData?.unit || "pcs"}>
+                    <Select name="unit" defaultValue={initialData?.unit || (units.length > 0 ? units[0].value : "")}>
                         <SelectTrigger className="h-10 border-zinc-200"><SelectValue placeholder="Select a unit" /></SelectTrigger>
-                        <SelectContent><SelectItem value="pcs">Pieces</SelectItem><SelectItem value="kg">Kilograms</SelectItem><SelectItem value="ltr">Liters</SelectItem></SelectContent>
+                        <SelectContent>
+                            {units.map(u => <SelectItem key={u.value} value={u.value}>{u.label || u.value}</SelectItem>)}
+                        </SelectContent>
                     </Select>
                 </div>
                 <div className="space-y-1.5 relative z-50">
@@ -322,7 +464,7 @@ function NewItemForm({ onSuccess, initialData, categoriesMaster, setCategoriesMa
                         selectedIds={selectedCategories}
                         onChange={setSelectedCategories}
                         onCategoryCreated={(newCat) => setCategoriesMaster((prev: any) => [newCat, ...prev])}
-                        companyId={null}
+                        companyId={companyId}
                         apiEndpoint="/api/config/category"
                     />
                 </div>
@@ -351,16 +493,20 @@ function NewItemForm({ onSuccess, initialData, categoriesMaster, setCategoriesMa
                 <div className="grid grid-cols-2 gap-4 mt-2">
                     <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-zinc-700">GST rate %</Label>
-                        <Select name="gst" defaultValue={initialData?.gst || "18"}>
+                        <Select name="gst" defaultValue={initialData?.gst || (gstRates.length > 0 ? gstRates[0].value : "")}>
                             <SelectTrigger className="h-10 border-zinc-200"><SelectValue placeholder="Select GST" /></SelectTrigger>
-                            <SelectContent><SelectItem value="5">5%</SelectItem><SelectItem value="12">12%</SelectItem><SelectItem value="18">18%</SelectItem></SelectContent>
+                            <SelectContent>
+                                {gstRates.map(g => <SelectItem key={g.value} value={g.value}>{g.label || g.value}</SelectItem>)}
+                            </SelectContent>
                         </Select>
                     </div>
                     <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-zinc-700">IGST rate %</Label>
-                        <Select name="igst" defaultValue={initialData?.igst || "18"}>
-                            <SelectTrigger className="h-10 border-zinc-200"><SelectValue placeholder="Select GST" /></SelectTrigger>
-                            <SelectContent><SelectItem value="5">5%</SelectItem><SelectItem value="12">12%</SelectItem><SelectItem value="18">18%</SelectItem></SelectContent>
+                        <Select name="igst" defaultValue={initialData?.igst || (igstRates.length > 0 ? igstRates[0].value : "")}>
+                            <SelectTrigger className="h-10 border-zinc-200"><SelectValue placeholder="Select IGST" /></SelectTrigger>
+                            <SelectContent>
+                                {igstRates.map(g => <SelectItem key={g.value} value={g.value}>{g.label || g.value}</SelectItem>)}
+                            </SelectContent>
                         </Select>
                     </div>
                 </div>
@@ -369,9 +515,18 @@ function NewItemForm({ onSuccess, initialData, categoriesMaster, setCategoriesMa
             <div className="space-y-1.5 pt-2">
                 <Label className="text-sm font-medium block">Annexure</Label>
                 <span className="text-xs text-zinc-500 block mb-2">Click below to add, edit or view the annexure for this item.</span>
-                <Button type="button" variant="outline" className="w-full text-zinc-700 border-zinc-200 h-10 font-medium bg-white hover:bg-zinc-50 shadow-sm border-dashed">
+                <div className="flex flex-wrap gap-2 mb-2">
+                    {annexureFiles.map((file, i) => (
+                        <div key={i} className="flex items-center gap-2 bg-zinc-50 px-3 py-1.5 rounded-lg border border-zinc-200">
+                            <span className="text-xs text-zinc-700 truncate max-w-[150px]">{file.name}</span>
+                            <button type="button" onClick={() => setAnnexureFiles(prev => prev.filter((_, idx) => idx !== i))} className="text-red-500 hover:text-red-700"><X className="w-3 h-3" /></button>
+                        </div>
+                    ))}
+                </div>
+                <Label className="cursor-pointer flex items-center justify-center w-full text-zinc-700 border-zinc-200 h-10 font-medium bg-white hover:bg-zinc-50 shadow-sm border-dashed rounded-md border">
+                    <input type="file" multiple className="hidden" onChange={(e) => handleFileChange(e, setAnnexureFiles)} />
                     <Plus className="w-4 h-4 mr-2" /> Add Annexure
-                </Button>
+                </Label>
             </div>
 
             <div className="space-y-1.5 pt-4">
@@ -380,9 +535,18 @@ function NewItemForm({ onSuccess, initialData, categoriesMaster, setCategoriesMa
                     Upload your product images here. Accepted formats: <span className="text-blue-600 font-medium bg-blue-50 px-1 rounded">.png</span> and <span className="text-blue-600 font-medium bg-blue-50 px-1 rounded">.jpg</span><br />
                     Maximum file size: <span className="text-blue-600 font-medium">10MB</span>
                 </span>
-                <Button type="button" variant="outline" className="w-full border-zinc-200 h-10 font-medium bg-white hover:bg-zinc-50 shadow-sm">
-                    <Upload className="w-4 h-4 mr-2 text-zinc-600" /> Upload
-                </Button>
+                <div className="flex flex-wrap gap-3 mb-3">
+                    {imageFiles.map((file, i) => (
+                        <div key={i} className="relative group w-20 h-20 rounded-lg overflow-hidden border border-zinc-200">
+                            <img src={URL.createObjectURL(file)} alt="preview" className="w-full h-full object-cover" />
+                            <button type="button" onClick={() => setImageFiles(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 bg-white/80 p-0.5 rounded-full text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"><X className="w-3 h-3" /></button>
+                        </div>
+                    ))}
+                </div>
+                <Label className="cursor-pointer flex items-center justify-center w-full border border-zinc-200 h-10 font-medium bg-white hover:bg-zinc-50 shadow-sm rounded-md">
+                    <input type="file" accept="image/png, image/jpeg" multiple className="hidden" onChange={(e) => handleFileChange(e, setImageFiles)} />
+                    <Upload className="w-4 h-4 mr-2 text-zinc-600" /> Upload Images
+                </Label>
             </div>
 
             <div className="pt-6 flex justify-end gap-3 border-t border-zinc-200">
@@ -393,29 +557,63 @@ function NewItemForm({ onSuccess, initialData, categoriesMaster, setCategoriesMa
     )
 }
 
-function CompositeItemForm({ title, isSubAssembly = false, onSuccess, initialData, categoriesMaster, setCategoriesMaster }: { title: string, isSubAssembly?: boolean, onSuccess: (item: any) => void, initialData?: any, categoriesMaster: any[], setCategoriesMaster: any }) {
-    const [components, setComponents] = useState<{ id: number, name: string, qty: string, rate: string, total: string }[]>([])
+function CompositeItemForm({ companyId, title, isSubAssembly = false, onSuccess, initialData, categoriesMaster, setCategoriesMaster, units, gstRates, igstRates }: { companyId: string, title: string, isSubAssembly?: boolean, onSuccess: (item: any) => void, initialData?: any, categoriesMaster: any[], setCategoriesMaster: any, units: any[], gstRates: any[], igstRates: any[] }) {
+    const [components, setComponents] = useState<{ id: number, name: string, qty: string, rate: string, total: string }[]>(
+        initialData?.components?.map((c: any) => ({
+            id: c.id,
+            name: c.componentName,
+            qty: String(c.qty),
+            rate: String(c.rate),
+            total: String(c.total)
+        })) || []
+    )
     const [selectedCategories, setSelectedCategories] = useState<number[]>(initialData?.categoryId ? [initialData.categoryId] : [])
+    const [annexureFiles, setAnnexureFiles] = useState<File[]>([])
+    const [imageFiles, setImageFiles] = useState<File[]>([])
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: React.Dispatch<React.SetStateAction<File[]>>) => {
+        if (e.target.files) {
+            setter(prev => [...prev, ...Array.from(e.target.files!)])
+        }
+    }
 
     const addComponent = () => {
         setComponents([...components, { id: Date.now(), name: "", qty: "1", rate: "0.00", total: "0.00" }])
+    }
+
+    const updateComponent = (id: number, field: string, value: string) => {
+        setComponents(components.map(c => {
+            if (c.id === id) {
+                const updated = { ...c, [field]: value };
+                if (field === 'qty' || field === 'rate') {
+                    const qty = parseFloat(updated.qty) || 0;
+                    const rate = parseFloat(updated.rate) || 0;
+                    updated.total = (qty * rate).toFixed(2);
+                }
+                return updated;
+            }
+            return c;
+        }));
     }
 
     const removeComponent = (id: number) => {
         setComponents(components.filter(c => c.id !== id))
     }
 
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const totalQty = components.reduce((acc, c) => acc + (parseFloat(c.qty) || 0), 0);
+    const totalAmount = components.reduce((acc, c) => acc + (parseFloat(c.total) || 0), 0);
+
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
         const formData = new FormData(e.currentTarget)
         const categoryName = selectedCategories.length > 0 
             ? categoriesMaster.find(c => c.slno === selectedCategories[0])?.categoryName || "Assemblies"
             : "Assemblies"
 
-        const newItem = {
-            id: initialData?.id || Date.now().toString(),
+        const payload = {
+            id: initialData?.id,
+            companyId,
             name: formData.get("name") || "Unknown Assembly",
-            category: categoryName,
             categoryId: selectedCategories[0],
             hsnCode: formData.get("hsnCode"),
             description: formData.get("description"),
@@ -424,9 +622,32 @@ function CompositeItemForm({ title, isSubAssembly = false, onSuccess, initialDat
             rate: parseFloat(formData.get("price") as string) || 0,
             gst: formData.get("gst"),
             igst: formData.get("igst"),
-            type: "Sub Assembly"
+            type: "Sub Assembly",
+            components: components.map(c => ({
+                name: c.name,
+                qty: c.qty,
+                rate: c.rate,
+                total: c.total
+            }))
         }
-        onSuccess(newItem)
+        
+        try {
+            const res = await fetch('/api/inventory', {
+                method: initialData?.id ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+
+            if (res.ok) {
+                const data = await res.json()
+                data.category = categoryName // For UI update
+                onSuccess(data)
+            } else {
+                toast.error("Failed to save entry")
+            }
+        } catch (e) {
+            toast.error("An error occurred")
+        }
     }
 
     return (
@@ -449,9 +670,11 @@ function CompositeItemForm({ title, isSubAssembly = false, onSuccess, initialDat
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                     <Label className="text-sm font-medium">Unit</Label>
-                    <Select name="unit" defaultValue={initialData?.unit || "pcs"}>
+                    <Select name="unit" defaultValue={initialData?.unit || (units.length > 0 ? units[0].value : "")}>
                         <SelectTrigger className="h-10 border-zinc-200"><SelectValue placeholder="Select a unit" /></SelectTrigger>
-                        <SelectContent><SelectItem value="pcs">Pieces</SelectItem></SelectContent>
+                        <SelectContent>
+                            {units.map(u => <SelectItem key={u.value} value={u.value}>{u.label || u.value}</SelectItem>)}
+                        </SelectContent>
                     </Select>
                 </div>
 
@@ -462,7 +685,7 @@ function CompositeItemForm({ title, isSubAssembly = false, onSuccess, initialDat
                         selectedIds={selectedCategories}
                         onChange={setSelectedCategories}
                         onCategoryCreated={(newCat) => setCategoriesMaster((prev: any) => [newCat, ...prev])}
-                        companyId={null}
+                        companyId={companyId}
                         apiEndpoint="/api/config/category"
                     />
                 </div>
@@ -482,25 +705,52 @@ function CompositeItemForm({ title, isSubAssembly = false, onSuccess, initialDat
                             </Button>
                         </div>
                         <div className="w-full text-xs font-semibold text-zinc-500 flex items-center border-b border-zinc-200 pb-2 mb-2 px-2">
-                            <div className="flex-1">Item Name</div>
-                            <div className="w-20 text-center">Qty</div>
-                            <div className="w-24 text-right">Rate</div>
-                            <div className="w-24 text-right pr-6">Total</div>
+                            <div className="flex-1 text-left">Item Name</div>
+                            <div className="w-24 text-left px-2">Qty</div>
+                            <div className="w-28 text-left px-2">Rate</div>
+                            <div className="w-28 text-left px-2">Total</div>
+                            <div className="w-6"></div>
                         </div>
                         <div className="space-y-2">
                             {components.map(c => (
                                 <div key={c.id} className="flex items-center gap-2 group">
                                     <div className="flex-1">
-                                        <Select>
-                                            <SelectTrigger className="h-9 bg-white shadow-sm border-zinc-200"><SelectValue placeholder="Select Item" /></SelectTrigger>
-                                            <SelectContent><SelectItem value="sub1">Raw Material A</SelectItem></SelectContent>
-                                        </Select>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="outline" role="combobox" className="w-full justify-between h-9 bg-white shadow-sm border-zinc-200 font-normal px-3 text-left">
+                                                    {c.name ? c.name : <span className="text-zinc-500">Select Item...</span>}
+                                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-[300px] p-0" align="start">
+                                                <Command>
+                                                    <CommandInput placeholder="Search items..." />
+                                                    <CommandList>
+                                                        <CommandEmpty>No item found.</CommandEmpty>
+                                                        <CommandGroup>
+                                                            {["Raw Material A", "Raw Material B", "Widget X"].map(item => (
+                                                                <CommandItem
+                                                                    key={item}
+                                                                    value={item}
+                                                                    onSelect={() => updateComponent(c.id, 'name', item)}
+                                                                >
+                                                                    <Check className={cn("mr-2 h-4 w-4", c.name === item ? "opacity-100" : "opacity-0")} />
+                                                                    {item}
+                                                                </CommandItem>
+                                                            ))}
+                                                        </CommandGroup>
+                                                    </CommandList>
+                                                </Command>
+                                            </PopoverContent>
+                                        </Popover>
                                     </div>
-                                    <div className="w-20">
-                                        <Input defaultValue={c.qty} className="h-9 text-center bg-white shadow-sm border-zinc-200" />
+                                    <div className="w-24">
+                                        <Input type="number" min="0" value={c.qty} onChange={(e) => updateComponent(c.id, 'qty', e.target.value)} className="h-9 text-left bg-white shadow-sm border-zinc-200 px-3" />
                                     </div>
-                                    <div className="w-24 text-right pr-2 font-medium text-sm text-zinc-600 block line-clamp-1">{c.rate}</div>
-                                    <div className="w-24 text-right pr-2 font-bold text-sm text-zinc-800 block line-clamp-1">{c.total}</div>
+                                    <div className="w-28">
+                                        <Input type="number" min="0" step="0.01" value={c.rate} onChange={(e) => updateComponent(c.id, 'rate', e.target.value)} className="h-9 text-left bg-white shadow-sm border-zinc-200 px-3" />
+                                    </div>
+                                    <div className="w-28 text-left px-3 font-bold text-sm text-zinc-800 block line-clamp-1">{c.total}</div>
                                     <div className="w-6 flex justify-end">
                                         <button type="button" onClick={() => removeComponent(c.id)} className="text-red-500 hover:text-red-700 transition-colors">
                                             <MinusCircle className="w-5 h-5 fill-red-500 text-white" />
@@ -509,7 +759,15 @@ function CompositeItemForm({ title, isSubAssembly = false, onSuccess, initialDat
                                 </div>
                             ))}
                         </div>
-                        <Button type="button" variant="outline" className="w-full mt-4 bg-white border-dashed border-zinc-300 text-zinc-600 shadow-sm" onClick={addComponent}>
+                        
+                        <div className="mt-4 pt-3 border-t border-zinc-200 flex items-center justify-end gap-2 pr-8">
+                            <div className="text-sm font-semibold text-zinc-600 mr-2">Summary:</div>
+                            <div className="w-24 text-left px-3 font-bold text-sm text-indigo-700">{totalQty}</div>
+                            <div className="w-28 text-left px-3"></div>
+                            <div className="w-28 text-left px-3 font-bold text-sm text-indigo-700">₹{totalAmount.toFixed(2)}</div>
+                        </div>
+
+                        <Button type="button" variant="outline" className="w-full mt-4 bg-white border-dashed border-zinc-300 text-zinc-600 shadow-sm hover:bg-zinc-50" onClick={addComponent}>
                             <Plus className="w-4 h-4 mr-2" /> Add Another Component
                         </Button>
                     </div>
@@ -563,9 +821,18 @@ function CompositeItemForm({ title, isSubAssembly = false, onSuccess, initialDat
             <div className="space-y-1.5 pt-2">
                 <Label className="text-sm font-medium block">Annexure</Label>
                 <span className="text-xs text-zinc-500 block mb-2">Click below to add, edit or view the annexure for this item.</span>
-                <Button type="button" variant="outline" className="w-full text-zinc-700 border-zinc-200 h-10 font-medium bg-white hover:bg-zinc-50 shadow-sm border-dashed">
+                <div className="flex flex-wrap gap-2 mb-2">
+                    {annexureFiles.map((file, i) => (
+                        <div key={i} className="flex items-center gap-2 bg-zinc-50 px-3 py-1.5 rounded-lg border border-zinc-200">
+                            <span className="text-xs text-zinc-700 truncate max-w-[150px]">{file.name}</span>
+                            <button type="button" onClick={() => setAnnexureFiles(prev => prev.filter((_, idx) => idx !== i))} className="text-red-500 hover:text-red-700"><X className="w-3 h-3" /></button>
+                        </div>
+                    ))}
+                </div>
+                <Label className="cursor-pointer flex items-center justify-center w-full text-zinc-700 border-zinc-200 h-10 font-medium bg-white hover:bg-zinc-50 shadow-sm border-dashed rounded-md border">
+                    <input type="file" multiple className="hidden" onChange={(e) => handleFileChange(e, setAnnexureFiles)} />
                     <Plus className="w-4 h-4 mr-2" /> Add Annexure
-                </Button>
+                </Label>
             </div>
 
             <div className="space-y-1.5 pt-4">
@@ -574,9 +841,18 @@ function CompositeItemForm({ title, isSubAssembly = false, onSuccess, initialDat
                     Upload your product images here. Accepted formats: <span className="text-blue-600 font-medium bg-blue-50 px-1 rounded">.png</span> and <span className="text-blue-600 font-medium bg-blue-50 px-1 rounded">.jpg</span><br />
                     Maximum file size: <span className="text-blue-600 font-medium">10MB</span>
                 </span>
-                <Button type="button" variant="outline" className="w-full border-zinc-200 h-10 font-medium bg-white hover:bg-zinc-50 shadow-sm">
-                    <Upload className="w-4 h-4 mr-2 text-zinc-600" /> Upload
-                </Button>
+                <div className="flex flex-wrap gap-3 mb-3">
+                    {imageFiles.map((file, i) => (
+                        <div key={i} className="relative group w-20 h-20 rounded-lg overflow-hidden border border-zinc-200">
+                            <img src={URL.createObjectURL(file)} alt="preview" className="w-full h-full object-cover" />
+                            <button type="button" onClick={() => setImageFiles(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 bg-white/80 p-0.5 rounded-full text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"><X className="w-3 h-3" /></button>
+                        </div>
+                    ))}
+                </div>
+                <Label className="cursor-pointer flex items-center justify-center w-full border border-zinc-200 h-10 font-medium bg-white hover:bg-zinc-50 shadow-sm rounded-md">
+                    <input type="file" accept="image/png, image/jpeg" multiple className="hidden" onChange={(e) => handleFileChange(e, setImageFiles)} />
+                    <Upload className="w-4 h-4 mr-2 text-zinc-600" /> Upload Images
+                </Label>
             </div>
 
             <div className="pt-6 flex justify-end gap-3 border-t border-zinc-200">

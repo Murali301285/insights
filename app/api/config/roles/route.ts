@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { name, remarks, isActive, companyId } = body;
+        const { name, remarks, isActive, companyId, userType } = body;
 
         if (!name) {
             return NextResponse.json({ error: "Role name is required" }, { status: 400 });
@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
         const role = await prisma.role.create({
             data: {
                 name,
+                userType: userType || "Entity",
                 remarks,
                 isActive: isActive !== undefined ? isActive : true,
                 companyId: companyId || null
@@ -47,13 +48,13 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
     try {
         const body = await req.json();
-        const { id, name, remarks, isActive, companyId } = body;
+        const { id, name, remarks, isActive, companyId, userType } = body;
 
         if (!id) return NextResponse.json({ error: "Missing role ID" }, { status: 400 });
 
         const updated = await prisma.role.update({
             where: { id },
-            data: { name, remarks, isActive, companyId: companyId || null }
+            data: { name, userType: userType || "Entity", remarks, isActive, companyId: companyId || null }
         });
 
         return NextResponse.json(updated);

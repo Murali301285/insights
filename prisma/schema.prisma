@@ -605,6 +605,57 @@ model RequestStageMaster {
   @@unique([companyId, order])
 }
 
+model InventoryMaster {
+  id              String   @id @default(cuid())
+  companyId       String?
+  type            String   // "Individual Item" | "Sub Assembly"
+  name            String
+  categoryId      Int?
+  hsnCode         String?
+  description     String?
+  unit            String?
+  rate            Float    @default(0)
+  gst             String?
+  igst            String?
+  quantity        Float    @default(1)
+  
+  // File URLs can be stored as JSON array of strings
+  annexures       Json?    
+  images          Json?
+
+  isActive        Boolean  @default(true)
+  isDelete        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  components      InventorySubComponent[]
+}
+
+model InventorySubComponent {
+  id                String   @id @default(cuid())
+  inventoryMasterId String
+  inventoryMaster   InventoryMaster @relation(fields: [inventoryMasterId], references: [id], onDelete: Cascade)
+  
+  componentName     String
+  qty               Float    @default(1)
+  rate              Float    @default(0)
+  total             Float    @default(0)
+}
+
+model LookupMaster {
+  id         String   @id @default(cuid())
+  type       String   // e.g. "UNIT", "GST", "IGST"
+  value      String   // e.g. "kg", "18"
+  label      String?  // e.g. "Kilograms", "18%"
+  remarks    String?
+  isActive   Boolean  @default(true)
+  isDelete   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  createdBy  String?
+  updatedBy  String?
+}
+
 model Opportunity {
   id              String            @id @default(cuid())
   slno            Int               @unique @default(autoincrement())
@@ -910,6 +961,7 @@ model Role {
   companyId       String?
   company         Company?     @relation(fields: [companyId], references: [id])
   name            String       @unique
+  userType        String       @default("Entity") // "Entity" | "Group"
   remarks         String?
   isActive        Boolean      @default(true)
   createdAt       DateTime     @default(now())

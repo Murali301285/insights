@@ -40,7 +40,7 @@ export function FilterBar({ navContext }: { navContext?: any }) {
 
         const fetchCompanies = async () => {
             try {
-                const res = await fetch('/api/companies')
+                const res = await fetch('/api/companies?active=true')
                 if (res.ok) {
                     const data = await res.json()
                     const mapped = data.map((c: any) => ({

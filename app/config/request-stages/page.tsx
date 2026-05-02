@@ -130,6 +130,7 @@ export default function RequestStagesMasterPage() {
     const columns: ColumnDef<RequestStageEntry>[] = [
         {
             id: "index",
+            accessorFn: (row, i) => i + 1,
             header: "Sl No.",
             cell: ({ row }) => row.index + 1,
         },
@@ -213,6 +214,7 @@ export default function RequestStagesMasterPage() {
         },
         {
             accessorKey: "isActive",
+            accessorFn: (row: any) => row.isActive ? "Yes" : "No",
             header: ({ column }) => {
                 return (
                     <Button variant="ghost" className="-ml-3 h-8 data-[state=open]:bg-accent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>

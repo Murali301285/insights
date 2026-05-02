@@ -14,20 +14,7 @@ export async function GET() {
         // Base fetch: Get user's role accesses where canView = true
         let roleAccesses: any[] = [];
 
-        if (session.user.userType === 'Group') {
-            // Group users see ALL active pages, but in read-only mode (frontend checks `canAdd`)
-            const allPages = await prisma.appPage.findMany({
-                where: { isActive: true },
-                orderBy: { orderIndex: 'asc' }
-            });
-            roleAccesses = allPages.map(p => ({
-                page: p,
-                canView: true,
-                canAdd: false,
-                canEdit: false,
-                canDelete: false
-            }));
-        } else if (session.user.role === 'admin') {
+        if (session.user.role === 'admin') {
             // Super admins see ALL active pages
             const allPages = await prisma.appPage.findMany({
                 where: { isActive: true },
@@ -48,6 +35,16 @@ export async function GET() {
             });
             // Sort them by page.orderIndex manually
             roleAccesses.sort((a, b) => a.page.orderIndex - b.page.orderIndex);
+
+            // Enforce Group User read-only constraints on specific modules or all
+            if (session.user.userType === 'Group') {
+                roleAccesses = roleAccesses.map(access => ({
+                    ...access,
+                    canAdd: false,
+                    canEdit: false,
+                    canDelete: false
+                }));
+            }
         }
 
         // Reconstruct hierarchical Nav Menu array

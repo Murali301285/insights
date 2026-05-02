@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { ColumnDef } from "@tanstack/react-table"
-import { Plus, Wallet, FileText, BarChart2, Download, Clock } from "lucide-react"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts"
+import { Plus, Wallet, FileText, BarChart2, Download, Clock, Pencil, Trash2 } from "lucide-react"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from "recharts"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export default function ExpenseTrackerPage() {
     const { setHeaderInfo } = useHeader()
@@ -25,9 +26,23 @@ export default function ExpenseTrackerPage() {
     const [isAddOpen, setIsAddOpen] = useState(false)
 
     // Filters
-    const [fromDate, setFromDate] = useState("")
-    const [toDate, setToDate] = useState("")
+    const today = new Date()
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+    const [fromDate, setFromDate] = useState(() => {
+        // Adjust for timezone offset to get local YYYY-MM-DD
+        const offset = startOfMonth.getTimezoneOffset()
+        const d = new Date(startOfMonth.getTime() - (offset*60*1000))
+        return d.toISOString().split('T')[0]
+    })
+    const [toDate, setToDate] = useState(() => {
+        const offset = today.getTimezoneOffset()
+        const d = new Date(today.getTime() - (offset*60*1000))
+        return d.toISOString().split('T')[0]
+    })
     const [employeeFilter, setEmployeeFilter] = useState("all")
+
+    // Employees
+    const [employees, setEmployees] = useState<any[]>([])
 
     // Project Dropdown State
     const [projectType, setProjectType] = useState<"na" | "acquisition" | "fulfillment">("na")
@@ -65,8 +80,13 @@ export default function ExpenseTrackerPage() {
     const fetchExpenses = async () => {
         setLoading(true)
         try {
-            const companyParam = selectedCompanyIds.length > 0 ? `?companyId=${selectedCompanyIds.join(',')}` : '?companyId=all';
-            const res = await fetch(`/api/expense${companyParam}`)
+            const params = new URLSearchParams()
+            if (selectedCompanyIds.length > 0) params.append('companyId', selectedCompanyIds.join(','))
+            if (employeeFilter !== 'all') params.append('employeeId', employeeFilter)
+            if (fromDate) params.append('fromDate', fromDate)
+            if (toDate) params.append('toDate', toDate)
+
+            const res = await fetch(`/api/expense?${params.toString()}`)
             const data = await res.json()
             setEntries(Array.isArray(data) ? data : [])
         } catch (error) {
@@ -76,9 +96,45 @@ export default function ExpenseTrackerPage() {
         }
     }
 
+    const fetchEmployees = async () => {
+        try {
+            const res = await fetch('/api/users')
+            if (res.ok) {
+                const allUsers = await res.json()
+                if (!user) return
+                
+                let filtered = allUsers
+                if ((user as any).hasGlobalAccess || user.userType === 'Group') {
+                    // Admin or System level user -> All users
+                } else {
+                    // Manager sees assigned users + self. Normal user sees only self.
+                    filtered = allUsers.filter((u: any) => 
+                        u.id === user.id || 
+                        u.primaryManagerId === user.id || 
+                        u.secondaryManagerId === user.id
+                    )
+                    
+                    // If they only have themselves in the filtered array, set filter to their ID explicitly
+                    if (filtered.length === 1 && filtered[0].id === user.id) {
+                        setEmployeeFilter(user.id || "all")
+                    }
+                }
+                setEmployees(filtered)
+            }
+        } catch (e) {
+            console.error("Failed to fetch employees")
+        }
+    }
+
+    useEffect(() => {
+        if (user) {
+            fetchEmployees()
+        }
+    }, [user])
+
     useEffect(() => {
         fetchExpenses()
-    }, [selectedCompanyIds])
+    }, [selectedCompanyIds, employeeFilter, fromDate, toDate])
 
     // Derived Logic Placeholders
     const stats = useMemo(() => {
@@ -184,9 +240,26 @@ export default function ExpenseTrackerPage() {
             id: "actions",
             header: "Actions",
             cell: ({ row }) => (
-                <div className="flex items-center gap-3 text-sm">
-                    <button className="text-indigo-600 hover:underline font-medium">Edit</button>
-                    <button className="text-rose-600 hover:underline font-medium">Delete</button>
+                <div className="flex items-center gap-1 text-sm">
+                    <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button className="text-indigo-500 hover:text-indigo-700 font-medium p-1.5 rounded hover:bg-indigo-50 transition-colors" onClick={() => alert('Edit not implemented yet')}>
+                                    <Pencil className="w-4 h-4" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Edit Entry</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button className="text-red-500 hover:text-red-700 font-medium p-1.5 rounded hover:bg-red-50 transition-colors" onClick={() => handleDelete(row.original.id)}>
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete Entry</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 </div>
             ),
         },
@@ -209,6 +282,59 @@ export default function ExpenseTrackerPage() {
         }
     }, [selectedProject, projectList, projectType]);
 
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault()
+        const formData = new FormData(e.currentTarget)
+        const payload = {
+            companyId: selectedCompanyIds[0] || 'all',
+            userId: user?.id,
+            date: formData.get('date'),
+            categoryId: formData.get('categoryId'), // Using id string
+            amount: formData.get('amount'),
+            currencyId: formData.get('currencyId'), // Using id string
+            description: formData.get('description'),
+            bucketType: projectType,
+            bucketReference: projectType !== 'na' ? selectedProject : null
+        }
+
+        try {
+            const res = await fetch('/api/expense', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+
+            if (res.ok) {
+                setIsAddOpen(false)
+                fetchExpenses()
+            } else {
+                alert("Failed to submit expense")
+            }
+        } catch (e) {
+            console.error(e)
+        }
+    }
+
+    const handleDelete = async (id: string) => {
+        if (!confirm("Are you sure you want to delete this expense?")) return
+
+        try {
+            const res = await fetch('/api/expense', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            })
+
+            if (res.ok) {
+                fetchExpenses()
+            } else {
+                alert("Failed to delete expense")
+            }
+        } catch (e) {
+            console.error(e)
+        }
+    }
+
     return (
         <div className="space-y-6">
             {/* Filter Section */}
@@ -226,13 +352,15 @@ export default function ExpenseTrackerPage() {
                                 <SelectValue placeholder="All Employees" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">All Employees</SelectItem>
-                                {/* Populate mapped employees here */}
+                                {((user as any)?.hasGlobalAccess || user?.userType === 'Group' || employees.length > 1) && <SelectItem value="all">All Employees</SelectItem>}
+                                {employees.map(emp => (
+                                    <SelectItem key={emp.id} value={emp.id}>{emp.profileName || emp.firstName || emp.email}</SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                     </div>
 
-                    <Button className="bg-indigo-600 hover:bg-indigo-700 text-white h-9 px-6 ml-auto shadow-sm">Show</Button>
+                    <Button onClick={fetchExpenses} className="bg-indigo-600 hover:bg-indigo-700 text-white h-9 px-6 ml-auto shadow-sm">Show</Button>
                 </div>
             </div>
 
@@ -272,31 +400,31 @@ export default function ExpenseTrackerPage() {
                                 <DialogTitle className="text-xl font-bold">Log New Expense</DialogTitle>
                                 <p className="text-zinc-500 text-sm">Upload receipts and categorize amounts appropriately</p>
                             </DialogHeader>
-                            <form className="space-y-5 mt-4">
+                            <form onSubmit={handleSubmit} className="space-y-5 mt-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1.5">
                                         <Label>Date <span className="text-rose-500">*</span></Label>
-                                        <Input type="date" required />
+                                        <Input name="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} />
                                     </div>
                                     <div className="space-y-1.5">
                                         <Label>Expense Category <span className="text-rose-500">*</span></Label>
-                                        <Select><SelectTrigger><SelectValue placeholder="Select category..." /></SelectTrigger><SelectContent><SelectItem value="travel">Travel</SelectItem><SelectItem value="meals">Meals</SelectItem><SelectItem value="supplies">Supplies</SelectItem></SelectContent></Select>
+                                        <Select name="categoryId" required defaultValue="1"><SelectTrigger><SelectValue placeholder="Select category..." /></SelectTrigger><SelectContent><SelectItem value="1">Travel</SelectItem><SelectItem value="2">Meals</SelectItem><SelectItem value="3">Supplies</SelectItem></SelectContent></Select>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1.5">
                                         <Label>Amount <span className="text-rose-500">*</span></Label>
-                                        <Input type="number" step="0.01" placeholder="e.g. 150.00" required />
+                                        <Input name="amount" type="number" step="0.01" placeholder="e.g. 150.00" required />
                                     </div>
                                     <div className="space-y-1.5">
                                         <Label>Currency <span className="text-rose-500">*</span></Label>
-                                        <Select defaultValue="inr"><SelectTrigger><SelectValue placeholder="Currency..." /></SelectTrigger><SelectContent><SelectItem value="inr">INR (₹)</SelectItem><SelectItem value="usd">USD ($)</SelectItem><SelectItem value="eur">EUR (€)</SelectItem></SelectContent></Select>
+                                        <Select name="currencyId" defaultValue="1"><SelectTrigger><SelectValue placeholder="Currency..." /></SelectTrigger><SelectContent><SelectItem value="1">INR (₹)</SelectItem><SelectItem value="2">USD ($)</SelectItem><SelectItem value="3">EUR (€)</SelectItem></SelectContent></Select>
                                     </div>
                                 </div>
                                 
                                 <div className="space-y-1.5">
                                     <Label>Description</Label>
-                                    <textarea className="w-full min-h-[80px] p-3 border border-zinc-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Transportation logs, hotel name, purpose of expense..."></textarea>
+                                    <textarea name="description" className="w-full min-h-[80px] p-3 border border-zinc-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Transportation logs, hotel name, purpose of expense..."></textarea>
                                 </div>
                                 
                                 <div className="space-y-4 border rounded-xl p-4 bg-zinc-50/50">
@@ -379,7 +507,7 @@ export default function ExpenseTrackerPage() {
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" />
                             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#71717a'}} />
                             <YAxis axisLine={false} tickLine={false} tick={{fill: '#71717a'}} />
-                            <Tooltip cursor={{fill: '#f4f4f5'}} contentStyle={{ borderRadius: '8px', border: '1px solid #e4e4e7', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                            <RechartsTooltip cursor={{fill: '#f4f4f5'}} contentStyle={{ borderRadius: '8px', border: '1px solid #e4e4e7', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                             <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                                 {chartData.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={entry.fill} />

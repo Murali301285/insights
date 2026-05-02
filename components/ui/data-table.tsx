@@ -100,7 +100,7 @@ export function DataTable<TData, TValue>({
                 .map((c: any) => {
                     if (c.id === 'actions') return null;
                     let val = c.accessorKey ? (row.original as any)[c.accessorKey] : '';
-                    if (c.accessorFn) val = c.accessorFn(row.original, 0);
+                    if (c.accessorFn) val = c.accessorFn(row.original, row.index);
                     // Extremely basic escaping
                     if (val === null || val === undefined) val = "";
                     if (typeof val === 'object') val = JSON.stringify(val);

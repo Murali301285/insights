@@ -368,6 +368,7 @@ export default function CompanyConfigPage() {
         { accessorKey: "contactEmail", header: "Email" },
         {
             accessorKey: "isBlocked",
+            accessorFn: (row) => row.isBlocked ? "Inactive" : "Active",
             header: "Status",
             cell: ({ row }) => {
                 const isActive = !row.original.isBlocked

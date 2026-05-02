@@ -17,8 +17,9 @@ export default function RoleAuthPage() {
         setHeaderInfo("Role Authentication", "Safely bind roles to module-level functionality grids.")
     }, [setHeaderInfo])
 
+    const [selectedUserType, setSelectedUserType] = useState<string>("Entity")
     const [selectedRole, setSelectedRole] = useState<string>("")
-    const [roles, setRoles] = useState<{ id: string, name: string }[]>([])
+    const [roles, setRoles] = useState<{ id: string, name: string, userType: string }[]>([])
     const [pages, setPages] = useState<any[]>([])
     const [roleAccesses, setRoleAccesses] = useState<Record<string, boolean>>({})
     const [loading, setLoading] = useState(false)
@@ -108,19 +109,30 @@ export default function RoleAuthPage() {
         }))
     }
 
-
+    const filteredRoles = roles.filter(r => r.userType === selectedUserType)
 
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-zinc-200">
                 <div className="flex items-center gap-4">
-                    <span className="font-semibold text-zinc-900 border-r pr-4 border-zinc-200">Role</span>
+                    <span className="font-semibold text-zinc-900 border-r pr-4 border-zinc-200">User Type</span>
+                    <Select value={selectedUserType} onValueChange={(v) => { setSelectedUserType(v); setSelectedRole(""); }}>
+                        <SelectTrigger className="w-[180px] border-none bg-zinc-50 font-medium">
+                            <SelectValue placeholder="Select User Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Entity">Entity User</SelectItem>
+                            <SelectItem value="Group">Group User</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    
+                    <span className="font-semibold text-zinc-900 border-r pr-4 border-zinc-200 ml-2">Role</span>
                     <Select value={selectedRole} onValueChange={setSelectedRole}>
-                        <SelectTrigger className="w-[300px] border-none bg-zinc-50 font-medium">
+                        <SelectTrigger className="w-[240px] border-none bg-zinc-50 font-medium">
                             <SelectValue placeholder="Select Target Role..." />
                         </SelectTrigger>
                         <SelectContent>
-                            {roles.map(r => (
+                            {filteredRoles.map(r => (
                                 <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
                             ))}
                         </SelectContent>

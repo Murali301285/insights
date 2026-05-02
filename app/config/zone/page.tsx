@@ -124,6 +124,7 @@ export default function ZoneConfigPage() {
         },
         {
             accessorKey: "companyId",
+            accessorFn: (row: any) => row.company?.name || "Global",
             header: "Company",
             cell: ({ row }) => {
                 const item = row.original as any;
@@ -135,6 +136,7 @@ export default function ZoneConfigPage() {
         { accessorKey: "remarks", header: "Remarks" },
         {
             accessorKey: "isActive",
+            accessorFn: (row: any) => row.isActive ? "Active" : "Inactive",
             header: "Status",
             cell: ({ row }) => {
                 const isActive = row.original.isActive

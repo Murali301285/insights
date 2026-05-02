@@ -4,9 +4,9 @@ import { useState, useEffect } from "react"
 import { useHeader } from "@/components/providers/HeaderProvider"
 import { DataTable } from "@/components/ui/data-table"
 import { Button } from "@/components/ui/button"
-import { Plus, MoreHorizontal, Pencil, Trash, ArrowUpDown, Eye, EyeOff } from "lucide-react"
+import { Plus, MoreHorizontal, Pencil, Trash, ArrowUpDown, Eye, EyeOff, ChevronDown } from "lucide-react"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu"
 import { ColumnDef } from "@tanstack/react-table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -47,7 +47,7 @@ export default function UserConfigPage() {
 
     // Form states for complex dropdowns
     const [selectedUserType, setSelectedUserType] = useState<string>("Entity")
-    const [selectedCompany, setSelectedCompany] = useState<string>("")
+    const [selectedCompanies, setSelectedCompanies] = useState<string[]>([])
     const [selectedRole, setSelectedRole] = useState<string>("")
     const [selectedPrimaryManager, setSelectedPrimaryManager] = useState<string>("none")
     const [selectedSecondaryManager, setSelectedSecondaryManager] = useState<string>("none")
@@ -95,7 +95,7 @@ export default function UserConfigPage() {
 
     const openAddDialog = () => {
         setSelectedUserType("Entity")
-        setSelectedCompany("")
+        setSelectedCompanies([])
         setSelectedRole("")
         setSelectedPrimaryManager("none")
         setSelectedSecondaryManager("none")
@@ -107,7 +107,7 @@ export default function UserConfigPage() {
     const openEditDialog = (user: User) => {
         // Safe defaults if API hasn't mapped properly yet
         setSelectedUserType(user.userType || "Entity")
-        setSelectedCompany(user.companies?.[0]?.id || "")
+        setSelectedCompanies(user.companies?.map(c => c.id) || [])
         setSelectedRole(user.roleId || "")
         setSelectedPrimaryManager(user.primaryManagerId || "none")
         setSelectedSecondaryManager(user.secondaryManagerId || "none")
@@ -126,8 +126,8 @@ export default function UserConfigPage() {
             }
         }
         if (selectedUserType === "Entity") {
-            if (!selectedCompany) {
-                toast.error("Please select a Company for Entity User.")
+            if (selectedCompanies.length === 0) {
+                toast.error("Please select at least one Company for Entity User.")
                 return false
             }
             if (!selectedRole) {
@@ -150,12 +150,12 @@ export default function UserConfigPage() {
         payload.userType = selectedUserType
         
         if (selectedUserType === "Group") {
-            payload.companyIds = []
-            payload.roleId = null
+            payload.companyIds = selectedCompanies
+            payload.roleId = selectedRole // Group users can have roles now!
             payload.primaryManagerId = null
             payload.secondaryManagerId = null
         } else {
-            payload.companyIds = selectedCompany ? [selectedCompany] : []
+            payload.companyIds = selectedCompanies
             payload.roleId = selectedRole
             payload.primaryManagerId = selectedPrimaryManager === 'none' ? null : selectedPrimaryManager
             payload.secondaryManagerId = selectedSecondaryManager === 'none' ? null : selectedSecondaryManager
@@ -195,12 +195,12 @@ export default function UserConfigPage() {
         payload.userType = selectedUserType
         
         if (selectedUserType === "Group") {
-            payload.companyIds = []
-            payload.roleId = null
+            payload.companyIds = selectedCompanies
+            payload.roleId = selectedRole
             payload.primaryManagerId = null
             payload.secondaryManagerId = null
         } else {
-            payload.companyIds = selectedCompany ? [selectedCompany] : []
+            payload.companyIds = selectedCompanies
             payload.roleId = selectedRole
             payload.primaryManagerId = selectedPrimaryManager === 'none' ? null : selectedPrimaryManager
             payload.secondaryManagerId = selectedSecondaryManager === 'none' ? null : selectedSecondaryManager
@@ -320,34 +320,48 @@ export default function UserConfigPage() {
                 )}
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label>Companies <span className="text-red-500">*</span></Label>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" className="w-full justify-between font-normal border-zinc-200">
+                                {selectedCompanies.length > 0 ? `${selectedCompanies.length} selected` : "Select Companies"}
+                                <ChevronDown className="h-4 w-4 opacity-50" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-[300px] max-h-[300px] overflow-y-auto">
+                            {companies.map(c => (
+                                <DropdownMenuCheckboxItem 
+                                    key={c.id} 
+                                    checked={selectedCompanies.includes(c.id)}
+                                    onSelect={(e) => e.preventDefault()}
+                                    onCheckedChange={(checked) => {
+                                        if (checked) setSelectedCompanies(prev => [...prev, c.id])
+                                        else setSelectedCompanies(prev => prev.filter(id => id !== c.id))
+                                    }}
+                                >
+                                    {c.name}
+                                </DropdownMenuCheckboxItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+                <div className="space-y-2">
+                    <Label>Role <span className="text-red-500">*</span></Label>
+                    <Select value={selectedRole} onValueChange={setSelectedRole} required>
+                        <SelectTrigger><SelectValue placeholder="Select Role" /></SelectTrigger>
+                        <SelectContent>
+                            {roles.filter(r => r.userType === selectedUserType).map(r => (
+                                <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
             {selectedUserType === "Entity" && (
                 <>
-                    {/* Company and Role */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label>Company <span className="text-red-500">*</span></Label>
-                            <Select value={selectedCompany} onValueChange={setSelectedCompany} required>
-                                <SelectTrigger><SelectValue placeholder="Select Company" /></SelectTrigger>
-                                <SelectContent>
-                                    {companies.map(c => (
-                                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Role <span className="text-red-500">*</span></Label>
-                            <Select value={selectedRole} onValueChange={setSelectedRole} required>
-                                <SelectTrigger><SelectValue placeholder="Select Role" /></SelectTrigger>
-                                <SelectContent>
-                                    {roles.map(r => (
-                                        <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-
                     {/* Managers */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -440,11 +454,34 @@ export default function UserConfigPage() {
             header: "Company",
             cell: ({ row }) => {
                 const user = row.original as any;
-                if (user.userType === "Group") return <span className="text-zinc-400 italic text-xs">All Companies</span>;
-                const companyName = user.companies && user.companies.length > 0
-                    ? user.companies.map((c: any) => c.name).join(", ")
-                    : (user.hasGlobalAccess ? "Global" : "N/A");
-                return <span className="font-medium text-slate-700">{companyName}</span>
+                
+                if (!user.companies || user.companies.length === 0) {
+                    return <span className="font-medium text-slate-700">{user.hasGlobalAccess ? "Global" : "No Companies"}</span>;
+                }
+
+                if (user.companies.length === 1) {
+                    return <span className="font-medium text-slate-700">{user.companies[0].name}</span>;
+                }
+
+                return (
+                    <HoverCard>
+                        <HoverCardTrigger asChild>
+                            <span className="cursor-pointer font-medium text-indigo-600 hover:underline border-b border-indigo-600/50 border-dashed pb-0.5">
+                                {user.companies.length} Companies Selected
+                            </span>
+                        </HoverCardTrigger>
+                        <HoverCardContent className="w-auto min-w-[200px] max-w-sm" side="top">
+                            <div className="space-y-1">
+                                <h4 className="text-[10px] text-zinc-400 uppercase tracking-widest font-semibold border-b border-zinc-100 pb-1 mb-2">Allocated Companies</h4>
+                                {user.companies.map((c: any) => (
+                                    <div key={c.id} className="text-sm font-bold text-zinc-800">
+                                        • {c.name}
+                                    </div>
+                                ))}
+                            </div>
+                        </HoverCardContent>
+                    </HoverCard>
+                )
             }
         },
         { accessorKey: "email", header: "Email / Login ID" },

@@ -18,6 +18,7 @@ import { toast } from "sonner"
 type RoleEntity = {
     id: string
     name: string
+    userType: string
     remarks: string
     companyId: string | null
     isActive: boolean
@@ -73,6 +74,7 @@ export default function RoleConfigPage() {
         const payload = {
             id: editItem ? editItem.id : undefined,
             name: formData.get("roleName"),
+            userType: formData.get("userType") || "Entity",
             remarks: formData.get("description"),
             isActive: formData.get("isActive") === "on",
             companyId: formData.get("companyId") === "global" ? null : (formData.get("companyId") || null),
@@ -115,6 +117,7 @@ export default function RoleConfigPage() {
         { id: "index", header: "Sl No.", cell: ({ row }) => <span className="text-zinc-500 font-medium">{row.index + 1}</span> },
         {
             accessorKey: "companyId",
+            accessorFn: (row: any) => row.company?.name || "Global",
             header: "Company",
             cell: ({ row }) => {
                 const item = row.original as any;
@@ -132,9 +135,18 @@ export default function RoleConfigPage() {
             ),
             cell: ({ row }) => <span className="font-semibold text-emerald-700">{row.original.name}</span>
         },
+        {
+            accessorKey: "userType",
+            header: "User Type",
+            cell: ({ row }) => {
+                const userType = row.original.userType;
+                return <span className={`font-medium ${userType === 'Group' ? 'text-indigo-600' : 'text-emerald-600'}`}>{userType}</span>;
+            }
+        },
         { accessorKey: "remarks", header: "Description" },
         {
             accessorKey: "isActive",
+            accessorFn: (row: any) => row.isActive ? "Active" : "Inactive",
             header: "Status",
             cell: ({ row }) => {
                 const isActive = row.original.isActive
@@ -196,6 +208,16 @@ export default function RoleConfigPage() {
                             <div className="space-y-2">
                                 <Label>Role Name <span className="text-red-500">*</span></Label>
                                 <Input name="roleName" defaultValue={editItem?.name} required />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>User Type <span className="text-red-500">*</span></Label>
+                                <Select name="userType" defaultValue={editItem?.userType || "Entity"}>
+                                    <SelectTrigger><SelectValue placeholder="Select User Type" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Entity">Entity User</SelectItem>
+                                        <SelectItem value="Group">Group User</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="space-y-2">
                                 <Label>Role Protocol / Description</Label>

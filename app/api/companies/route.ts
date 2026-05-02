@@ -1,9 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
     try {
+        const session = await getSession();
+        
+        let whereClause: any = {};
+        
+        const url = new URL(req.url);
+        const activeOnly = url.searchParams.get('active') === 'true';
+
+        if (activeOnly) {
+            whereClause.isBlocked = false;
+        }
+
+        if (session && session.user && session.user.role !== 'admin') {
+            whereClause.users = {
+                some: {
+                    id: session.user.id
+                }
+            };
+        }
+
         const companies = await prisma.company.findMany({
+            where: whereClause,
             orderBy: { createdAt: 'desc' }
         });
         return NextResponse.json(companies);
