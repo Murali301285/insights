@@ -7,8 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, FileUp, X } from "lucide-react";
+import { Plus, Trash2, FileUp, X, Eye, Printer, AlertCircle, Layout, Clock, Save } from "lucide-react";
 import { toast } from "sonner";
+import { DocumentRenderer } from "@/components/ops/shared/DocumentRenderer";
+import Link from "next/link";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type PoItem = {
     description: string;
@@ -64,6 +67,81 @@ export function PoRequestModal({ onSuccess }: { onSuccess?: () => void }) {
         { description: "", quantity: 1, rate: 0, taxType: "CGST_SGST", cgst: 0, sgst: 0, igst: 0, discount: 0, total: 0 }
     ]);
 
+    // Template States
+    const [templates, setTemplates] = useState<any[]>([]);
+    const [templateId, setTemplateId] = useState("");
+    const [primaryBank, setPrimaryBank] = useState<any>(null);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+    // Draft States
+    const [drafts, setDrafts] = useState<any[]>([]);
+    const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+    const [draftName, setDraftName] = useState("");
+
+    const fetchDrafts = async (cid: string) => {
+        const res = await fetch(`/api/ops/po/drafts?companyId=${cid}`);
+        if (res.ok) setDrafts(await res.json());
+    };
+
+    const handleSaveDraft = async () => {
+        if (!companyId) return toast.error("Select company first");
+        
+        const finalDraftName = draftName || `Draft ${drafts.length + 1}`;
+        const payload = {
+            id: activeDraftId,
+            companyId,
+            name: finalDraftName,
+            data: {
+                supplierSlno,
+                workflowId,
+                targetDate,
+                paymentTerms,
+                justification,
+                items,
+                templateId
+            }
+        };
+
+        const res = await fetch("/api/ops/po/drafts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            const saved = await res.json();
+            setActiveDraftId(saved.id);
+            toast.success("Draft saved");
+            fetchDrafts(companyId);
+        }
+    };
+
+    const loadDraft = (draft: any) => {
+        const d = draft.data;
+        setSupplierSlno(d.supplierSlno || "");
+        setWorkflowId(d.workflowId || "");
+        setTargetDate(d.targetDate || "");
+        setPaymentTerms(d.paymentTerms || "");
+        setJustification(d.justification || "");
+        setItems(d.items || []);
+        setTemplateId(d.templateId || "");
+        setActiveDraftId(draft.id);
+        setDraftName(draft.name);
+        toast.info(`Loaded: ${draft.name}`);
+    };
+
+    const deleteDraft = async (id: string) => {
+        const res = await fetch(`/api/ops/po/drafts?id=${id}`, { method: "DELETE" });
+        if (res.ok) {
+            toast.success("Draft deleted");
+            if (activeDraftId === id) {
+                setActiveDraftId(null);
+                setDraftName("");
+            }
+            fetchDrafts(companyId);
+        }
+    };
+
     useEffect(() => {
         if (isOpen) {
             fetch("/api/companies").then(r => r.json()).then(setCompanies);
@@ -73,6 +151,7 @@ export function PoRequestModal({ onSuccess }: { onSuccess?: () => void }) {
 
     useEffect(() => {
         if (companyId) {
+            // Fetch Workflows
             fetch("/api/ops/po/workflow")
                 .then(r => r.json())
                 .then(data => {
@@ -83,18 +162,41 @@ export function PoRequestModal({ onSuccess }: { onSuccess?: () => void }) {
                         );
                         setWorkflows(filtered);
                     } else {
-                        console.error("Invalid workflow data received:", data);
                         setWorkflows([]);
                     }
-                    setWorkflowId(""); // Reset selection
-                })
-                .catch(err => {
-                    console.error("Failed to fetch workflows:", err);
-                    setWorkflows([]);
+                    setWorkflowId("");
                 });
+
+            // Fetch Templates
+            fetch(`/api/companies/templates?companyId=${companyId}`)
+                .then(r => r.json())
+                .then(data => {
+                    const poTemplates = data.filter((t: any) => t.docType === "PO" || t.docType === "INVOICE");
+                    setTemplates(poTemplates);
+                    if (poTemplates.length > 0) {
+                        const def = poTemplates.find((t: any) => t.isDefault) || poTemplates[0];
+                        setTemplateId(def.id);
+                    } else {
+                        setTemplateId("");
+                    }
+                });
+
+            // Fetch Primary Bank
+            fetch(`/api/companies/banks?companyId=${companyId}`)
+                .then(r => r.json())
+                .then(data => {
+                    setPrimaryBank(data.find((b: any) => b.isPrimary) || data[0] || null);
+                });
+
+            // Fetch Drafts
+            fetchDrafts(companyId);
         } else {
             setWorkflows([]);
             setWorkflowId("");
+            setTemplates([]);
+            setTemplateId("");
+            setPrimaryBank(null);
+            setDrafts([]);
         }
     }, [companyId]);
 
@@ -198,8 +300,38 @@ export function PoRequestModal({ onSuccess }: { onSuccess?: () => void }) {
                 </Button>
             </DialogTrigger>
             <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto hidden-scrollbar">
-                <DialogHeader>
+                <DialogHeader className="flex flex-row items-center justify-between border-b pb-4">
                     <DialogTitle>New Purchase Order Request</DialogTitle>
+                    {companyId && (
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" size="sm" className="flex items-center gap-2 border-dashed">
+                                    <Clock className="h-4 w-4" />
+                                    Drafts ({drafts.length})
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80 p-0" align="end">
+                                <div className="p-3 border-b bg-zinc-50 font-bold text-xs uppercase tracking-wider text-zinc-500">Saved Drafts</div>
+                                <div className="max-h-[300px] overflow-y-auto">
+                                    {drafts.length === 0 ? (
+                                        <div className="p-8 text-center text-zinc-400 text-xs italic">No drafts saved yet</div>
+                                    ) : (
+                                        drafts.map(d => (
+                                            <div key={d.id} className="flex items-center justify-between p-3 border-b last:border-0 hover:bg-zinc-50 group cursor-pointer" onClick={() => loadDraft(d)}>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-sm font-bold truncate">{d.name}</p>
+                                                    <p className="text-[10px] text-zinc-400">{new Date(d.updatedAt).toLocaleString()}</p>
+                                                </div>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); deleteDraft(d.id); }}>
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                    )}
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-6 py-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -379,11 +511,112 @@ export function PoRequestModal({ onSuccess }: { onSuccess?: () => void }) {
                         </div>
                     </div>
 
-                    <div className="flex justify-between items-center pt-4 border-t">
-                        <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
-                        <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-8">Submit for Approval</Button>
+                    <div className="flex justify-between items-center pt-4 border-t gap-4">
+                        <div className="flex-1 max-w-xs">
+                            <Label className="text-[10px] uppercase font-bold text-zinc-400 mb-1 block">Print Template</Label>
+                            {companyId ? (
+                                templates.length > 0 ? (
+                                    <Select value={templateId} onValueChange={setTemplateId}>
+                                        <SelectTrigger className="h-9 text-xs bg-zinc-50">
+                                            <SelectValue placeholder="Select Template" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {templates.map(t => <SelectItem key={t.id} value={t.id!}>{t.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                ) : (
+                                    <div className="flex items-center gap-2 text-[10px] text-amber-600 bg-amber-50 p-2 rounded border border-amber-100">
+                                        <AlertCircle className="h-3 w-3" />
+                                        <span>No PO templates found. <Link href="/config/company" className="underline font-bold">Create one</Link></span>
+                                    </div>
+                                )
+                            ) : (
+                                <div className="text-[10px] text-zinc-400 italic">Select company to load templates</div>
+                            )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
+                            
+                            {companyId && (
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button type="button" variant="outline" className={`border-zinc-300 ${activeDraftId ? 'bg-blue-50 text-blue-700 border-blue-200' : 'text-zinc-700'}`}>
+                                            <Save className="w-4 h-4 mr-2" /> 
+                                            {activeDraftId ? "Update Draft" : "Save as Draft"}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-64 p-4 space-y-3">
+                                        <div className="space-y-1">
+                                            <Label className="text-xs">Draft Name</Label>
+                                            <Input 
+                                                value={draftName} 
+                                                onChange={(e) => setDraftName(e.target.value)} 
+                                                placeholder={`Draft ${drafts.length + 1}`}
+                                                className="h-8 text-xs"
+                                            />
+                                        </div>
+                                        <Button className="w-full h-8 text-xs bg-zinc-900 text-white" onClick={handleSaveDraft}>
+                                            Confirm Save
+                                        </Button>
+                                    </PopoverContent>
+                                </Popover>
+                            )}
+
+                            {templateId && (
+                                <Button 
+                                    type="button" 
+                                    variant="outline" 
+                                    className="border-zinc-300 text-zinc-700"
+                                    onClick={() => setIsPreviewOpen(true)}
+                                >
+                                    <Eye className="w-4 h-4 mr-2" /> Preview & Print
+                                </Button>
+                            )}
+                            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-8">Submit for Approval</Button>
+                        </div>
                     </div>
                 </form>
+
+                {/* Document Preview Modal */}
+                <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+                    <DialogContent className="max-w-[900px] h-[95vh] p-0 flex flex-col bg-zinc-100 overflow-hidden">
+                        <DialogHeader className="p-4 bg-white border-b flex flex-row items-center justify-between shrink-0">
+                            <DialogTitle className="flex items-center gap-2">
+                                <Layout className="h-5 w-5 text-emerald-600" />
+                                Purchase Order Preview
+                            </DialogTitle>
+                            <div className="flex items-center gap-2">
+                                <Button variant="outline" size="sm" onClick={() => setIsPreviewOpen(false)}>Close</Button>
+                                <Button size="sm" className="bg-zinc-900 text-white" onClick={() => window.print()}>
+                                    <Printer className="h-4 w-4 mr-2" /> Print PO
+                                </Button>
+                            </div>
+                        </DialogHeader>
+                        <div className="flex-1 overflow-y-auto p-8 flex justify-center scrollbar-thin">
+                            {templateId && (
+                                <DocumentRenderer 
+                                    template={templates.find(t => t.id === templateId)}
+                                    data={{
+                                        company: companies.find(c => c.id === companyId),
+                                        partner: suppliers.find(s => s.slno.toString() === supplierSlno) || {},
+                                        items: items,
+                                        totals: {
+                                            subTotal,
+                                            discount: totalDiscount,
+                                            tax: totalTax,
+                                            grandTotal,
+                                            roundOff,
+                                            amountInWords: numberToIndianWords(grandTotal)
+                                        },
+                                        bank: primaryBank,
+                                        docType: "PURCHASE ORDER"
+                                    }}
+                                />
+                            )}
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </DialogContent>
         </Dialog>
     );

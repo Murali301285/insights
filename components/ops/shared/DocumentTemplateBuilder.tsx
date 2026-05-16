@@ -207,8 +207,13 @@ export function DocumentTemplateBuilder({
                                             onClick={() => setActiveTemplate(t)}
                                         >
                                             <div className="flex items-center gap-2 min-w-0">
-                                                <FileJson className={`h-4 w-4 ${activeTemplate?.id === t.id ? 'text-emerald-600' : 'text-zinc-400'}`} />
-                                                <span className="text-sm font-medium truncate">{t.name}</span>
+                                                <FileJson className={`h-4 w-4 shrink-0 ${activeTemplate?.id === t.id ? 'text-emerald-600' : 'text-zinc-400'}`} />
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-sm font-bold truncate leading-tight">{t.name}</span>
+                                                    <span className={`text-[10px] uppercase font-black tracking-tighter ${activeTemplate?.id === t.id ? 'text-emerald-600/70' : 'text-zinc-400'}`}>
+                                                        {t.docType === 'INVOICE' ? 'Tax Invoice' : t.docType === 'PO' ? 'Purchase Order' : t.docType}
+                                                    </span>
+                                                </div>
                                             </div>
                                             <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 text-red-500" onClick={(e) => { e.stopPropagation(); handleDelete(t.id!); }}>
                                                 <Trash className="h-3.5 w-3.5" />

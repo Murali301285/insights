@@ -69,6 +69,157 @@ model Company {
   TimeEntry             TimeEntry[]
   Role                  Role[]
   DocumentTemplates     DocumentTemplate[]
+  bankAccounts         CompanyBank[]
+  poDrafts             PoDraft[]
+  
+  SalesWorkflowMaster  SalesWorkflowMaster[]
+  SalesDocument        SalesDocument[]
+  SalesDocumentDraft   SalesDocumentDraft[]
+}
+
+model SalesWorkflowMaster {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  name      String   // e.g., "Standard Sales Workflow"
+  docType   String   // "QUOTATION", "SO", "PI", "INVOICE"
+  isActive  Boolean  @default(true)
+  isDelete  Boolean  @default(false)
+  
+  steps     SalesWorkflowStep[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SalesWorkflowStep {
+  id         String              @id @default(cuid())
+  workflowId String
+  workflow   SalesWorkflowMaster @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  
+  userId     String
+  user       User                @relation(fields: [userId], references: [id])
+  stepOrder  Int                 // 1, 2, 3...
+  
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+}
+
+model SalesDocument {
+  id               String   @id @default(cuid())
+  type             String   // "QUOTATION", "SO", "PI", "INVOICE"
+  status           String   // "DRAFT", "PENDING", "APPROVED", "REJECTED", "PARTIAL", "COMPLETED"
+  documentNumber   String   @unique
+  
+  companyId        String
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  customerSlno     Int
+  customer         CustomerMaster @relation(fields: [customerSlno], references: [slno])
+  
+  // Link to parent (e.g., Invoice linked to SO)
+  parentDocumentId String?
+  parentDocument   SalesDocument? @relation("DocHistory", fields: [parentDocumentId], references: [id])
+  childDocuments   SalesDocument[] @relation("DocHistory")
+
+  // Fields
+  targetDate       DateTime? // Delivery Date / Expiry
+  paymentTerms     String?
+  justification    String?   @db.Text
+  dispatchDetails  String?   @db.Text
+  lrNumber         String?
+  vehicleNumber    String?
+  placeOfSupply    String?
+  
+  creatorId        String
+  creator          User      @relation("SalesCreator", fields: [creatorId], references: [id])
+  
+  items            SalesDocumentItem[]
+  approvalHistory  SalesApprovalHistory[]
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model SalesDocumentItem {
+  id               String        @id @default(cuid())
+  documentId       String
+  document         SalesDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  description      String        @db.Text
+  quantity         Float
+  invoicedQty      Float         @default(0) // Tracks consumption in child documents
+  rate             Float
+  taxType          String        // "IGST", "CGST_SGST"
+  cgst             Float         @default(0)
+  sgst             Float         @default(0)
+  igst             Float         @default(0)
+  discount         Float         @default(0)
+  total            Float
+}
+
+model SalesDocumentDraft {
+  id        String   @id @default(cuid())
+  name      String
+  type      String   // "QUOTATION", "SO", etc.
+  data      Json     // Stores items, customerId, etc.
+  
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  userId    String?  
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SalesApprovalHistory {
+  id          String        @id @default(cuid())
+  documentId  String
+  document    SalesDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  status      String        // "APPROVED", "REJECTED"
+  remarks     String?
+  stepOrder   Int
+  
+  createdAt   DateTime      @default(now())
+}
+
+model CompanyBank {
+  id            String  @id @default(cuid())
+  companyId     String
+  company       Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  bankName      String
+  accountType   String  // Savings, Current, OD, etc.
+  accountNumber String
+  ifscCode      String
+  branchName    String
+  address       String?
+  chequeLeaf    String? @db.Text // Base64 image
+  isPrimary     Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, accountNumber]) 
+}
+
+model PoDraft {
+  id        String   @id @default(cuid())
+  name      String
+  data      Json     // Stores items, supplierId, companyId, etc.
+  
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  userId    String?  
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model DocumentTemplate {
@@ -180,6 +331,10 @@ model User {
   PoWorkflowStep       PoWorkflowStep[]
   PurchaseOrderRequest PurchaseOrderRequest[] @relation("PoCreator")
   PoApprovalHistory    PoApprovalHistory[]
+
+  SalesWorkflowStep    SalesWorkflowStep[]
+  SalesDocument        SalesDocument[]        @relation("SalesCreator")
+  SalesApprovalHistory SalesApprovalHistory[]
 
   @@index([hasGlobalAccess])
 }
@@ -492,6 +647,7 @@ model CustomerMaster {
   updatedBy String?
 
   opportunities Opportunity[]
+  SalesDocument SalesDocument[]
 
   @@unique([companyId, customerName])
 }
