@@ -45,6 +45,8 @@ interface DataTableProps<TData, TValue> {
     data: TData[]
     searchKey?: string
     rowClassName?: (row: TData) => string
+    reportName?: string
+    fileName?: string
 }
 
 export function DataTable<TData, TValue>({
@@ -52,6 +54,8 @@ export function DataTable<TData, TValue>({
     data,
     searchKey = "name",
     rowClassName,
+    reportName = "Data Report",
+    fileName = "insight-export",
 }: DataTableProps<TData, TValue>) {
     const [sorting, setSorting] = React.useState<SortingState>([])
     const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -83,43 +87,100 @@ export function DataTable<TData, TValue>({
         },
     })
 
-    const handleExport = () => {
+    const handleExport = async () => {
         const rows = table.getFilteredRowModel().rows;
         if (rows.length === 0) return;
 
         // Extract headers
-        const headers = columns
-            .filter((c: any) => c.accessorKey || c.id)
-            .map((c: any) => c.header && typeof c.header === 'string' ? c.header : (c.accessorKey || c.id))
-            .filter((h: any) => h !== 'actions');
+        const exportableColumns = columns.filter((c: any) => 
+            (c.accessorKey || c.id || c.accessorFn) && 
+            c.id !== 'actions' && 
+            c.id !== 'action' &&
+            c.id !== 'index' &&
+            c.id !== 'select' &&
+            c.accessorKey !== 'actions' &&
+            c.accessorKey !== 'action'
+        );
 
-        // Extract data
-        const csvData = rows.map(row => {
-            return columns
-                .filter((c: any) => c.accessorKey || c.id)
-                .map((c: any) => {
-                    if (c.id === 'actions') return null;
-                    let val = c.accessorKey ? (row.original as any)[c.accessorKey] : '';
-                    if (c.accessorFn) val = c.accessorFn(row.original, row.index);
-                    // Extremely basic escaping
-                    if (val === null || val === undefined) val = "";
-                    if (typeof val === 'object') val = JSON.stringify(val);
-                    const stringVal = String(val).replace(/"/g, '""');
-                    return `"${stringVal}"`;
-                })
-                .filter(val => val !== null)
-                .join(",");
+        const headers = exportableColumns.map((c: any) => 
+            c.header && typeof c.header === 'string' ? c.header : (c.accessorKey || c.id)
+        );
+
+        headers.unshift("Sl No");
+
+        // Prepare Excel Workbook
+        const ExcelJS = (await import('exceljs')).default;
+        const fileSaver = await import('file-saver');
+        const saveAs = fileSaver.saveAs || (fileSaver.default && (fileSaver.default.saveAs || fileSaver.default)) || fileSaver;
+
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet(reportName.substring(0, 31)); // Max 31 chars for sheet name
+
+        // Add Report Name in Row 1
+        const titleRow = sheet.addRow([reportName]);
+        titleRow.font = { bold: true, size: 14 };
+        sheet.mergeCells(1, 1, 1, headers.length);
+        titleRow.getCell(1).alignment = { horizontal: 'center' };
+
+        // Add Headers in Row 2
+        const headerRow = sheet.addRow(headers);
+        headerRow.font = { bold: true };
+        headerRow.eachCell((cell) => {
+            cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFF3F4F6' } // Light gray background
+            };
+            cell.border = {
+                bottom: { style: 'thin' }
+            };
+        });
+        
+        // Add Data
+        rows.forEach((row, index) => {
+            const rowData: any[] = [index + 1]; // Sl No
+            
+            exportableColumns.forEach((c: any) => {
+                let val: any = '';
+                if (c.accessorFn) {
+                    val = c.accessorFn(row.original, row.index);
+                } else if (c.accessorKey) {
+                    val = (row.original as any)[c.accessorKey];
+                }
+
+                if (val === null || val === undefined) val = "";
+                else if (typeof val === 'object') val = JSON.stringify(val);
+                else val = String(val);
+
+                // Try converting to number if possible for better excel formatting, unless it starts with 0
+                if (typeof val === 'string' && !isNaN(Number(val)) && val.trim() !== '' && !val.startsWith('0')) {
+                    val = Number(val);
+                }
+
+                rowData.push(val);
+            });
+            sheet.addRow(rowData);
         });
 
-        const csvString = [headers.join(","), ...csvData].join("\n");
-        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", `Export-${new Date().toISOString().split('T')[0]}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // Auto-fit columns
+        sheet.columns.forEach((column) => {
+            let maxLength = 0;
+            if (column && column.eachCell) {
+                column.eachCell({ includeEmpty: true }, (cell, rowNumber) => {
+                    if (rowNumber === 1) return; // Ignore title row
+                    const columnLength = cell.value ? cell.value.toString().length : 10;
+                    if (columnLength > maxLength) {
+                        maxLength = columnLength;
+                    }
+                });
+                column.width = Math.min(Math.max(maxLength + 2, 10), 100);
+            }
+        });
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const finalFileName = `${fileName}-${new Date().toISOString().split('T')[0]}.xlsx`;
+        saveAs(blob, finalFileName);
     }
 
     return (

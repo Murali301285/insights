@@ -238,6 +238,7 @@ export default function UserManagementPage() {
         {
             accessorKey: "profileName",
             header: "Name",
+            accessorFn: (row: any) => row.profileName || row.username,
             cell: ({ row }) => (
                 <div className="flex flex-col">
                     <span className="font-medium">{row.original.profileName || row.original.username}</span>
@@ -255,6 +256,10 @@ export default function UserManagementPage() {
         {
             accessorKey: "role",
             header: "Role & Access",
+            accessorFn: (row: any) => {
+                const roleName = row.role?.name || "Unassigned";
+                return row.hasVaultAccess ? `${roleName} (VAULT)` : roleName;
+            },
             cell: ({ row }) => {
                 const roleName = row.original.role?.name || "Unassigned";
                 return (
@@ -272,6 +277,12 @@ export default function UserManagementPage() {
         {
             id: "companies",
             header: "Company",
+            accessorFn: (row: any) => {
+                if (row.hasGlobalAccess) return "Global/All";
+                const comps = row.companies;
+                if (!comps || comps.length === 0) return "-";
+                return comps.map((c: any) => c.name).join(", ");
+            },
             cell: ({ row }) => {
                 if (row.original.hasGlobalAccess) {
                     return <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-1 rounded">Global/All</span>;
@@ -280,7 +291,7 @@ export default function UserManagementPage() {
                 if (!comps || comps.length === 0) return <span className="text-sm text-zinc-400">-</span>;
                 return (
                     <div className="flex flex-wrap gap-1 max-w-[200px]">
-                        {comps.map(c => (
+                        {comps.map((c: any) => (
                             <span key={c.id} className="text-[11px] font-medium bg-zinc-100 border border-zinc-200 text-zinc-700 px-1.5 py-0.5 rounded">
                                 {c.name}
                             </span>
@@ -292,6 +303,7 @@ export default function UserManagementPage() {
         {
             accessorKey: "isBlocked",
             header: "Status",
+            accessorFn: (row: any) => row.isBlocked ? "Blocked" : "Active",
             cell: ({ row }) => (
                 <span className={row.original.isBlocked ? "text-red-500 font-medium text-xs" : "text-emerald-500 font-medium text-xs"}>
                     {row.original.isBlocked ? "Blocked" : "Active"}
@@ -441,7 +453,13 @@ export default function UserManagementPage() {
                 </Dialog>
             </div>
 
-            <DataTable columns={columns} data={users} searchKey="profileName" />
+            <DataTable 
+                columns={columns} 
+                data={users} 
+                searchKey="profileName" 
+                reportName="Config - System Users Report"
+                fileName="insight-config"
+            />
 
             {/* Edit Modal */}
             <Dialog open={!!editingUser} onOpenChange={(o) => !o && resetForm()}>

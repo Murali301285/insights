@@ -289,16 +289,24 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
         {
             id: "customer",
             header: "Customer",
+            accessorFn: (row: any) => row.opportunity?.customer?.customerName || "Unknown",
             cell: ({ row }) => <span className="font-medium text-zinc-800">{row.original.opportunity?.customer?.customerName || "Unknown"}</span>
         },
         {
             id: "opportunity",
             header: "Project",
+            accessorFn: (row: any) => row.opportunity?.opportunityName,
             cell: ({ row }) => <span className="text-zinc-600">{row.original.opportunity?.opportunityName}</span>
         },
         {
             id: "dates",
             header: "Win Date To Target Date",
+            accessorFn: (row: any) => {
+                const target = row.targetDate ? new Date(row.targetDate) : null;
+                const dateStr = formatDate(row.date);
+                if (!target) return dateStr;
+                return `${dateStr} to ${formatDate(target)}`;
+            },
             cell: ({ row }) => {
                 const target = row.original.targetDate ? new Date(row.original.targetDate) : null;
                 let daysLeft = null;
@@ -333,6 +341,7 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
         {
             id: "stage",
             header: "Current Stage",
+            accessorFn: (row: any) => row.currentStage?.stageName || "Pending Setup",
             cell: ({ row }) => {
                 const order = row.original;
                 let daysLeft = null;
@@ -384,6 +393,7 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
         {
             accessorKey: "orderIncharge",
             header: "Incharge",
+            accessorFn: (row: any) => users.find((u: any) => u.id === row.orderIncharge)?.name || "Unassigned",
             cell: ({ row }) => (
                 <div className="flex items-center gap-1.5 text-zinc-700">
                     <User className="w-3.5 h-3.5 text-zinc-400" />
@@ -394,6 +404,7 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
         {
             id: "value",
             header: "Value",
+            accessorFn: (row: any) => row.orderValue !== null && row.orderValue !== undefined ? row.orderValue : (row.opportunity?.value || 0),
             cell: ({ row }) => {
                 const val = row.original.orderValue !== null && row.original.orderValue !== undefined ? row.original.orderValue : (row.original.opportunity?.value || 0);
                 return <span className="font-semibold text-zinc-700">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(val)}</span>;
@@ -488,6 +499,8 @@ export function OrderManager({ onClose, activeCompanyId }: { onClose?: () => voi
                         data={displayedOrders} 
                         searchKey="orderNo" 
                         rowClassName={(row) => weeklyItems.includes(row.id) ? "[&>td]:!bg-violet-50/60 hover:[&>td]:!bg-violet-100/60" : ""}
+                        reportName={`Order Fulfilment - ${viewTab} Report`}
+                        fileName={`insight-orderfulfillment-${viewTab.toLowerCase()}`}
                     />
                 )}
             </div>

@@ -230,7 +230,13 @@ export default function RoleConfigPage() {
                 </Dialog>
             </div>
             <div className="bg-white rounded-xl border border-zinc-200 p-2 shadow-sm">
-                <DataTable columns={columns} data={data} searchKey="name" />
+                <DataTable 
+                columns={columns} 
+                data={data} 
+                searchKey="name" 
+                reportName="Config - Role Report" 
+                fileName="insight-config" 
+            />
             </div>
         </div>
     )

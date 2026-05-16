@@ -132,6 +132,7 @@ export default function TasksPage() {
         {
             accessorKey: "title",
             header: "Title",
+            accessorFn: (row: any) => row.title || row.function || "Untitled Task",
             cell: ({ row }) => (
                 <div className="space-y-0.5 max-w-sm">
                     <div className="font-bold text-zinc-800">{row.original.title || row.original.function || "Untitled Task"}</div>
@@ -151,21 +152,25 @@ export default function TasksPage() {
         {
             id: "assignedTo",
             header: "Assigned To",
+            accessorFn: (row: any) => row.assignedTo?.profileName || "-",
             cell: ({ row }) => row.original.assignedTo?.profileName || "-"
         },
         {
             id: "assignedBy",
             header: "Assigned By",
+            accessorFn: (row: any) => row.assignedBy?.profileName || "-",
             cell: ({ row }) => row.original.assignedBy?.profileName || "-"
         },
         {
             accessorKey: "startDate",
             header: "Start",
+            accessorFn: (row: any) => row.startDate ? new Date(row.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : "-",
             cell: ({ row }) => row.original.startDate ? new Date(row.original.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : "-"
         },
         {
             accessorKey: "dueDate",
             header: "Deadline",
+            accessorFn: (row: any) => row.dueDate ? new Date(row.dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : "-",
             cell: ({ row }) => {
                 const dDate = new Date(row.original.dueDate);
                 const isOverdue = dDate < new Date() && row.original.status !== 'Completed';
@@ -442,7 +447,13 @@ export default function TasksPage() {
                 </div>
                 )}
                 
-                <DataTable columns={columns} data={filteredTasks} searchKey="title" />
+                <DataTable 
+                    columns={columns} 
+                    data={filteredTasks} 
+                    searchKey="title" 
+                    reportName="HR - Tasks Report"
+                    fileName="insight-hr"
+                />
             </div>
         </div>
     )

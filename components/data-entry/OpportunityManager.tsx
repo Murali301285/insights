@@ -11,6 +11,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
 import { CreatableCategorySelect } from "@/components/ui/creatable-category-select"
+import { exportToExcel } from "@/lib/exportUtils"
 
 type MasterData = {
     customers: any[]
@@ -572,12 +573,12 @@ export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () 
         return sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3 ml-1 inline-block" /> : <ChevronDown className="w-3 h-3 ml-1 inline-block" />;
     }
 
-    const handleExport = () => {
-        const headers = ["SlNo", "Opp No.", "Date", "Opportunity", "Customer", "Category", "Value(INR)", "Payment", "Zone", "Status", "Incharge", "Remarks"];
+    const handleExport = async () => {
+        const headers = ["Sl No", "Opp No.", "Date", "Opportunity", "Customer", "Category", "Value(INR)", "Payment", "Zone", "Status", "Incharge", "Remarks"];
         const rows = filteredOpportunities.map((opp, idx) => [
             idx + 1,
             opp.oppNumber || opp.slno,
-            new Date(opp.date).toLocaleDateString(),
+            new Date(opp.date).toLocaleDateString('en-GB'),
             opp.opportunityName,
             opp.customer?.customerName || '',
             opp.category?.categoryName || '',
@@ -588,16 +589,13 @@ export function OpportunityManager({ onClose, activeCompanyId }: { onClose?: () 
             opp.incharge?.profileName || opp.incharge?.email || '',
             opp.remarks || ''
         ]);
-        const csvContent = "data:text/csv;charset=utf-8,"
-            + headers.join(",") + "\n"
-            + rows.map(e => e.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `opportunities_${stageFilter.toLowerCase().replace(' ', '_')}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        
+        await exportToExcel({
+            data: rows,
+            headers: headers,
+            fileName: "insight-business-acquisition",
+            reportName: "Business Acquisition Report"
+        });
     }
 
     if (loading) return <div className="p-8 flex justify-center mt-20"><Loader2 className="w-8 h-8 animate-spin text-emerald-500" /></div>

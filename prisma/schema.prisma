@@ -19,41 +19,72 @@ model Company {
   registrationNumber String?
   contactEmail       String?
   contactPhone       String?
-  dynamicDetails     Json?    
+  dynamicDetails     Json?
+  signature          String?  @db.Text
+  seal               String?  @db.Text
+  conditions         String?  @db.Text
+  
+  // Bank Details
+  bankName           String?
+  accountNumber      String?
+  ifscCode           String?
+  branch             String?
+  accountName        String?
+  
   isBlocked          Boolean  @default(false)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  users                User[]
-  kpiEntries           KpiEntry[]
-  financeMetrics       FinanceMetrics[]
-  salesMetrics         SalesMetrics[]
-  manufacturingMetrics ManufacturingMetrics[]
-  supplyChainMetrics   SupplyChainMetrics[]
-  supportMetrics       SupportMetrics[]
-  hrMetrics            HrMetrics[]
-  financeFundValues    FinanceFundValue[]
-  hierarchyNodes       HierarchyNode[]
-  CategoryMaster       CategoryMaster[]
+  users                  User[]
+  kpiEntries             KpiEntry[]
+  financeMetrics         FinanceMetrics[]
+  salesMetrics           SalesMetrics[]
+  manufacturingMetrics   ManufacturingMetrics[]
+  supplyChainMetrics     SupplyChainMetrics[]
+  supportMetrics         SupportMetrics[]
+  hrMetrics              HrMetrics[]
+  financeFundValues      FinanceFundValue[]
+  hierarchyNodes         HierarchyNode[]
+  CategoryMaster         CategoryMaster[]
   CustomerCategoryMaster CustomerCategoryMaster[]
-  PaymentTypeMaster    PaymentTypeMaster[]
-  CustomerMaster       CustomerMaster[]
-  SupplierMaster       SupplierMaster[]
-  ZoneMaster           ZoneMaster[]
-  StatusMaster         StatusMaster[]
-  StageMaster          StageMaster[]
-  RequestStageMaster   RequestStageMaster[]
-  TargetMaster         TargetMaster[]
-  SupportTicket        SupportTicket[]
-  SupplyRequest        SupplyRequest[]
-  Tasks                Task[]
-  VaultDocuments       VaultDocument[]
-  InventoryOrder       InventoryOrder[]
+  PaymentTypeMaster      PaymentTypeMaster[]
+  CustomerMaster         CustomerMaster[]
+  SupplierMaster         SupplierMaster[]
+  ZoneMaster             ZoneMaster[]
+  StatusMaster           StatusMaster[]
+  StageMaster            StageMaster[]
+  RequestStageMaster     RequestStageMaster[]
+  TargetMaster           TargetMaster[]
+  SupportTicket          SupportTicket[]
+  SupplyRequest          SupplyRequest[]
+  Tasks                  Task[]
+  VaultDocuments         VaultDocument[]
+
+  PoWorkflowMaster      PoWorkflowMaster[]
+  PurchaseOrderRequest  PurchaseOrderRequest[]
+  InventoryOrder        InventoryOrder[]
   ExpenseCategoryMaster ExpenseCategoryMaster[]
-  CurrencyMaster       CurrencyMaster[]
-  Expense              Expense[]
-  TimeEntry            TimeEntry[]
-  Role                 Role[]
+  CurrencyMaster        CurrencyMaster[]
+  Expense               Expense[]
+  TimeEntry             TimeEntry[]
+  Role                  Role[]
+  DocumentTemplates     DocumentTemplate[]
+}
+
+model DocumentTemplate {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  name        String   // Template Name
+  docType     String   // "PO", "INVOICE", "QUOTATION", etc.
+  layoutConfig Json     // Detailed layout JSON
+  isDefault   Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
 }
 
 model HierarchyNode {
@@ -104,47 +135,51 @@ model KpiEntry {
 }
 
 model User {
-  id              String    @id @default(cuid())
-  userType        String    @default("Entity") // "Entity" | "Group"
-  hasGlobalAccess Boolean   @default(false)
-  hasVaultAccess  Boolean   @default(false)
-  companies       Company[]
-  email           String    @unique
-  username        String?   @unique
-  firstName       String?
-  lastName        String?
-  profileName     String?
-  password        String // Hashed password
-  image           String? // Avatar URL or Base64
-  phoneNumber     String?
-  notificationEmails String? @db.Text
+  id                 String    @id @default(cuid())
+  userType           String    @default("Entity") // "Entity" | "Group"
+  hasGlobalAccess    Boolean   @default(false)
+  hasVaultAccess     Boolean   @default(false)
+  companies          Company[]
+  email              String    @unique
+  username           String?   @unique
+  firstName          String?
+  lastName           String?
+  profileName        String?
+  password           String // Hashed password
+  image              String? // Avatar URL or Base64
+  phoneNumber        String?
+  notificationEmails String?   @db.Text
   primaryManagerId   String?
   secondaryManagerId String?
-  
-  roleId          String?
-  role            Role?     @relation(fields: [roleId], references: [id])
-  isBlocked       Boolean   @default(false)
-  
+
+  roleId    String?
+  role      Role?   @relation(fields: [roleId], references: [id])
+  isBlocked Boolean @default(false)
+
   isTempPassword   Boolean   @default(false)
   resetToken       String?
   resetTokenExpiry DateTime?
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   opportunities Opportunity[]
   SupportTicket SupportTicket[]
   SupplyRequest SupplyRequest[]
 
-  assignedTasks Task[] @relation("AssignedTo")
-  createdTasks  Task[] @relation("AssignedBy")
-  TaskComment   TaskComment[]
+  assignedTasks     Task[]          @relation("AssignedTo")
+  createdTasks      Task[]          @relation("AssignedBy")
+  TaskComment       TaskComment[]
   uploadedVaultDocs VaultDocument[]
 
-  sentMessages     Message[] @relation("SentMessages")
-  receivedMessages Message[] @relation("ReceivedMessages")
+  sentMessages     Message[]   @relation("SentMessages")
+  receivedMessages Message[]   @relation("ReceivedMessages")
   Expense          Expense[]
   TimeEntry        TimeEntry[]
+
+  PoWorkflowStep       PoWorkflowStep[]
+  PurchaseOrderRequest PurchaseOrderRequest[] @relation("PoCreator")
+  PoApprovalHistory    PoApprovalHistory[]
 
   @@index([hasGlobalAccess])
 }
@@ -156,15 +191,15 @@ model Settings {
 }
 
 model Message {
-  id          String   @id @default(cuid())
-  senderId    String
-  sender      User     @relation("SentMessages", fields: [senderId], references: [id])
-  receiverId  String
-  receiver    User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
-  content     String?  @db.Text
-  attachment  Json?    // Array of files {name, type, data: base64}
-  readStatus  Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  senderId   String
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id])
+  receiverId String
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  content    String?  @db.Text
+  attachment Json? // Array of files {name, type, data: base64}
+  readStatus Boolean  @default(false)
+  createdAt  DateTime @default(now())
 
   @@index([senderId, receiverId])
 }
@@ -447,7 +482,7 @@ model CustomerMaster {
   paymentTypeId Int?
   paymentType   PaymentTypeMaster? @relation(fields: [paymentTypeId], references: [slno])
 
-  categories CustomerCategoryMaster[]  @relation("CustomerCategories")
+  categories CustomerCategoryMaster[] @relation("CustomerCategories")
   contacts   CustomerContact[]
   addresses  CustomerAddress[]
 
@@ -493,16 +528,17 @@ model SupplierMaster {
   paymentTypeId Int?
   paymentType   PaymentTypeMaster? @relation(fields: [paymentTypeId], references: [slno])
 
-  categories CustomerCategoryMaster[]  @relation("SupplierCategories")
+  categories CustomerCategoryMaster[] @relation("SupplierCategories")
   contacts   SupplierContact[]
   addresses  SupplierAddress[]
 
-  createdAt      DateTime         @default(now())
-  createdBy      String?
-  updatedAt      DateTime         @updatedAt
-  updatedBy      String?
-  InventoryOrder InventoryOrder[]
-  SupplyRequest  SupplyRequest[]
+  createdAt            DateTime               @default(now())
+  createdBy            String?
+  updatedAt            DateTime               @updatedAt
+  updatedBy            String?
+  InventoryOrder       InventoryOrder[]
+  SupplyRequest        SupplyRequest[]
+  PurchaseOrderRequest PurchaseOrderRequest[]
 
   @@unique([companyId, supplierName])
 }
@@ -606,54 +642,54 @@ model RequestStageMaster {
 }
 
 model InventoryMaster {
-  id              String   @id @default(cuid())
-  companyId       String?
-  type            String   // "Individual Item" | "Sub Assembly"
-  name            String
-  categoryId      Int?
-  hsnCode         String?
-  description     String?
-  unit            String?
-  rate            Float    @default(0)
-  gst             String?
-  igst            String?
-  quantity        Float    @default(1)
-  
+  id          String  @id @default(cuid())
+  companyId   String?
+  type        String // "Individual Item" | "Sub Assembly"
+  name        String
+  categoryId  Int?
+  hsnCode     String?
+  description String?
+  unit        String?
+  rate        Float   @default(0)
+  gst         String?
+  igst        String?
+  quantity    Float   @default(1)
+
   // File URLs can be stored as JSON array of strings
-  annexures       Json?    
-  images          Json?
+  annexures Json?
+  images    Json?
 
-  isActive        Boolean  @default(true)
-  isDelete        Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  isActive  Boolean  @default(true)
+  isDelete  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  components      InventorySubComponent[]
+  components InventorySubComponent[]
 }
 
 model InventorySubComponent {
-  id                String   @id @default(cuid())
+  id                String          @id @default(cuid())
   inventoryMasterId String
   inventoryMaster   InventoryMaster @relation(fields: [inventoryMasterId], references: [id], onDelete: Cascade)
-  
-  componentName     String
-  qty               Float    @default(1)
-  rate              Float    @default(0)
-  total             Float    @default(0)
+
+  componentName String
+  qty           Float  @default(1)
+  rate          Float  @default(0)
+  total         Float  @default(0)
 }
 
 model LookupMaster {
-  id         String   @id @default(cuid())
-  type       String   // e.g. "UNIT", "GST", "IGST"
-  value      String   // e.g. "kg", "18"
-  label      String?  // e.g. "Kilograms", "18%"
-  remarks    String?
-  isActive   Boolean  @default(true)
-  isDelete   Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  createdBy  String?
-  updatedBy  String?
+  id        String   @id @default(cuid())
+  type      String // e.g. "UNIT", "GST", "IGST"
+  value     String // e.g. "kg", "18"
+  label     String? // e.g. "Kilograms", "18%"
+  remarks   String?
+  isActive  Boolean  @default(true)
+  isDelete  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
 }
 
 model Opportunity {
@@ -678,9 +714,9 @@ model Opportunity {
   createdAt       DateTime          @default(now())
   isDelete        Boolean           @default(false)
 
-  comments  OpportunityComment[]
-  histories OpportunityStatusHistory[]
-  order     Order?
+  comments       OpportunityComment[]
+  histories      OpportunityStatusHistory[]
+  order          Order?
   supportTickets SupportTicket[]
   supplyRequests SupplyRequest[]
 }
@@ -789,13 +825,14 @@ model SupportTicket {
   incharge   User?     @relation(fields: [inchargeId], references: [id])
 
   // Only for EXTERNAL tickets
-  orderId String?
-  order   Order?  @relation(fields: [orderId], references: [id])
+  orderId       String?
+  order         Order?       @relation(fields: [orderId], references: [id])
   opportunityId String?
   opportunity   Opportunity? @relation(fields: [opportunityId], references: [id])
 
-  status           String  @default("OPEN") // "OPEN" | "COMPLETED" | "CLOSED"
-  isClosed         Boolean @default(false)
+  status           String    @default("OPEN") // "OPEN" | "COMPLETED" | "CLOSED"
+  isClosed         Boolean   @default(false)
+  closedDate       DateTime?
   closeReason      String?
   closeAttachments Json?
 
@@ -864,9 +901,9 @@ model SupplyRequest {
   inchargeId String?
   incharge   User?     @relation(fields: [inchargeId], references: [id])
 
-  type    String  @default("INTERNAL") // INTERNAL | EXTERNAL
-  orderId String?
-  order   Order?  @relation(fields: [orderId], references: [id])
+  type          String       @default("INTERNAL") // INTERNAL | EXTERNAL
+  orderId       String?
+  order         Order?       @relation(fields: [orderId], references: [id])
   opportunityId String?
   opportunity   Opportunity? @relation(fields: [opportunityId], references: [id])
 
@@ -877,6 +914,10 @@ model SupplyRequest {
   currentStageSlno Int?
   stage            RequestStageMaster? @relation(fields: [currentStageSlno], references: [slno])
   status           String              @default("OPEN")
+  isClosed         Boolean             @default(false)
+  closedDate       DateTime?
+  closeReason      String?
+  closeAttachments Json?
 
   // JSON Audit Trails
   stageHistory Json? // [{ stageSlno, stageName, order, date, remarks, attachments, updatedBy }]
@@ -889,123 +930,120 @@ model SupplyRequest {
   @@index([companyId])
 }
 
-
 model Task {
-  id              String      @id @default(cuid())
-  companyId       String
-  company         Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  title           String?
-  description     String
-  assignedById    String
-  assignedBy      User        @relation("AssignedBy", fields: [assignedById], references: [id])
-  assignedToId    String
-  assignedTo      User        @relation("AssignedTo", fields: [assignedToId], references: [id])
-  function        String 
-  projectId       String?
-  project         Order?      @relation(fields: [projectId], references: [id])
-  otherProject    String?     
-  startDate       DateTime?
-  dueDate         DateTime
-  estimatedHrs    Float?
-  attachments     Json?
-  priority        String      @default("medium") // low, medium, high
-  status          String      @default("Pending") // Pending, In Progress, Completed, Overdue
-  completedAt     DateTime?
-  comments        TaskComment[]
-  
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  id           String        @id @default(cuid())
+  companyId    String
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title        String?
+  description  String
+  assignedById String
+  assignedBy   User          @relation("AssignedBy", fields: [assignedById], references: [id])
+  assignedToId String
+  assignedTo   User          @relation("AssignedTo", fields: [assignedToId], references: [id])
+  function     String
+  projectId    String?
+  project      Order?        @relation(fields: [projectId], references: [id])
+  otherProject String?
+  startDate    DateTime?
+  dueDate      DateTime
+  estimatedHrs Float?
+  attachments  Json?
+  priority     String        @default("medium") // low, medium, high
+  status       String        @default("Pending") // Pending, In Progress, Completed, Overdue
+  completedAt  DateTime?
+  comments     TaskComment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId])
   @@index([assignedToId])
 }
 
 model TaskComment {
-  id              String      @id @default(cuid())
-  taskId          String
-  task            Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  comment         String
-  attachments     Json?       // array of base64 strings or URLs
-  createdById     String
-  createdBy       User        @relation(fields: [createdById], references: [id])
-  createdAt       DateTime    @default(now())
+  id          String   @id @default(cuid())
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  comment     String
+  attachments Json? // array of base64 strings or URLs
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
 
   @@index([taskId])
 }
 
-
 model VaultDocument {
-  id              String      @id @default(cuid())
-  companyId       String
-  company         Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  category        String      // Budgetary estimates, Quotations, Invoice, etc.
-  fileName        String
-  fileData        String      // Base64 or Object URL
-  
-  uploadedById    String
-  uploadedBy      User        @relation(fields: [uploadedById], references: [id])
-  
-  description     String?
-  aiTags          Json?       // To support "generation / questioning" in future
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category  String // Budgetary estimates, Quotations, Invoice, etc.
+  fileName  String
+  fileData  String // Base64 or Object URL
 
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  uploadedById String
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
+
+  description String?
+  aiTags      Json? // To support "generation / questioning" in future
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId])
   @@index([category])
 }
 
-
 model Role {
-  id              String       @id @default(cuid())
-  companyId       String?
-  company         Company?     @relation(fields: [companyId], references: [id])
-  name            String       @unique
-  userType        String       @default("Entity") // "Entity" | "Group"
-  remarks         String?
-  isActive        Boolean      @default(true)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  id        String   @id @default(cuid())
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+  name      String   @unique
+  userType  String   @default("Entity") // "Entity" | "Group"
+  remarks   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  users           User[]
-  roleAccesses    RoleAccess[]
+  users        User[]
+  roleAccesses RoleAccess[]
 }
 
 model AppPage {
-  id              String       @id @default(cuid())
-  pageName        String
-  remarks         String?
-  isActive        Boolean      @default(true)
-  path            String?      // e.g. /hr, /supply-chain
-  icon            String?      // Lucide icon name string
+  id       String  @id @default(cuid())
+  pageName String
+  remarks  String?
+  isActive Boolean @default(true)
+  path     String? // e.g. /hr, /supply-chain
+  icon     String? // Lucide icon name string
 
-  parentId        String?
-  parent          AppPage?     @relation("PageHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  children        AppPage[]    @relation("PageHierarchy")
+  parentId String?
+  parent   AppPage?  @relation("PageHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children AppPage[] @relation("PageHierarchy")
 
-  roleAccesses    RoleAccess[]
-  
-  orderIndex      Int          @default(0) // To manage sidebar sequence
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  roleAccesses RoleAccess[]
+
+  orderIndex Int      @default(0) // To manage sidebar sequence
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model RoleAccess {
-  id              String       @id @default(cuid())
-  
-  roleId          String
-  role            Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  id String @id @default(cuid())
 
-  pageId          String
-  page            AppPage      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
-  canView         Boolean      @default(false)
-  canAdd          Boolean      @default(false)
-  canEdit         Boolean      @default(false)
-  canDelete       Boolean      @default(false)
+  pageId String
+  page   AppPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
 
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  canView   Boolean @default(false)
+  canAdd    Boolean @default(false)
+  canEdit   Boolean @default(false)
+  canDelete Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([roleId, pageId])
 }
@@ -1021,7 +1059,7 @@ model ExpenseCategoryMaster {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  expenses     Expense[]
+  expenses Expense[]
 
   @@unique([companyId, categoryName])
 }
@@ -1038,7 +1076,7 @@ model CurrencyMaster {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  expenses     Expense[]
+  expenses Expense[]
 
   @@unique([companyId, currencyName])
 }
@@ -1058,8 +1096,8 @@ model Expense {
   currency        CurrencyMaster        @relation(fields: [currencyId], references: [slno])
   amount          Float
   bucketType      String                @default("NA") // Lead, Order, Other, NA
-  bucketReference String?               // Reference number (OrderNo, OppNumber)
-  documentPath    String?               // Physically mapped file path
+  bucketReference String? // Reference number (OrderNo, OppNumber)
+  documentPath    String? // Physically mapped file path
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
 
@@ -1068,24 +1106,94 @@ model Expense {
 }
 
 model TimeEntry {
-  id              String   @id @default(cuid())
-  slno            Int      @unique @default(autoincrement())
-  companyId       String?
-  company         Company? @relation(fields: [companyId], references: [id])
-  userId          String
-  user            User     @relation(fields: [userId], references: [id])
-  date            DateTime
-  startTime       DateTime?
-  endTime         DateTime?
-  activity        String?
-  projectId       String?  // Reference an Order Id for project hours
-  project         Order?   @relation(fields: [projectId], references: [id])
-  hoursWorked     Float
-  description     String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id          String    @id @default(cuid())
+  slno        Int       @unique @default(autoincrement())
+  companyId   String?
+  company     Company?  @relation(fields: [companyId], references: [id])
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  date        DateTime
+  startTime   DateTime?
+  endTime     DateTime?
+  activity    String?
+  projectId   String? // Reference an Order Id for project hours
+  project     Order?    @relation(fields: [projectId], references: [id])
+  hoursWorked Float
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([companyId])
   @@index([userId])
 }
 
+// -----------------------------------------------------------------------------
+// PURCHASE ORDER WORKFLOW & APPROVALS
+// -----------------------------------------------------------------------------
+
+model PoWorkflowMaster {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  name      String
+  isActive  Boolean  @default(true)
+  isDelete  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  steps    PoWorkflowStep[]
+  requests PurchaseOrderRequest[]
+}
+
+model PoWorkflowStep {
+  id              String           @id @default(cuid())
+  workflowId      String
+  workflow        PoWorkflowMaster @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  stepOrder       Int
+  userId          String
+  user            User             @relation(fields: [userId], references: [id])
+  autoActionType  String           @default("NA") // "APPROVE", "CANCEL", "NA"
+  autoActionHours Int?
+  isActive        Boolean          @default(true)
+}
+
+model PurchaseOrderRequest {
+  id            String         @id @default(cuid())
+  poNumber      String         @unique
+  companyId     String
+  company       Company        @relation(fields: [companyId], references: [id])
+  supplierSlno  Int
+  supplier      SupplierMaster @relation(fields: [supplierSlno], references: [slno])
+  items         Json // array of item details
+  targetDate    DateTime?
+  paymentTerms  String?
+  justification String?
+  attachments   Json?
+
+  status           String           @default("PENDING_APPROVAL") // PENDING_APPROVAL, APPROVED, REJECTED, CANCELLED
+  workflowId       String
+  workflow         PoWorkflowMaster @relation(fields: [workflowId], references: [id])
+  currentStepOrder Int              @default(1)
+
+  rejectedRemarks String?
+  resubmittedAt   DateTime?
+
+  createdById String
+  createdBy   User     @relation("PoCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  history PoApprovalHistory[]
+}
+
+model PoApprovalHistory {
+  id          String               @id @default(cuid())
+  poRequestId String
+  poRequest   PurchaseOrderRequest @relation(fields: [poRequestId], references: [id], onDelete: Cascade)
+  stepOrder   Int
+  userId      String?
+  user        User?                @relation(fields: [userId], references: [id])
+  action      String // APPROVED, REJECTED, AUTO_APPROVED, AUTO_CANCELLED, RESUBMITTED
+  remarks     String?
+  timestamp   DateTime             @default(now())
+}

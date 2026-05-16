@@ -572,7 +572,13 @@ export default function UserConfigPage() {
                 </DialogContent>
             </Dialog>
 
-            <DataTable columns={columns} data={data} searchKey="firstName" />
+            <DataTable 
+                columns={columns} 
+                data={data} 
+                searchKey="firstName" 
+                reportName="Config - User Report" 
+                fileName="insight-config" 
+            />
         </div>
     )
 }

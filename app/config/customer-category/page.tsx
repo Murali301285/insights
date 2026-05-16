@@ -205,7 +205,13 @@ export default function CustomerCategoryMasterPage() {
                 </Dialog>
             </div>
             <div className="bg-white rounded-xl border border-zinc-200 p-2 shadow-sm">
-               <DataTable columns={columns} data={data} searchKey="categoryName" />
+               <DataTable 
+                columns={columns} 
+                data={data} 
+                searchKey="categoryName" 
+                reportName="Config - Customer Category Report" 
+                fileName="insight-config" 
+            />
             </div>
         </div>
     )

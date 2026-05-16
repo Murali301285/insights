@@ -206,7 +206,13 @@ export default function ZoneConfigPage() {
                 </Dialog>
             </div>
             <div className="bg-white rounded-xl border border-zinc-200 p-2 shadow-sm">
-               <DataTable columns={columns} data={data} searchKey="zoneName" />
+               <DataTable 
+                columns={columns} 
+                data={data} 
+                searchKey="zoneName" 
+                reportName="Config - Zone Report" 
+                fileName="insight-config" 
+            />
             </div>
         </div>
     )

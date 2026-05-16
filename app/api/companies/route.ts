@@ -25,6 +25,9 @@ export async function GET(req: NextRequest) {
 
         const companies = await prisma.company.findMany({
             where: whereClause,
+            include: {
+                DocumentTemplates: true
+            },
             orderBy: { createdAt: 'desc' }
         });
         return NextResponse.json(companies);
@@ -35,8 +38,13 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     try {
-        const body = await req.json();
-        const { name, code, address, registrationNumber, contactEmail, contactPhone, colorIndicator, contactPerson, description } = body;
+        const body = await req.json(); 
+        const { 
+            name, code, address, registrationNumber, contactEmail, contactPhone, 
+            colorIndicator, contactPerson, description, 
+            logo, signature, seal, conditions,
+            bankName, accountNumber, ifscCode, branch, accountName
+        } = body;
 
         const company = await prisma.company.create({
             data: {
@@ -48,12 +56,22 @@ export async function POST(req: NextRequest) {
                 contactPhone,
                 colorIndicator,
                 contactPerson,
-                description
+                description,
+                logo,
+                signature,
+                seal,
+                conditions,
+                bankName,
+                accountNumber,
+                ifscCode,
+                branch,
+                accountName
             },
         });
 
         return NextResponse.json(company);
     } catch (error) {
+        console.error("POST Error:", error);
         return NextResponse.json({ error: "Failed to create company" }, { status: 500 });
     }
 }
@@ -75,7 +93,12 @@ export async function DELETE(req: NextRequest) {
 export async function PUT(req: NextRequest) {
     try {
         const body = await req.json();
-        const { id, name, code, address, registrationNumber, contactEmail, contactPhone, colorIndicator, contactPerson, description, isBlocked } = body;
+        const { 
+            id, name, code, address, registrationNumber, contactEmail, contactPhone, 
+            colorIndicator, contactPerson, description, isBlocked,
+            logo, signature, seal, conditions,
+            bankName, accountNumber, ifscCode, branch, accountName
+        } = body;
 
         if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
 
@@ -91,12 +114,22 @@ export async function PUT(req: NextRequest) {
                 colorIndicator,
                 contactPerson,
                 description,
-                isBlocked
+                isBlocked,
+                logo,
+                signature,
+                seal,
+                conditions,
+                bankName,
+                accountNumber,
+                ifscCode,
+                branch,
+                accountName
             },
         });
 
         return NextResponse.json(company);
     } catch (error) {
+        console.error("PUT Error:", error);
         return NextResponse.json({ error: "Failed to update company" }, { status: 500 });
     }
 }

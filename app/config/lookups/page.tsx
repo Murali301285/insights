@@ -194,7 +194,13 @@ export default function LookupsConfigPage() {
             </div>
             
             <div className="bg-white rounded-xl border border-zinc-200 p-2">
-               <DataTable columns={columns} data={data} searchKey="value" />
+               <DataTable 
+                columns={columns} 
+                data={data} 
+                searchKey="value" 
+                reportName="Config - Lookups Report" 
+                fileName="insight-config" 
+            />
             </div>
         </div>
     )

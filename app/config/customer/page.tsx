@@ -167,6 +167,7 @@ export default function CustomerConfigPage() {
         {
             accessorKey: "companyId",
             header: "Company",
+            accessorFn: (row: any) => row.company?.name || "Global",
             cell: ({ row }) => {
                 const companyName = row.original.company?.name;
                 if (!companyName) return <span className="text-zinc-700 bg-zinc-100 px-2 py-1 rounded text-xs font-medium border border-zinc-200">Global</span>;
@@ -181,19 +182,22 @@ export default function CustomerConfigPage() {
         {
             id: "categories",
             header: "Categories",
+            accessorFn: (row: any) => row.categories.map((c: any) => c.categoryName).join(", ") || "-",
             cell: ({ row }) => {
-                const cats = row.original.categories.map(c => c.categoryName).join(", ");
+                const cats = row.original.categories.map((c: any) => c.categoryName).join(", ");
                 return <span className="text-sm">{cats || "-"}</span>
             }
         },
         {
             accessorKey: "paymentType",
             header: "Payment Type",
+            accessorFn: (row: any) => row.paymentType?.paymentType || "-",
             cell: ({ row }) => <span className="text-sm">{row.original.paymentType?.paymentType || "-"}</span>
         },
         {
             accessorKey: "isActive",
             header: "Status",
+            accessorFn: (row: any) => row.isActive ? "Active" : "Inactive",
             cell: ({ row }) => <span className={row.original.isActive ? "text-emerald-500 font-medium" : "text-red-500 font-medium"}>{row.original.isActive ? "Active" : "Inactive"}</span>
         },
         {
@@ -324,7 +328,13 @@ export default function CustomerConfigPage() {
                 </Dialog>
             </div>
             <div className="bg-white rounded-xl border border-zinc-200 p-2 shadow-sm">
-                <DataTable columns={columns} data={data} searchKey="customerName" />
+                <DataTable 
+                columns={columns} 
+                data={data} 
+                searchKey="customerName" 
+                reportName="Config - Customer Report" 
+                fileName="insight-config" 
+            />
             </div>
         </div>
     )

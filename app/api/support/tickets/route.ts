@@ -120,6 +120,7 @@ export async function PUT(req: NextRequest) {
         if (body.status !== undefined) updateData.status = body.status;
         if (body.isClosed !== undefined) updateData.isClosed = body.isClosed;
         if (body.closeReason !== undefined) updateData.closeReason = body.closeReason;
+        if (body.closedDate !== undefined) updateData.closedDate = body.closedDate ? new Date(body.closedDate) : null;
         if (body.closeAttachments !== undefined) updateData.closeAttachments = body.closeAttachments;
         if (body.comments !== undefined) updateData.comments = body.comments;
         if (body.attachments !== undefined) updateData.attachments = body.attachments;

@@ -94,7 +94,7 @@ export async function PUT(req: NextRequest) {
 
         const body = await req.json();
 
-        if (body.stageSlno) {
+        if (body.stageSlno && body.requestId) {
             // Processing a stage tracking update
             const stageSlno = parseInt(body.stageSlno);
             // @ts-ignore
@@ -126,6 +126,27 @@ export async function PUT(req: NextRequest) {
                     stageHistory: [...history, newHistoryItem]
                 },
                 include: { stage: true }
+            });
+            return NextResponse.json(updated);
+        } else if (body.id) {
+            // General Update (e.g. Closure or Editing details)
+            const updateData: any = {};
+            if (body.details !== undefined) updateData.details = body.details;
+            if (body.isClosed !== undefined) updateData.isClosed = body.isClosed;
+            if (body.status !== undefined) updateData.status = body.status;
+            if (body.closeReason !== undefined) updateData.closeReason = body.closeReason;
+            if (body.closedDate !== undefined) updateData.closedDate = body.closedDate ? new Date(body.closedDate) : null;
+            if (body.closeAttachments !== undefined) updateData.closeAttachments = body.closeAttachments;
+            if (body.actualDays !== undefined) updateData.actualDays = body.actualDays ? parseInt(body.actualDays) : null;
+            if (body.targetDate !== undefined) updateData.targetDate = body.targetDate ? new Date(body.targetDate) : null;
+            if (body.date !== undefined) updateData.date = body.date ? new Date(body.date) : new Date();
+            if (body.inchargeId !== undefined) updateData.inchargeId = body.inchargeId || null;
+            if (body.supplierSlno !== undefined) updateData.supplierSlno = body.supplierSlno ? parseInt(body.supplierSlno) : null;
+
+            // @ts-ignore
+            const updated = await prisma.supplyRequest.update({
+                where: { id: body.id },
+                data: updateData
             });
             return NextResponse.json(updated);
         }

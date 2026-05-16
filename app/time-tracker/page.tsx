@@ -105,6 +105,7 @@ export default function TimeTrackerPage() {
         {
             accessorKey: "date",
             header: "Date",
+            accessorFn: (row: any) => row.date ? new Date(row.date).toLocaleDateString('en-GB') : "-",
             cell: ({ row }) => {
                 if(!row.original.date) return "-"
                 return new Date(row.original.date).toLocaleDateString('en-GB')
@@ -113,16 +114,19 @@ export default function TimeTrackerPage() {
         {
             accessorKey: "user.profileName",
             header: "Employee",
+            accessorFn: (row: any) => row.user?.profileName || "-",
             cell: ({ row }) => row.original.user?.profileName || "-"
         },
         {
             accessorKey: "project",
             header: "Project",
+            accessorFn: (row: any) => row.project?.orderNo || "NA",
             cell: ({ row }) => row.original.project?.orderNo || "NA"
         },
         {
             accessorKey: "activity",
             header: "Activity / Title",
+            accessorFn: (row: any) => row.activity || "Task",
             cell: ({ row }) => (
                 <div className="flex flex-col">
                     <span className="font-bold text-zinc-800">{row.original.activity || "Task"}</span>
@@ -133,6 +137,12 @@ export default function TimeTrackerPage() {
         {
             accessorKey: "time",
             header: "Time (Start - End)",
+            accessorFn: (row: any) => {
+                if(!row.startTime || !row.endTime) return "-";
+                const s = new Date(row.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                const e = new Date(row.endTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                return `${s} - ${e}`;
+            },
             cell: ({ row }) => {
                 if(!row.original.startTime || !row.original.endTime) return "-"
                 const s = new Date(row.original.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
@@ -335,7 +345,13 @@ export default function TimeTrackerPage() {
                 <div className="text-sm text-zinc-500 mb-4 bg-zinc-50 p-2 rounded max-w-fit">
                     Last logged on: {new Date().toLocaleString('en-GB')}
                 </div>
-                <DataTable columns={columns} data={entries} searchKey="activity" />
+                <DataTable 
+                    columns={columns} 
+                    data={entries} 
+                    searchKey="activity" 
+                    reportName="HR - Time Tracker Report"
+                    fileName="insight-hr"
+                />
             </div>
 
             {/* Dashboard Visualizer (Bar Chart) */}

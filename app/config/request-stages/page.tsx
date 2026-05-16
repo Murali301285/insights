@@ -336,7 +336,13 @@ export default function RequestStagesMasterPage() {
                 </Dialog>
             </div>
 
-            <DataTable columns={columns} data={data} searchKey="statusName" />
+            <DataTable 
+                columns={columns} 
+                data={data} 
+                searchKey="statusName" 
+                reportName="Config - Request Stages Report" 
+                fileName="insight-config" 
+            />
         </div>
     )
 }

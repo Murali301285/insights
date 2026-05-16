@@ -188,16 +188,19 @@ export default function ExpenseTrackerPage() {
         {
             accessorKey: "user.profileName",
             header: "Employee",
+            accessorFn: (row: any) => row.user?.profileName || "-",
             cell: ({ row }) => row.original.user?.profileName || "-"
         },
         {
             id: "bucket",
             header: "Project / Bucket",
+            accessorFn: (row: any) => row.bucketReference || row.bucketType || "NA",
             cell: ({ row }) => row.original.bucketReference || row.original.bucketType || "NA"
         },
         {
             id: "details",
             header: "Category / Description",
+            accessorFn: (row: any) => row.category?.categoryName || "Expense",
             cell: ({ row }) => (
                 <div className="flex flex-col">
                     <span className="font-bold text-zinc-800">{row.original.category?.categoryName || "Expense"}</span>
@@ -493,7 +496,13 @@ export default function ExpenseTrackerPage() {
                 <div className="text-sm text-zinc-500 mb-4 bg-zinc-50 p-2 rounded max-w-fit">
                     Last synced: {new Date().toLocaleString('en-GB')}
                 </div>
-                <DataTable columns={columns} data={entries} searchKey="details" />
+                <DataTable 
+                    columns={columns} 
+                    data={entries} 
+                    searchKey="details" 
+                    reportName="Finance - Expense Report"
+                    fileName="insight-finance"
+                />
             </div>
 
             {/* Dashboard Visualizer (Bar Chart) */}

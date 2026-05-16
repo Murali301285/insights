@@ -30,7 +30,7 @@ export interface DashboardData {
   finance: { orders: string, target: string, revenue: string, revenueTrend: string };
   salesFunnel: { quotation: number, negotiation: number, orderWin: number, orderLoss: number };
   manufacturing: { onTrack: number, critical: number };
-  supplyChain: { suppliers: number, credit: number };
+  supplyChain: { internal: number, external: number };
   support: { internal: number, external: number };
   hr: { open: number, hires: number };
   alerts: { id: number, title: string, desc: string, type: string }[];
@@ -299,12 +299,12 @@ export function DashboardContent({ user, data }: DashboardContentProps) {
                                     </div>
                                     <div className="flex gap-5 md:gap-8 justify-center text-center">
                                         <div className="flex flex-col items-center">
-                                            <div className="text-2xl font-black text-zinc-900">{data?.supplyChain.suppliers || 0}</div>
-                                            <div className="text-[9px] uppercase font-bold text-zinc-500 tracking-widest mt-0.5">Suppliers</div>
+                                            <div className="text-2xl font-black text-zinc-900">{data?.supplyChain.internal || 0}</div>
+                                            <div className="text-[9px] uppercase font-bold text-zinc-500 tracking-widest mt-0.5">Internal</div>
                                         </div>
                                         <div className="flex flex-col items-center">
-                                            <div className="text-2xl font-black text-indigo-600">{data?.supplyChain.credit || 0}</div>
-                                            <div className="text-[9px] uppercase font-bold text-indigo-600/90 tracking-widest mt-0.5">New</div>
+                                            <div className="text-2xl font-black text-indigo-600">{data?.supplyChain.external || 0}</div>
+                                            <div className="text-[9px] uppercase font-bold text-indigo-600/90 tracking-widest mt-0.5">External</div>
                                         </div>
                                     </div>
                                 </div>

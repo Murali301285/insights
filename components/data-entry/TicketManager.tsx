@@ -16,6 +16,7 @@ import { Loader2, Plus, Table as TableIcon, Pencil, Trash, Building2, Ticket, Se
 import { cn } from "@/lib/utils"
 import * as xlsx from 'xlsx'
 import { SmartSummaryGrid } from "@/components/data-entry/SmartSummaryGrid"
+import { exportToExcel } from "@/lib/exportUtils"
 
 interface TicketManagerProps {
     isOpen: boolean
@@ -60,27 +61,31 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
     const [closeModalOpen, setCloseModalOpen] = useState(false)
     const [viewDetailModalOpen, setViewDetailModalOpen] = useState(false)
 
-    // Auto-compute overdue days based on Target Complete against today's clock
+    // Auto-compute Days Taken based on Date against current date or Closed Date
     useEffect(() => {
-        if (!activeTicket?.isClosed && formData.targetDate) {
-            const target = new Date(formData.targetDate)
+        if (!activeTicket?.isClosed && formData.date) {
+            const startDate = new Date(formData.date)
             const today = new Date()
-            target.setHours(0, 0, 0, 0)
+            startDate.setHours(0, 0, 0, 0)
             today.setHours(0, 0, 0, 0)
             
-            const diffTime = today.getTime() - target.getTime()
-            if (diffTime > 0) {
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-                if (Number(formData.actualDays) !== diffDays) {
-                    setFormData((prev: any) => ({ ...prev, actualDays: diffDays.toString() }))
-                }
-            } else {
-                if (formData.actualDays) {
-                    setFormData((prev: any) => ({ ...prev, actualDays: '' }))
-                }
+            const diffTime = today.getTime() - startDate.getTime()
+            const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)))
+            if (Number(formData.actualDays) !== diffDays) {
+                setFormData((prev: any) => ({ ...prev, actualDays: diffDays.toString() }))
+            }
+        } else if (activeTicket?.isClosed && formData.date && activeTicket.closedDate) {
+            const startDate = new Date(formData.date)
+            const endDate = new Date(activeTicket.closedDate)
+            startDate.setHours(0, 0, 0, 0)
+            endDate.setHours(0, 0, 0, 0)
+            const diffTime = endDate.getTime() - startDate.getTime()
+            const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)))
+            if (Number(formData.actualDays) !== diffDays) {
+                setFormData((prev: any) => ({ ...prev, actualDays: diffDays.toString() }))
             }
         }
-    }, [formData.targetDate, activeTicket])
+    }, [formData.date, activeTicket])
 
 
     useEffect(() => {
@@ -310,7 +315,9 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
                     isClosed: true,
                     status: "CLOSED",
                     closeReason: formData.closeReason,
-                    closeAttachments: processedCloseAtt
+                    closedDate: formData.closedDate ? new Date(formData.closedDate) : new Date(),
+                    closeAttachments: processedCloseAtt,
+                    actualDays: formData.actualDays
                 })
             })
 
@@ -339,6 +346,7 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
         setFiles([])
         setCloseFiles([])
         setNewComment('')
+        setFormData((prev: any) => ({ ...prev, closedDate: new Date().toISOString().split('T')[0] }))
         setEditModalOpen(true)
     }
 
@@ -350,6 +358,7 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
             targetDate: t.targetDate ? new Date(t.targetDate).toISOString().split('T')[0] : '',
             actualDays: t.actualDays || '',
             inchargeId: t.inchargeId || '',
+            closedDate: t.closedDate ? new Date(t.closedDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             bucket: t.orderId ? 'Order Fulfillment' : (t.opportunityId ? 'Business Acquisition' : 'Na'),
             orderId: t.orderId || '',
             opportunityId: t.opportunityId || '',
@@ -438,27 +447,44 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
         setSortConfig({ key, direction });
     };
 
-    const handleExport = () => {
-        const exportData = sortedTickets.map(t => ({
-            "Ticket No.": t.ticketNo,
-            "Date": formatDate(t.date),
-            "Order No.": t.order?.orderNo || '-',
-            "Ticket Details": t.details,
-            "Target Complete": formatDate(t.targetDate),
-            "Days Taken": t.actualDays || '-',
-            "Incharge": t.incharge?.name || 'Unassigned',
-            "Status": t.isClosed ? 'CLOSED' : t.status
-        }));
+    const handleExport = async () => {
+        const isExternal = viewTab === 'EXTERNAL';
+        const headers = isExternal 
+            ? ["Sl No", "Ticket No.", "Date", "Order No.", "Ticket Details", "Target Complete", "Days Taken", "Incharge", "Status"]
+            : ["Sl No", "Ticket No.", "Date", "Ticket Details", "Target Complete", "Days Taken", "Incharge", "Status"];
+            
+        const rows = sortedTickets.map((t, idx) => {
+            const row: any[] = [
+                idx + 1,
+                t.ticketNo,
+                formatDate(t.date)
+            ];
+            
+            if (isExternal) {
+                row.push(t.order?.orderNo || '-');
+            }
+            
+            row.push(
+                t.details,
+                formatDate(t.targetDate),
+                t.actualDays || '-',
+                t.incharge?.name || 'Unassigned',
+                t.isClosed ? 'CLOSED' : t.status
+            );
+            return row;
+        });
         
-        if (exportData.length === 0) {
+        if (rows.length === 0) {
             toast.error("No data to export");
             return;
         }
 
-        const ws = xlsx.utils.json_to_sheet(exportData);
-        const wb = xlsx.utils.book_new();
-        xlsx.utils.book_append_sheet(wb, ws, "Tickets");
-        xlsx.writeFile(wb, `Tickets_${viewTab}_${statusTab}_Export.xlsx`);
+        await exportToExcel({
+            data: rows,
+            headers: headers,
+            fileName: `insight-support-${viewTab.toLowerCase()}`,
+            reportName: `Support Tickets - ${viewTab} Report`
+        });
     };
 
     return (
@@ -787,15 +813,15 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-bold text-zinc-600 uppercase tracking-wider">Target Complete</label>
-                                    <Input type="date" value={formData.targetDate || ''} onChange={e => setFormData({ ...formData, targetDate: e.target.value })} className="h-9 bg-white"/>
+                                    <Input type="date" min={formData.date} value={formData.targetDate || ''} onChange={e => setFormData({ ...formData, targetDate: e.target.value })} className="h-9 bg-white"/>
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-bold text-zinc-600 uppercase tracking-wider">Days Taken</label>
                                     <Input 
                                         type="text" 
-                                        title={formData.actualDays ? `${formData.actualDays} Days Overdue` : "Automatically computed"}
+                                        title={formData.actualDays ? `Automatically computed: ${formData.actualDays} Days Taken` : "Automatically computed"}
                                         placeholder="0" 
-                                        value={formData.actualDays ? (formData.actualDays + ' Days Over') : ''} 
+                                        value={formData.actualDays ? formData.actualDays : '0'} 
                                         readOnly
                                         tabIndex={-1}
                                         className="h-9 bg-zinc-50 border-zinc-200 cursor-not-allowed text-rose-600 font-bold pointer-events-none"
@@ -1088,6 +1114,10 @@ export function TicketManager({ isOpen, onClose }: TicketManagerProps) {
                                     placeholder="Mandatory exit auditing details..."
                                     className="min-h-[100px] resize-none border-rose-200 focus-visible:ring-rose-500 bg-white shadow-inner"
                                 />
+                            </div>
+                            <div className="space-y-1.5 pt-1">
+                                <label className="text-[11px] font-bold text-rose-800 uppercase tracking-wider flex items-center gap-1">Closed Date *</label>
+                                <Input type="date" min={formData.date} value={formData.closedDate || ''} onChange={e => setFormData({ ...formData, closedDate: e.target.value })} className="h-9 border-rose-200 bg-white"/>
                             </div>
                             <div className="space-y-1.5 pt-1">
                                 <label className="text-[11px] font-bold text-rose-800 uppercase tracking-wider flex items-center gap-1">Final Documents</label>

@@ -314,7 +314,13 @@ export default function PaymentTypeMasterPage() {
                 </Dialog>
             </div>
 
-            <DataTable columns={columns} data={data} searchKey="paymentType" />
+            <DataTable 
+                columns={columns} 
+                data={data} 
+                searchKey="paymentType" 
+                reportName="Config - Payment Type Report" 
+                fileName="insight-config" 
+            />
         </div>
     )
 }

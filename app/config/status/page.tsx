@@ -213,6 +213,7 @@ export default function StatusMasterPage() {
         },
         {
             accessorKey: "isActive",
+            accessorFn: (row: any) => row.isActive ? "Yes" : "No",
             header: ({ column }) => {
                 return (
                     <Button variant="ghost" className="-ml-3 h-8 data-[state=open]:bg-accent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
@@ -333,7 +334,13 @@ export default function StatusMasterPage() {
                 </Dialog>
             </div>
 
-            <DataTable columns={columns} data={data} searchKey="statusName" />
+            <DataTable 
+                columns={columns} 
+                data={data} 
+                searchKey="statusName" 
+                reportName="Config - Status Report" 
+                fileName="insight-config" 
+            />
         </div>
     )
 }

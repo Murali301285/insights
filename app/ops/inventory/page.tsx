@@ -286,7 +286,13 @@ export default function InventoryPage() {
                 <div className="text-sm text-zinc-500 mb-4 bg-zinc-50 p-2 rounded max-w-fit">
                     Last synced: {new Date().toLocaleString('en-GB')}
                 </div>
-                <DataTable columns={columns} data={entries} searchKey="name" />
+                <DataTable 
+                    columns={columns} 
+                    data={entries} 
+                    searchKey="name" 
+                    reportName="Supply Chain - Inventory Report"
+                    fileName="insight-supplychain"
+                />
             </div>
 
             {/* View Details Modal */}

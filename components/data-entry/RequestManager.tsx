@@ -58,31 +58,40 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
     // Stage Tracking Update
     const [trackingModalOpen, setTrackingModalOpen] = useState(false)
     const [updateStageModalOpen, setUpdateStageModalOpen] = useState(false)
+
+    // Closure Tracking
+    const [closeModalOpen, setCloseModalOpen] = useState(false)
+    const [closeFiles, setCloseFiles] = useState<File[]>([])
     const [pendingStageSelection, setPendingStageSelection] = useState<any>(null)
     const [stageRemarks, setStageRemarks] = useState('')
     const [stageFiles, setStageFiles] = useState<File[]>([])
 
     // Auto-compute overdue days based on Target Complete against today's clock
+    // Auto-compute Days Taken based on Date against current date or Closed Date
     useEffect(() => {
-        if (formData.targetDate) {
-            const target = new Date(formData.targetDate)
+        if (!activeRequest?.isClosed && formData.date) {
+            const startDate = new Date(formData.date)
             const today = new Date()
-            target.setHours(0, 0, 0, 0)
+            startDate.setHours(0, 0, 0, 0)
             today.setHours(0, 0, 0, 0)
-
-            const diffTime = today.getTime() - target.getTime()
-            if (diffTime > 0) {
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-                if (Number(formData.actualDays) !== diffDays) {
-                    setFormData((prev: any) => ({ ...prev, actualDays: diffDays.toString() }))
-                }
-            } else {
-                if (formData.actualDays) {
-                    setFormData((prev: any) => ({ ...prev, actualDays: '' }))
-                }
+            
+            const diffTime = today.getTime() - startDate.getTime()
+            const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)))
+            if (Number(formData.actualDays) !== diffDays) {
+                setFormData((prev: any) => ({ ...prev, actualDays: diffDays.toString() }))
+            }
+        } else if (activeRequest?.isClosed && formData.date && activeRequest.closedDate) {
+            const startDate = new Date(formData.date)
+            const endDate = new Date(activeRequest.closedDate)
+            startDate.setHours(0, 0, 0, 0)
+            endDate.setHours(0, 0, 0, 0)
+            const diffTime = endDate.getTime() - startDate.getTime()
+            const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)))
+            if (Number(formData.actualDays) !== diffDays) {
+                setFormData((prev: any) => ({ ...prev, actualDays: diffDays.toString() }))
             }
         }
-    }, [formData.targetDate])
+    }, [formData.date, activeRequest])
 
 
     useEffect(() => {
@@ -197,6 +206,69 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
         setTrackingModalOpen(true)
     }
 
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, fileSetter: any, fileArray: any) => {
+        if (e.target.files) {
+            const newFiles = Array.from(e.target.files)
+            if (fileArray.length + newFiles.length > 5) {
+                toast.error("Maximum 5 files allowed")
+                return
+            }
+            fileSetter([...fileArray, ...newFiles])
+        }
+    }
+
+    const convertFilesToBase64 = async (fileList: File[]) => {
+        return Promise.all(fileList.map(f => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader()
+                reader.readAsDataURL(f)
+                reader.onload = () => resolve({ name: f.name, data: reader.result })
+                reader.onerror = error => reject(error)
+            })
+        }))
+    }
+
+    const handleCloseRequest = async () => {
+        if (!formData.closeReason) {
+            toast.error("Closure Reason is mandatory")
+            return
+        }
+        setSaving(true)
+        try {
+            let processedCloseAtt: any[] = []
+            if (closeFiles.length > 0) {
+                processedCloseAtt = await convertFilesToBase64(closeFiles)
+            }
+
+            const res = await fetch('/api/supply-chain/requests', {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    id: activeRequest.id,
+                    isClosed: true,
+                    status: "CLOSED",
+                    closeReason: formData.closeReason,
+                    closedDate: formData.closedDate ? new Date(formData.closedDate) : new Date(),
+                    closeAttachments: processedCloseAtt,
+                    actualDays: formData.actualDays
+                })
+            })
+
+            if (res.ok) {
+                toast.success(`Request formally closed!`)
+                setEditModalOpen(false)
+                setCloseModalOpen(false)
+                fetchRequests()
+            } else {
+                toast.error("Failed to close request")
+            }
+        } catch (error) {
+             toast.error("Network error during submission")
+        } finally {
+            setSaving(false)
+        }
+    }
+
     const handleSaveRequest = async () => {
         if (!formData.date || !formData.details) {
             toast.error("Please fill all required fields")
@@ -218,19 +290,45 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
                 supplierSlno: formData.supplierSlno || null
             }
 
-            const res = await fetch('/api/supply-chain/requests', {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            })
+            if (activeRequest) {
+                const updatePayload = {
+                    id: activeRequest.id,
+                    details: formData.details,
+                    date: formData.date,
+                    targetDate: formData.targetDate || null,
+                    actualDays: formData.actualDays || null,
+                    supplierSlno: formData.supplierSlno || null,
+                    inchargeId: formData.inchargeId || null
+                }
+                const res = await fetch('/api/supply-chain/requests', {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(updatePayload)
+                })
 
-            if (res.ok) {
-                toast.success("Request generated successfully")
-                setEditModalOpen(false)
-                fetchRequests()
+                if (res.ok) {
+                    toast.success("Request updated successfully")
+                    setEditModalOpen(false)
+                    fetchRequests()
+                } else {
+                    const e = await res.json()
+                    toast.error(e.error || "Failed to update")
+                }
             } else {
-                const e = await res.json()
-                toast.error(e.error || "Failed to save")
+                const res = await fetch('/api/supply-chain/requests', {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                })
+
+                if (res.ok) {
+                    toast.success("Request generated successfully")
+                    setEditModalOpen(false)
+                    fetchRequests()
+                } else {
+                    const e = await res.json()
+                    toast.error(e.error || "Failed to save")
+                }
             }
         } catch (e) {
             toast.error("Network error")
@@ -486,9 +584,14 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
                                                             </div>
                                                         </button>
                                                         {statusTab === 'OPEN' && (
-                                                            <Button variant="ghost" size="sm" onClick={() => handleEditRequest(req)} title="Edit Request" className="h-8 w-8 p-0 text-zinc-500 hover:text-emerald-700 hover:bg-emerald-50">
-                                                                <Pencil className="w-4 h-4" />
-                                                            </Button>
+                                                            <>
+                                                                <Button variant="ghost" size="sm" onClick={() => handleEditRequest(req)} title="Edit Request" className="h-8 w-8 p-0 text-zinc-500 hover:text-emerald-700 hover:bg-emerald-50">
+                                                                    <Pencil className="w-4 h-4" />
+                                                                </Button>
+                                                                <Button variant="ghost" size="sm" onClick={() => { setActiveRequest(req); setFormData({ ...formData, date: new Date(req.date).toISOString().split('T')[0], closedDate: new Date().toISOString().split('T')[0], closeReason: '' }); setCloseFiles([]); setCloseModalOpen(true); }} title="Complete Request" className="h-8 w-8 p-0 text-rose-500 hover:text-rose-700 hover:bg-rose-50">
+                                                                    <CheckCircle2 className="w-4 h-4" />
+                                                                </Button>
+                                                            </>
                                                         )}
                                                         <Button variant="ghost" size="sm" onClick={() => handleOpenTracking(req)} title="Track & Audit" className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-100">
                                                             <Activity className="w-4 h-4" />
@@ -628,18 +731,17 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
                                         type="date"
                                         value={formData.date || ''}
                                         onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                                        readOnly={!!activeRequest}
-                                        className={cn("h-11 shadow-sm rounded-xl font-medium transition-all", activeRequest ? "bg-zinc-50 border-zinc-200 pointer-events-none text-zinc-600" : "bg-white border-zinc-200 focus:ring-emerald-500 focus:border-emerald-500")}
+                                        className="h-11 shadow-sm rounded-xl font-medium transition-all bg-white border-zinc-200 focus:ring-emerald-500 focus:border-emerald-500"
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[11px] font-black uppercase tracking-wider text-zinc-500">Expected Time of Delivery</label>
+                                    <label className="text-[11px] font-black uppercase tracking-wider text-zinc-500">Expected Date of Delivery</label>
                                     <Input
                                         type="date"
+                                        min={formData.date}
                                         value={formData.targetDate || ''}
                                         onChange={(e) => setFormData({ ...formData, targetDate: e.target.value })}
-                                        readOnly={!!activeRequest}
-                                        className={cn("h-11 shadow-sm rounded-xl font-medium transition-all", activeRequest ? "bg-zinc-50 border-zinc-200 pointer-events-none text-zinc-600" : "bg-white border-zinc-200 focus:ring-emerald-500 focus:border-emerald-500")}
+                                        className="h-11 shadow-sm rounded-xl font-medium transition-all bg-white border-zinc-200 focus:ring-emerald-500 focus:border-emerald-500"
                                     />
                                 </div>
                             </div>
@@ -648,14 +750,15 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
                                     <label className="text-[11px] font-black uppercase tracking-wider text-zinc-500">Days Taken</label>
                                     <Input
                                         readOnly
-                                        value={formData.actualDays || 0}
+                                        title={formData.actualDays ? `Automatically computed: ${formData.actualDays} Days Taken` : "Automatically computed"}
+                                        value={formData.actualDays ? formData.actualDays : '0'}
                                         className="h-11 bg-zinc-50 border-zinc-200 shadow-sm rounded-xl font-bold text-rose-600 pointer-events-none"
                                     />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[11px] font-black uppercase tracking-wider text-zinc-500">Supplier *</label>
-                                    <Select value={formData.supplierSlno?.toString() || ""} onValueChange={(v) => setFormData({ ...formData, supplierSlno: v })} disabled={!!activeRequest}>
-                                        <SelectTrigger className={cn("h-11 shadow-sm rounded-xl font-medium", activeRequest ? "bg-zinc-50 border-zinc-200 pointer-events-none text-zinc-600" : "bg-white border-zinc-200")}>
+                                    <Select value={formData.supplierSlno?.toString() || ""} onValueChange={(v) => setFormData({ ...formData, supplierSlno: v })}>
+                                        <SelectTrigger className="h-11 shadow-sm rounded-xl font-medium bg-white border-zinc-200">
                                             <SelectValue placeholder="Select Supplier" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -764,15 +867,14 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
                                     placeholder="Describe the request"
                                     value={formData.details || ''}
                                     onChange={(e) => setFormData({ ...formData, details: e.target.value })}
-                                    readOnly={!!activeRequest}
-                                    className={cn("min-h-[160px] shadow-sm rounded-xl resize-none font-medium text-sm transition-all w-full", activeRequest ? "bg-zinc-50 border-zinc-200 pointer-events-none text-zinc-700" : "bg-white border-zinc-200 focus:ring-emerald-500 focus:border-emerald-500")}
+                                    className="min-h-[160px] shadow-sm rounded-xl resize-none font-medium text-sm transition-all w-full bg-white border-zinc-200 focus:ring-emerald-500 focus:border-emerald-500"
                                 />
                             </div>
 
                             <div className="space-y-2 w-full">
                                 <label className="text-[11px] font-black uppercase tracking-wider text-zinc-500">Incharge</label>
-                                <Select value={formData.inchargeId || ""} onValueChange={(v) => setFormData({ ...formData, inchargeId: v })} disabled={!!activeRequest}>
-                                    <SelectTrigger className={cn("h-11 shadow-sm rounded-xl font-medium w-full", activeRequest ? "bg-zinc-50 border-zinc-200 pointer-events-none opacity-80" : "bg-white border-zinc-200")}>
+                                <Select value={formData.inchargeId || ""} onValueChange={(v) => setFormData({ ...formData, inchargeId: v })}>
+                                    <SelectTrigger className="h-11 shadow-sm rounded-xl font-medium w-full bg-white border-zinc-200">
                                         <SelectValue placeholder="Assign responsible user" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -794,17 +896,15 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
                                 </div>
                             )}
 
-                            {!activeRequest && (
                                 <div className="pt-6 mt-4 border-t border-zinc-100 flex justify-end gap-3 w-full">
                                     <Button type="button" variant="ghost" onClick={() => setEditModalOpen(false)} className="font-bold rounded-xl h-11 px-6">
                                         Cancel
                                     </Button>
                                     <Button onClick={handleSaveRequest} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 px-8 rounded-xl shadow-lg shadow-emerald-600/20">
                                         {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                        Generate Request
+                                        {activeRequest ? "Update Request" : "Generate Request"}
                                     </Button>
                                 </div>
-                            )}
                         </div>
                     </DialogContent>
                 </Dialog>
@@ -1002,6 +1102,44 @@ export function RequestManager({ isOpen, onClose }: RequestManagerProps) {
                             <Button onClick={processStageUpdate} disabled={saving} className="flex-1 bg-[#009b69] hover:bg-emerald-700 text-white font-bold h-12 rounded-xl shadow-lg shadow-emerald-600/20 text-[15px]">
                                 {saving ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Confirm Update"}
                             </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Separate Modal for Request Closure */}
+                <Dialog open={closeModalOpen} onOpenChange={setCloseModalOpen}>
+                    <DialogContent className="sm:max-w-md border-t-4 border-t-rose-500 p-0 overflow-hidden shadow-2xl">
+                        <DialogHeader className="p-5 border-b border-zinc-100 bg-white">
+                            <DialogTitle className="text-base font-bold text-rose-700 flex items-center gap-2 uppercase tracking-wide">
+                                <CheckCircle2 className="w-5 h-5 flex-shrink-0" /> Request Closure Protocols
+                            </DialogTitle>
+                        </DialogHeader>
+                        <div className="p-5 bg-rose-50/30">
+                            <div className="bg-white border border-rose-100 rounded-xl p-5 shadow-sm space-y-5">
+                                <div className="space-y-1.5">
+                                    <label className="text-[11px] font-bold text-rose-800 uppercase tracking-wider flex items-center gap-1">Closure Remarks *</label>
+                                    <Textarea 
+                                        value={formData.closeReason || ''} 
+                                        onChange={e => setFormData({ ...formData, closeReason: e.target.value })}
+                                        placeholder="Mandatory exit auditing details..."
+                                        className="min-h-[100px] resize-none border-rose-200 focus-visible:ring-rose-500 bg-white shadow-inner"
+                                    />
+                                </div>
+                                <div className="space-y-1.5 pt-1">
+                                    <label className="text-[11px] font-bold text-rose-800 uppercase tracking-wider flex items-center gap-1">Closed Date *</label>
+                                    <Input type="date" min={formData.date} value={formData.closedDate || ''} onChange={e => setFormData({ ...formData, closedDate: e.target.value })} className="h-9 border-rose-200 bg-white"/>
+                                </div>
+                                <div className="space-y-1.5 pt-1">
+                                    <label className="text-[11px] font-bold text-rose-800 uppercase tracking-wider flex items-center gap-1">Final Documents</label>
+                                    <Input type="file" multiple accept=".pdf,image/*" onChange={(e) => handleFileUpload(e, setCloseFiles, closeFiles)} className="bg-white border-rose-200 text-xs shadow-sm h-9"/>
+                                    {closeFiles.length > 0 && (
+                                        <div className="mt-2 text-[11px] text-rose-700 font-bold px-1">{closeFiles.length} file(s) primed for closure mount.</div>
+                                    )}
+                                </div>
+                                <Button onClick={handleCloseRequest} disabled={saving} className="w-full bg-rose-600 hover:bg-rose-700 shadow-md font-bold mt-2 h-11 text-[15px]">
+                                    {saving ? "Processing..." : "Complete & Close Formal Request"}
+                                </Button>
+                            </div>
                         </div>
                     </DialogContent>
                 </Dialog>
